@@ -1,0 +1,927 @@
+// screens/member/MemberDashboard.js
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, FlatList, Image, Platform, Modal } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { db, getAuthInstance } from '../../config/firebase';
+import { collection, getDocs, query, where, doc, getDoc, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { Fonts } from '../../config/fonts';
+import { getTotalDonations, getDonationCount, getDonationHistory } from '../../services/paymentService';
+import { useLanguage } from '../../context/LanguageContext';
+
+export default function MemberDashboard({ navigation }) {
+  const { t, counter } = useLanguage();
+  
+  // Force re-render when language changes
+  const renderKey = `member-dashboard-${counter}`;
+
+  // Get translations - EVERY SINGLE TEXT STRING is mapped to a translation key
+  const translations = {
+    // Common
+    loading: t('common.loading') || 'Loading...',
+    nA: t('common.nA') || 'N/A',
+    close: t('common.close') || 'Close',
+    error: t('common.error') || 'Error',
+    
+    // Header
+    hi: t('common.hi') || 'Hi',
+    subGreeting: t('dashboard.subGreeting') || "Let's start spreading goodness...",
+    
+    // Quick Actions
+    donate: t('donation.donateNow') || 'Donate',
+    shop: t('dashboard.shop') || 'Shop',
+    events: t('dashboard.events') || 'Events',
+    profile: t('common.profile') || 'Profile',
+    
+    // Stats
+    donations: t('dashboard.donations') || 'Donations',
+    eventsLabel: t('dashboard.eventsLabel') || 'Events',
+    certificates: t('dashboard.certificates') || 'Certificates',
+    orders: t('dashboard.orders') || 'Orders',
+    
+    // Razorpay
+    razorpay: t('donation.razorpay') || 'Razorpay',
+    payments: t('dashboard.payments') || 'Payments',
+    total: t('common.total') || 'Total',
+    
+    // Recent Sections
+    recentDonations: t('dashboard.recentDonations') || 'Recent Donations',
+    recentOrders: t('dashboard.recentOrders') || 'Recent Orders',
+    viewAll: t('common.viewAll') || 'View All',
+    noRecentDonations: t('dashboard.noRecentDonations') || 'No recent donations',
+    noRecentOrders: t('dashboard.noRecentOrders') || 'No recent orders',
+    
+    // FAB Modal
+    quickActions: t('donation.quickActions') || 'Quick Actions',
+    applications: t('dashboard.applications') || 'Applications',
+    applyForServices: t('dashboard.applyForServices') || 'Apply for services & competitions',
+    certificatesLabel: t('dashboard.certificatesLabel') || 'Certificates',
+    viewCertificates: t('dashboard.viewCertificates') || 'View your certificates',
+    viewNotices: t('dashboard.viewNotices') || 'View Notices',
+    checkUpdates: t('dashboard.checkUpdates') || 'Check latest updates',
+    submitComplaint: t('dashboard.submitComplaint') || 'Submit Complaint',
+    reportIssue: t('dashboard.reportIssue') || 'Report an issue',
+    companyInfo: t('dashboard.companyInfo') || 'Company Info',
+    viewCompanyDetails: t('dashboard.viewCompanyDetails') || 'View company details',
+    eventsLabel2: t('dashboard.eventsLabel2') || 'Events',
+    viewEvents: t('dashboard.viewEvents') || 'View upcoming events',
+    
+    // Donation item
+    donationLabel: t('donation.donation') || 'Donation',
+    razorpayLabel: t('donation.razorpay') || 'Razorpay',
+    orderLabel: t('dashboard.order') || 'Order',
+    orderPrefix: 'Order #',
+  };
+
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [recentDonations, setRecentDonations] = useState([]);
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [profilePhoto, setProfilePhoto] = useState(null);
+  const [fabModalVisible, setFabModalVisible] = useState(false);
+  const [pendingApplications, setPendingApplications] = useState(0);
+  const [razorpayStats, setRazorpayStats] = useState({
+    totalAmount: 0,
+    count: 0,
+  });
+  const [stats, setStats] = useState({
+    totalDonations: 0,
+    eventsAttended: 0,
+    certificates: 0,
+    orders: 0
+  });
+
+  useEffect(() => {
+    fetchUserData();
+    fetchStats();
+    fetchRecentData();
+    fetchPendingApplications();
+    loadRazorpayStats();
+  }, []);
+
+  const loadRazorpayStats = () => {
+    const total = getTotalDonations();
+    const count = getDonationCount();
+    setRazorpayStats({
+      totalAmount: total,
+      count: count,
+    });
+  };
+
+  const fetchUserData = async () => {
+  const auth = getAuthInstance(); // ✅ ADD THIS
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+      
+      const docRef = doc(db, 'users', userId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setUserData(data);
+        setProfilePhoto(data.profilePhoto || null);
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPendingApplications = async () => {
+  const auth = getAuthInstance(); // ✅ ADD THIS
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const appsQuery = query(
+        collection(db, 'serviceApplications'),
+        where('userId', '==', userId),
+        where('status', '==', 'pending')
+      );
+      const appsSnap = await getDocs(appsQuery);
+      setPendingApplications(appsSnap.size);
+    } catch (error) {
+      console.error('Error fetching pending applications:', error);
+    }
+  };
+
+  const fetchStats = async () => {
+  const auth = getAuthInstance(); // ✅ ADD THIS
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const donationsSnap = await getDocs(query(
+        collection(db, 'donations'),
+        where('memberId', '==', userId),
+        where('status', '==', 'completed')
+      ));
+      let totalDonations = 0;
+      donationsSnap.forEach(doc => {
+        totalDonations += doc.data().amount || 0;
+      });
+
+      const razorpayTotal = getTotalDonations();
+
+      const eventsSnap = await getDocs(query(
+        collection(db, 'eventRegistrations'),
+        where('memberId', '==', userId)
+      ));
+
+      const certSnap = await getDocs(query(
+        collection(db, 'certificates'),
+        where('memberId', '==', userId)
+      ));
+
+      const ordersSnap = await getDocs(query(
+        collection(db, 'orders'),
+        where('memberId', '==', userId)
+      ));
+
+      setStats({
+        totalDonations: totalDonations + razorpayTotal,
+        eventsAttended: eventsSnap.size,
+        certificates: certSnap.size,
+        orders: ordersSnap.size
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
+  const fetchRecentData = async () => {
+  const auth = getAuthInstance(); // ✅ ADD THIS
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const donationsQuery = query(
+        collection(db, 'donations'),
+        where('memberId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        limit(5)
+      );
+      const donationsSnap = await getDocs(donationsQuery);
+      const donationsList = [];
+      donationsSnap.forEach(doc => {
+        donationsList.push({ id: doc.id, ...doc.data() });
+      });
+
+      const razorpayHistory = getDonationHistory();
+      const user = auth.currentUser;
+      const userRazorpayDonations = razorpayHistory.filter(
+        donation => donation.email === user?.email || donation.phone === user?.phoneNumber
+      );
+
+      const allDonations = [...donationsList, ...userRazorpayDonations];
+      allDonations.sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.timestamp);
+        const dateB = new Date(b.createdAt || b.timestamp);
+        return dateB - dateA;
+      });
+
+      setRecentDonations(allDonations.slice(0, 5));
+
+      const ordersQuery = query(
+        collection(db, 'orders'),
+        where('memberId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        limit(5)
+      );
+      const ordersSnap = await getDocs(ordersQuery);
+      const ordersList = [];
+      ordersSnap.forEach(doc => {
+        ordersList.push({ id: doc.id, ...doc.data() });
+      });
+      setRecentOrders(ordersList);
+    } catch (error) {
+      console.error('Error fetching recent data:', error);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchUserData();
+    await fetchStats();
+    await fetchRecentData();
+    await fetchPendingApplications();
+    loadRazorpayStats();
+    setRefreshing(false);
+  };
+
+  const QuickActionButton = ({ title, icon, onPress, badge }) => (
+    <TouchableOpacity style={styles.quickActionButton} onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.quickActionIconBg}>
+        <MaterialIcons name={icon} size={24} color="#ffffff" />
+        {badge > 0 && (
+          <View style={styles.badgeContainer}>
+            <Text style={styles.badgeText}>{badge}</Text>
+          </View>
+        )}
+      </View>
+      <Text style={styles.quickActionText}>{title}</Text>
+    </TouchableOpacity>
+  );
+
+  const RecentItem = ({ item, type }) => {
+    const isRazorpay = item.paymentMethod === 'razorpay' || item.paymentId;
+    
+    return (
+      <View style={styles.recentItem}>
+        <View style={styles.recentItemLeft}>
+          <View style={[styles.recentItemIcon, { backgroundColor: isRazorpay ? '#3b82f615' : type === 'donation' ? '#ef444415' : '#8b5cf615' }]}>
+            <MaterialIcons 
+              name={isRazorpay ? 'security' : type === 'donation' ? 'favorite' : 'shopping-bag'} 
+              size={16} 
+              color={isRazorpay ? '#3b82f6' : type === 'donation' ? '#ef4444' : '#8b5cf6'} 
+            />
+          </View>
+          <View>
+            <Text style={styles.recentItemTitle}>
+              {type === 'donation' ? `₹${item.amount?.toLocaleString() || 0}` : item.productName || translations.orderLabel}
+            </Text>
+            <Text style={styles.recentItemSubtitle} numberOfLines={1}>
+              {type === 'donation' 
+                ? (item.purpose || translations.donationLabel) + (isRazorpay ? ` • ${translations.razorpayLabel}` : '')
+                : `${translations.orderPrefix}${item.id?.slice(-6) || translations.nA}`}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.recentItemDate}>
+          {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 
+           item.timestamp ? new Date(item.timestamp).toLocaleDateString() : translations.nA}
+        </Text>
+      </View>
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer} key={renderKey}>
+        <Text style={styles.loadingText}>{translations.loading}</Text>
+      </View>
+    );
+  }
+
+  const firstName = userData?.fullName?.split(' ')[0] || userData?.name?.split(' ')[0] || 'Member';
+
+  return (
+    <View style={{ flex: 1 }} key={renderKey}>
+      <ScrollView 
+        style={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3b82f6']} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Blue Header Card */}
+        <View style={styles.headerCard}>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.greeting}>{translations.hi}, {firstName}</Text>
+              <Text style={styles.subGreeting}>{translations.subGreeting}</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.profileIcon}
+              onPress={() => navigation.navigate('Profile')}
+              activeOpacity={0.7}
+            >
+              {profilePhoto ? (
+                <Image source={{ uri: profilePhoto }} style={styles.profileImage} />
+              ) : (
+                <MaterialIcons name="person" size={30} color="#3b82f6" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Quick Actions - Navigate to Tab Screens */}
+          <View style={styles.quickActionsRow}>
+            <QuickActionButton 
+              title={translations.donate} 
+              icon="favorite" 
+              onPress={() => navigation.navigate('Donate')}
+            />
+            <QuickActionButton 
+              title={translations.shop} 
+              icon="shopping-cart" 
+              onPress={() => navigation.navigate('Shop')}
+            />
+            <QuickActionButton 
+              title={translations.events} 
+              icon="event" 
+              onPress={() => navigation.navigate('Events')}
+            />
+            <QuickActionButton 
+              title={translations.profile} 
+              icon="person" 
+              onPress={() => navigation.navigate('Profile')}
+            />
+          </View>
+        </View>
+
+        {/* Razorpay Stats Card */}
+        {razorpayStats.count > 0 && (
+          <View style={[styles.statCard, { marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <MaterialIcons name="security" size={16} color="#3b82f6" />
+              <Text style={{ fontFamily: Fonts.SemiBold, fontSize: 12, color: '#3b82f6', includeFontPadding: false, textAlignVertical: 'center' }}>{translations.razorpay}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 20 }}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ fontFamily: Fonts.Bold, fontSize: 14, color: '#1f2937', includeFontPadding: false, textAlignVertical: 'center' }}>{razorpayStats.count}</Text>
+                <Text style={{ fontFamily: Fonts.Regular, fontSize: 9, color: '#6b7280', includeFontPadding: false, textAlignVertical: 'center' }}>{translations.payments}</Text>
+              </View>
+              <View style={{ width: 1, backgroundColor: '#e5e7eb' }} />
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ fontFamily: Fonts.Bold, fontSize: 14, color: '#1f2937', includeFontPadding: false, textAlignVertical: 'center' }}>₹{razorpayStats.totalAmount.toLocaleString()}</Text>
+                <Text style={{ fontFamily: Fonts.Regular, fontSize: 9, color: '#6b7280', includeFontPadding: false, textAlignVertical: 'center' }}>{translations.total}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Stats Cards */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <MaterialIcons name="favorite" size={20} color="#ef4444" />
+            <Text style={styles.statValue}>₹{stats.totalDonations.toLocaleString()}</Text>
+            <Text style={styles.statLabel}>{translations.donations}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <MaterialIcons name="event" size={20} color="#8b5cf6" />
+            <Text style={styles.statValue}>{stats.eventsAttended}</Text>
+            <Text style={styles.statLabel}>{translations.eventsLabel}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <MaterialIcons name="verified" size={20} color="#10b981" />
+            <Text style={styles.statValue}>{stats.certificates}</Text>
+            <Text style={styles.statLabel}>{translations.certificates}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <MaterialIcons name="shopping-bag" size={20} color="#f59e0b" />
+            <Text style={styles.statValue}>{stats.orders}</Text>
+            <Text style={styles.statLabel}>{translations.orders}</Text>
+          </View>
+        </View>
+
+        {/* Recent Donations */}
+        <View style={styles.recentSection}>
+          <View style={styles.recentHeader}>
+            <Text style={styles.recentTitle}>{translations.recentDonations}</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Donate')} activeOpacity={0.7}>
+              <Text style={styles.viewAllText}>{translations.viewAll}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {recentDonations.length > 0 ? (
+            recentDonations.map((item, index) => (
+              <RecentItem key={index} item={item} type="donation" />
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>{translations.noRecentDonations}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Recent Orders */}
+        <View style={styles.recentSection}>
+          <View style={styles.recentHeader}>
+            <Text style={styles.recentTitle}>{translations.recentOrders}</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Profile', { screen: 'MyOrders' })} activeOpacity={0.7}>
+              <Text style={styles.viewAllText}>{translations.viewAll}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {recentOrders.length > 0 ? (
+            recentOrders.map((item, index) => (
+              <RecentItem key={index} item={item} type="order" />
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>{translations.noRecentOrders}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+
+      {/* FAB Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={fabModalVisible}
+        onRequestClose={() => setFabModalVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setFabModalVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>{translations.quickActions}</Text>
+              
+              <TouchableOpacity 
+                style={styles.modalItem}
+                onPress={() => {
+                  setFabModalVisible(false);
+                  navigation.navigate('Applications');
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.modalItemIcon, { backgroundColor: '#3b82f6' }]}>
+                  <MaterialIcons name="handshake" size={22} color="#ffffff" />
+                </View>
+                <View style={styles.modalItemTextContainer}>
+                  <Text style={styles.modalItemTitle}>{translations.applications}</Text>
+                  <Text style={styles.modalItemSubtitle}>{translations.applyForServices}</Text>
+                </View>
+                {pendingApplications > 0 && (
+                  <View style={styles.pendingBadge}>
+                    <Text style={styles.pendingBadgeText}>{pendingApplications}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.modalItem}
+                onPress={() => {
+                  setFabModalVisible(false);
+                  navigation.navigate('Profile', { screen: 'MemberCertificate' });
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.modalItemIcon, { backgroundColor: '#10b981' }]}>
+                  <MaterialIcons name="verified" size={22} color="#ffffff" />
+                </View>
+                <View style={styles.modalItemTextContainer}>
+                  <Text style={styles.modalItemTitle}>{translations.certificatesLabel}</Text>
+                  <Text style={styles.modalItemSubtitle}>{translations.viewCertificates}</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.modalItem}
+                onPress={() => {
+                  setFabModalVisible(false);
+                  navigation.navigate('Profile', { screen: 'MemberNotice' });
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.modalItemIcon, { backgroundColor: '#8b5cf6' }]}>
+                  <MaterialIcons name="announcement" size={22} color="#ffffff" />
+                </View>
+                <View style={styles.modalItemTextContainer}>
+                  <Text style={styles.modalItemTitle}>{translations.viewNotices}</Text>
+                  <Text style={styles.modalItemSubtitle}>{translations.checkUpdates}</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.modalItem}
+                onPress={() => {
+                  setFabModalVisible(false);
+                  navigation.navigate('Profile', { screen: 'MemberComplaint' });
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.modalItemIcon, { backgroundColor: '#ef4444' }]}>
+                  <MaterialIcons name="report-problem" size={22} color="#ffffff" />
+                </View>
+                <View style={styles.modalItemTextContainer}>
+                  <Text style={styles.modalItemTitle}>{translations.submitComplaint}</Text>
+                  <Text style={styles.modalItemSubtitle}>{translations.reportIssue}</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.modalItem}
+                onPress={() => {
+                  setFabModalVisible(false);
+                  navigation.navigate('Company');
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.modalItemIcon, { backgroundColor: '#f59e0b' }]}>
+                  <MaterialIcons name="business" size={22} color="#ffffff" />
+                </View>
+                <View style={styles.modalItemTextContainer}>
+                  <Text style={styles.modalItemTitle}>{translations.companyInfo}</Text>
+                  <Text style={styles.modalItemSubtitle}>{translations.viewCompanyDetails}</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.modalItem}
+                onPress={() => {
+                  setFabModalVisible(false);
+                  navigation.navigate('Events');
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.modalItemIcon, { backgroundColor: '#3b82f6' }]}>
+                  <MaterialIcons name="event" size={22} color="#ffffff" />
+                </View>
+                <View style={styles.modalItemTextContainer}>
+                  <Text style={styles.modalItemTitle}>{translations.eventsLabel2}</Text>
+                  <Text style={styles.modalItemSubtitle}>{translations.viewEvents}</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.modalCloseButton}
+                onPress={() => setFabModalVisible(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalCloseButtonText}>{translations.close}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+  },
+  loadingText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  // Blue Header Card
+  headerCard: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    marginBottom: 16,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  greeting: {
+    fontFamily: Fonts.Bold,
+    fontSize: 22,
+    color: '#ffffff',
+    marginBottom: 4,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  subGreeting: {
+    fontFamily: Fonts.Italic,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  profileIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: 40,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  profileImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 40,
+  },
+  // Quick Actions
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 4,
+  },
+  quickActionButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  quickActionIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    position: 'relative',
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    minWidth: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#3b82f6',
+  },
+  badgeText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 9,
+    color: '#ffffff',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  quickActionText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#ffffff',
+    fontSize: 9,
+    marginTop: 3,
+    textAlign: 'center',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  // Stats
+  statsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 10,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  statValue: {
+    fontFamily: Fonts.Bold,
+    fontSize: 16,
+    color: '#1f2937',
+    marginTop: 4,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  statLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 10,
+    color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  // Recent Section
+  recentSection: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  recentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  recentTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 18,
+    color: '#1f2937',
+    letterSpacing: 0.5,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  viewAllText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 13,
+    color: '#3b82f6',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  recentItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  recentItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  recentItemIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recentItemTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#1f2937',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  recentItemSubtitle: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  recentItemDate: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#9ca3af',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  emptyState: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+  },
+  emptyStateText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#9ca3af',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  bottomSpacing: {
+    height: 20,
+  },
+
+  // FAB Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 40,
+    maxHeight: '80%',
+  },
+  modalContent: {
+    width: '100%',
+  },
+  modalTitle: {
+    fontFamily: Fonts.Bold,
+    fontSize: 20,
+    color: '#1f2937',
+    marginBottom: 16,
+    textAlign: 'center',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: '#f9fafb',
+  },
+  modalItemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  modalItemTextContainer: {
+    flex: 1,
+  },
+  modalItemTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 16,
+    color: '#1f2937',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  modalItemSubtitle: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  pendingBadge: {
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  pendingBadgeText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 11,
+    color: '#ffffff',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  modalCloseButton: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f3f4f6',
+  },
+  modalCloseButtonText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+});

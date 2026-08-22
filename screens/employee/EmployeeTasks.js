@@ -1,0 +1,908 @@
+// screens/employee/EmployeeTasks.js
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl, FlatList, Modal, TextInput, ActivityIndicator } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { db, getAuthInstance } from '../../config/firebase';
+import { collection, query, where, getDocs, onSnapshot, updateDoc, doc, orderBy, getDoc } from 'firebase/firestore';
+import { Fonts } from '../../config/fonts';
+import { useLanguage } from '../../context/LanguageContext';
+
+export default function EmployeeTasks({ navigation }) {
+  const { t, counter } = useLanguage();
+  
+  // Force re-render when language changes
+  const renderKey = `employee-tasks-${counter}`;
+
+  // Get translations
+  const getTranslations = () => ({
+    // Common
+    error: t('common.error') || 'Error',
+    success: t('common.success') || 'Success',
+    loading: t('common.loading') || 'Loading...',
+    nA: t('common.nA') || 'N/A',
+    cancel: t('common.cancel') || 'Cancel',
+    update: t('common.update') || 'Update',
+    search: t('common.search') || 'Search',
+    general: t('common.general') || 'General',
+    pending: t('common.pending') || 'Pending',
+    admin: t('common.admin') || 'Admin',
+    
+    // Task specific
+    myTasks: t('employee.tasks') || 'My Tasks',
+    searchTasks: t('employee.search') || 'Search tasks...',
+    total: t('common.total') || 'Total',
+    inProgress: t('employee.inProgress') || 'In Progress',
+    completed: t('employee.completed') || 'Completed',
+    noTasksAssigned: 'No tasks assigned',
+    noTasksAtMoment: 'You have no tasks at the moment',
+    taskDetails: 'Task Details',
+    title: t('common.title') || 'Title',
+    description: t('common.description') || 'Description',
+    category: t('common.category') || 'Category',
+    dueDate: t('employee.dueDate') || 'Due Date',
+    assignedBy: t('employee.assignedTo') || 'Assigned By',
+    assignedDate: 'Assigned Date',
+    noDescription: t('employee.noDescription') || 'No description',
+    startTask: t('employee.start') || 'Start Task',
+    markComplete: t('employee.complete') || 'Mark Complete',
+    start: t('employee.start') || 'Start',
+    complete: t('employee.complete') || 'Complete',
+    
+    // Status labels
+    statusPending: t('common.pending') || 'Pending',
+    statusInProgress: t('employee.inProgress') || 'In Progress',
+    statusCompleted: t('employee.completed') || 'Completed',
+    statusCancelled: t('common.cancelled') || 'Cancelled',
+    
+    // Priority labels
+    priorityHigh: t('common.high') || 'High',
+    priorityMedium: t('common.medium') || 'Medium',
+    priorityLow: t('common.low') || 'Low',
+    
+    // Alert messages
+    updateTaskStatus: 'Update Task Status',
+    confirmMarkAs: 'Are you sure you want to mark this task as {status}?',
+    taskStatusUpdated: 'Task status updated to {status}',
+    statusUpdated: t('employee.statusUpdated') || 'Status updated to {status}',
+    
+    // Filter
+    all: t('common.all') || 'All',
+  });
+
+  const translations = getTranslations();
+
+  const [tasks, setTasks] = useState([]);
+  const [filteredTasks, setFilteredTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
+
+  useEffect(() => {
+    fetchEmployeeId();
+  }, []);
+
+  const fetchEmployeeId = async () => {
+const auth = getAuthInstance(); // ✅ ADD THIS
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        if (data.employeeId) {
+          setEmployeeId(data.employeeId);
+          setupTasksListener(data.employeeId);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching employee ID:', error);
+    }
+  };
+
+  const setupTasksListener = (empId) => {
+    const q = query(
+      collection(db, 'employeeTasks'),
+      where('assignedTo', '==', empId),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const tasksList = [];
+      snapshot.forEach((doc) => {
+        tasksList.push({ id: doc.id, ...doc.data() });
+      });
+      setTasks(tasksList);
+      applyFilters(tasksList, searchQuery, filterStatus);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  };
+
+  const applyFilters = (data, searchText, status) => {
+    let filtered = data;
+
+    if (searchText) {
+      filtered = filtered.filter(task =>
+        task.title?.toLowerCase().includes(searchText.toLowerCase()) ||
+        task.description?.toLowerCase().includes(searchText.toLowerCase()) ||
+        task.category?.toLowerCase().includes(searchText.toLowerCase())
+      );
+    }
+
+    if (status !== 'all') {
+      filtered = filtered.filter(task => task.status === status);
+    }
+
+    setFilteredTasks(filtered);
+  };
+
+  const handleSearch = (text) => {
+    setSearchQuery(text);
+    applyFilters(tasks, text, filterStatus);
+  };
+
+  const handleFilterPress = (status) => {
+    setFilterStatus(status);
+    applyFilters(tasks, searchQuery, status);
+  };
+
+  const handleStatusUpdate = async (taskId, status) => {
+    const statusLabel = status === 'in-progress' ? translations.statusInProgress : 
+                        status === 'completed' ? translations.statusCompleted : 
+                        status === 'cancelled' ? translations.statusCancelled : 
+                        translations.statusPending;
+    
+    Alert.alert(
+      translations.updateTaskStatus,
+      translations.confirmMarkAs.replace('{status}', statusLabel.toLowerCase()),
+      [
+        { text: translations.cancel, style: 'cancel' },
+        {
+          text: translations.update,
+          onPress: async () => {
+            try {
+              await updateDoc(doc(db, 'employeeTasks', taskId), {
+                status,
+                updatedAt: new Date().toISOString()
+              });
+              Alert.alert(translations.success, translations.taskStatusUpdated.replace('{status}', statusLabel));
+            } catch (error) {
+              Alert.alert(translations.error, error.message);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setRefreshing(false);
+  };
+
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'completed': return '#10b981';
+      case 'in-progress': return '#3b82f6';
+      case 'pending': return '#f59e0b';
+      case 'cancelled': return '#ef4444';
+      default: return '#6b7280';
+    }
+  };
+
+  const getStatusLabel = (status) => {
+    switch(status) {
+      case 'completed': return translations.statusCompleted;
+      case 'in-progress': return translations.statusInProgress;
+      case 'pending': return translations.statusPending;
+      case 'cancelled': return translations.statusCancelled;
+      default: return status || translations.statusPending;
+    }
+  };
+
+  const getPriorityColor = (priority) => {
+    switch(priority) {
+      case 'high': return '#ef4444';
+      case 'medium': return '#f59e0b';
+      case 'low': return '#10b981';
+      default: return '#6b7280';
+    }
+  };
+
+  const getPriorityLabel = (priority) => {
+    switch(priority) {
+      case 'high': return translations.priorityHigh;
+      case 'medium': return translations.priorityMedium;
+      case 'low': return translations.priorityLow;
+      default: return priority || translations.priorityMedium;
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch(status) {
+      case 'completed': return 'check-circle';
+      case 'in-progress': return 'play-circle';
+      case 'pending': return 'pending';
+      case 'cancelled': return 'cancel';
+      default: return 'info';
+    }
+  };
+
+  const StatCard = ({ label, count, icon, color }) => (
+    <TouchableOpacity 
+      style={[styles.statCard, { borderLeftColor: color }]}
+      onPress={() => {
+        const statusMap = {
+          [translations.total]: 'all',
+          [translations.statusPending]: 'pending',
+          [translations.statusInProgress]: 'in-progress',
+          [translations.statusCompleted]: 'completed'
+        };
+        handleFilterPress(statusMap[label] || 'all');
+      }}
+      activeOpacity={0.7}
+    >
+      <View style={styles.statIconContainer}>
+        <MaterialIcons name={icon} size={18} color={color} />
+      </View>
+      <View style={styles.statTextContainer}>
+        <Text style={styles.statCount}>{count}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const TaskCard = ({ task }) => (
+    <TouchableOpacity 
+      style={styles.taskCard}
+      onPress={() => {
+        setSelectedTask(task);
+        setDetailModalVisible(true);
+      }}
+      activeOpacity={0.7}
+    >
+      <View style={styles.taskHeader}>
+        <View style={styles.taskTitleContainer}>
+          <View style={[styles.taskStatusDot, { backgroundColor: getStatusColor(task.status) }]} />
+          <Text style={styles.taskTitle} numberOfLines={1}>{task.title}</Text>
+        </View>
+        <View style={[styles.taskStatusBadge, { backgroundColor: getStatusColor(task.status) + '15' }]}>
+          <Text style={[styles.taskStatusText, { color: getStatusColor(task.status) }]}>
+            {getStatusLabel(task.status)}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.taskDescription} numberOfLines={2}>
+        {task.description || translations.noDescription}
+      </Text>
+
+      <View style={styles.taskDetails}>
+        <View style={styles.taskDetail}>
+          <MaterialIcons name="category" size={14} color="#6b7280" />
+          <Text style={styles.taskDetailText}>{task.category || translations.general}</Text>
+        </View>
+        <View style={[styles.taskPriorityBadge, { backgroundColor: getPriorityColor(task.priority) + '15' }]}>
+          <MaterialIcons name="flag" size={12} color={getPriorityColor(task.priority)} />
+          <Text style={[styles.taskPriorityText, { color: getPriorityColor(task.priority) }]}>
+            {getPriorityLabel(task.priority)}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.taskFooter}>
+        <Text style={styles.taskDueDate}>{translations.dueDate}: {task.dueDate || translations.nA}</Text>
+        <Text style={styles.taskAssignedBy}>{translations.assignedBy}: {task.assignedByName || translations.admin}</Text>
+      </View>
+
+      {task.status !== 'completed' && task.status !== 'cancelled' && (
+        <View style={styles.taskActions}>
+          {task.status === 'pending' && (
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.startButton]}
+              onPress={() => handleStatusUpdate(task.id, 'in-progress')}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="play-arrow" size={14} color="#ffffff" />
+              <Text style={styles.actionButtonText}>{translations.start}</Text>
+            </TouchableOpacity>
+          )}
+          {task.status === 'in-progress' && (
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.completeButton]}
+              onPress={() => handleStatusUpdate(task.id, 'completed')}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="check" size={14} color="#ffffff" />
+              <Text style={styles.actionButtonText}>{translations.complete}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer} key={renderKey}>
+        <ActivityIndicator size="large" color="#FF7722" />
+        <Text style={styles.loadingText}>{translations.loading}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container} key={renderKey}>
+      {/* Header */}
+      <View style={styles.headerCard}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
+            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{translations.myTasks}</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        {/* Search */}
+        <View style={styles.searchContainer}>
+          <MaterialIcons name="search" size={18} color="#9ca3af" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={translations.searchTasks}
+            placeholderTextColor="#9ca3af"
+            value={searchQuery}
+            onChangeText={handleSearch}
+            textAlignVertical="center"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => handleSearch('')}>
+              <MaterialIcons name="close" size={18} color="#9ca3af" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Stats */}
+        <View style={styles.statsContainer}>
+          <StatCard 
+            label={translations.total} 
+            count={tasks.length} 
+            icon="assignment" 
+            color="#FF7722" 
+          />
+          <StatCard 
+            label={translations.statusPending} 
+            count={tasks.filter(t => t.status === 'pending').length} 
+            icon="pending" 
+            color="#f59e0b" 
+          />
+          <StatCard 
+            label={translations.statusInProgress} 
+            count={tasks.filter(t => t.status === 'in-progress').length} 
+            icon="play-circle" 
+            color="#3b82f6" 
+          />
+          <StatCard 
+            label={translations.statusCompleted} 
+            count={tasks.filter(t => t.status === 'completed').length} 
+            icon="check-circle" 
+            color="#10b981" 
+          />
+        </View>
+      </View>
+
+      {/* Task List */}
+      <FlatList
+        data={filteredTasks}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <TaskCard task={item} />}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FF7722']} />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <MaterialIcons name="assignment" size={44} color="#d1d5db" />
+            <Text style={styles.emptyStateText}>{translations.noTasksAssigned}</Text>
+            <Text style={styles.emptyStateSubtext}>{translations.noTasksAtMoment}</Text>
+          </View>
+        }
+        contentContainerStyle={styles.listContent}
+      />
+
+      {/* Task Detail Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={detailModalVisible}
+        onRequestClose={() => setDetailModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+            {selectedTask && (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>{translations.taskDetails}</Text>
+                  <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
+                    <MaterialIcons name="close" size={24} color="#6b7280" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.detailStatusBar}>
+                  <View style={[styles.detailStatusBadge, { backgroundColor: getStatusColor(selectedTask.status) + '15' }]}>
+                    <MaterialIcons name={getStatusIcon(selectedTask.status)} size={16} color={getStatusColor(selectedTask.status)} />
+                    <Text style={[styles.detailStatusText, { color: getStatusColor(selectedTask.status) }]}>
+                      {getStatusLabel(selectedTask.status)}
+                    </Text>
+                  </View>
+                  <View style={[styles.detailPriorityBadge, { backgroundColor: getPriorityColor(selectedTask.priority) + '15' }]}>
+                    <MaterialIcons name="flag" size={14} color={getPriorityColor(selectedTask.priority)} />
+                    <Text style={[styles.detailPriorityText, { color: getPriorityColor(selectedTask.priority) }]}>
+                      {getPriorityLabel(selectedTask.priority)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailLabel}>{translations.title}</Text>
+                  <Text style={styles.detailValue}>{selectedTask.title}</Text>
+                </View>
+
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailLabel}>{translations.description}</Text>
+                  <Text style={styles.detailValue}>{selectedTask.description || translations.noDescription}</Text>
+                </View>
+
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailLabel}>{translations.category}</Text>
+                  <Text style={styles.detailValue}>{selectedTask.category || translations.general}</Text>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <View style={[styles.detailSection, { flex: 1 }]}>
+                    <Text style={styles.detailLabel}>{translations.dueDate}</Text>
+                    <Text style={styles.detailValue}>{selectedTask.dueDate || translations.nA}</Text>
+                  </View>
+                  <View style={[styles.detailSection, { flex: 1 }]}>
+                    <Text style={styles.detailLabel}>{translations.assignedBy}</Text>
+                    <Text style={styles.detailValue}>{selectedTask.assignedByName || translations.admin}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailLabel}>{translations.assignedDate}</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedTask.createdAt ? new Date(selectedTask.createdAt).toLocaleDateString() : translations.nA}
+                  </Text>
+                </View>
+
+                {selectedTask.status !== 'completed' && selectedTask.status !== 'cancelled' && (
+                  <View style={styles.detailActions}>
+                    {selectedTask.status === 'pending' && (
+                      <TouchableOpacity 
+                        style={[styles.detailActionButton, styles.detailStartButton]}
+                        onPress={() => {
+                          setDetailModalVisible(false);
+                          handleStatusUpdate(selectedTask.id, 'in-progress');
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons name="play-arrow" size={16} color="#ffffff" />
+                        <Text style={styles.detailActionText}>{translations.startTask}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {selectedTask.status === 'in-progress' && (
+                      <TouchableOpacity 
+                        style={[styles.detailActionButton, styles.detailCompleteButton]}
+                        onPress={() => {
+                          setDetailModalVisible(false);
+                          handleStatusUpdate(selectedTask.id, 'completed');
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons name="check" size={16} color="#ffffff" />
+                        <Text style={styles.detailActionText}>{translations.markComplete}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fdf8f3',
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fdf8f3',
+  },
+  loadingText: {
+    fontFamily: Fonts.Regular,
+    marginTop: 10,
+    color: '#6b7280',
+    fontSize: 14,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+
+  headerCard: {
+    backgroundColor: '#FF7722',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  backButton: {
+    padding: 4,
+  },
+  headerTitle: {
+    fontFamily: Fonts.Bold,
+    fontSize: 20,
+    color: '#ffffff',
+    flex: 1,
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
+
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#1f2937',
+    paddingVertical: 0,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  statCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    padding: 6,
+    borderRadius: 10,
+    gap: 6,
+    borderLeftWidth: 3,
+  },
+  statIconContainer: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statTextContainer: {
+    flex: 1,
+  },
+  statCount: {
+    fontFamily: Fonts.Bold,
+    fontSize: 14,
+    color: '#ffffff',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  statLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 8,
+    color: 'rgba(255,255,255,0.8)',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    paddingTop: 4,
+  },
+
+  taskCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  taskHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  taskTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  taskStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  taskTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#1f2937',
+    flex: 1,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  taskStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  taskStatusText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 10,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  taskDescription: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 8,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  taskDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  taskDetail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  taskDetailText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  taskPriorityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 4,
+  },
+  taskPriorityText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 10,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  taskFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  taskDueDate: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  taskAssignedBy: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#9ca3af',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  taskActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    gap: 8,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  startButton: {
+    backgroundColor: '#3b82f6',
+  },
+  completeButton: {
+    backgroundColor: '#10b981',
+  },
+  actionButtonText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#ffffff',
+    fontSize: 12,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
+    gap: 12,
+  },
+  emptyStateText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 16,
+    color: '#1f2937',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  emptyStateSubtext: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#6b7280',
+    textAlign: 'center',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontFamily: Fonts.Bold,
+    fontSize: 20,
+    color: '#1f2937',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  detailStatusBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  detailStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  detailStatusText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  detailPriorityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  detailPriorityText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  detailSection: {
+    marginBottom: 12,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  detailLabel: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  detailValue: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#1f2937',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  detailActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  detailActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  detailStartButton: {
+    backgroundColor: '#3b82f6',
+  },
+  detailCompleteButton: {
+    backgroundColor: '#10b981',
+  },
+  detailActionText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#ffffff',
+    fontSize: 14,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+});

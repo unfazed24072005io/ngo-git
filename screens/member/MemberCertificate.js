@@ -1,0 +1,1265 @@
+// screens/member/MemberCertificate.js
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, 
+  Alert, ActivityIndicator, Share, RefreshControl, Modal, Platform, Dimensions 
+} from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { db, getAuthInstance } from '../../config/firebase';
+import { collection, getDocs, query, where, doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { Fonts } from '../../config/fonts';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRoute } from '@react-navigation/native';
+import { useLanguage } from '../../context/LanguageContext';
+
+const { width } = Dimensions.get('window');
+
+export default function MemberCertificate({ navigation }) {
+  const { t, counter } = useLanguage();
+  
+  // Force re-render when language changes
+  const renderKey = `member-certificate-${counter}`;
+
+  // Get translations - EVERY SINGLE TEXT STRING is mapped to a translation key
+  const translations = {
+    // Common
+    error: t('common.error') || 'Error',
+    loading: t('common.loading') || 'Loading...',
+    nA: t('common.nA') || 'N/A',
+    close: t('common.close') || 'Close',
+    
+    // Header
+    myCertificates: t('certificate.myCertificates') || 'My Certificates',
+    
+    // Stats
+    total: t('common.total') || 'Total',
+    donations: t('certificate.donations') || 'Donations',
+    amount: t('common.amount') || 'Amount',
+    
+    // Empty State
+    noCertificates: t('certificate.noCertificates') || 'No certificates yet',
+    noCertificatesSubtext: t('certificate.earnFirstCertificate') || 'Complete activities to earn certificates',
+    
+    // Certificate Types
+    donationCert: t('certificate.donation') || 'Donation',
+    membershipCert: t('certificate.membership') || 'Membership',
+    volunteerCert: t('certificate.volunteer') || 'Volunteer',
+    certificate: t('certificate.certificate') || 'Certificate',
+    
+    // Certificate View
+    certificateOf: t('certificate.certificateOf') || 'Certificate',
+    ofAppreciation: t('certificate.ofAppreciation') || 'of Appreciation',
+    presentedTo: t('certificate.presentedTo') || 'This certificate is proudly presented to',
+    recognition: t('certificate.recognition') || 'in recognition of their generous contribution of',
+    forPurpose: t('certificate.forPurpose') || 'for the purpose of',
+    generosityQuote: t('certificate.generosityQuote') || '"Your generosity transforms lives and builds a better tomorrow."',
+    issuedOn: t('certificate.issuedOn') || 'Issued on:',
+    certificateNo: t('certificate.certificateNo') || 'Certificate No:',
+    verifiedByRazorpay: t('certificate.verifiedByRazorpay') || 'Verified by Razorpay',
+    est: t('certificate.est') || 'Est.',
+    
+    // Buttons
+    share: t('common.share') || 'Share',
+    download: t('certificate.download') || 'Download',
+    profile: t('common.profile') || 'Profile',
+    
+    // Loading
+    loadingCertificates: t('certificate.loading') || 'Loading Certificates...',
+    
+    // Share Message
+    shareTitle: t('certificate.shareCertificate') || 'Certificate',
+    shareFailed: t('certificate.sharingNotAvailable') || 'Failed to share certificate',
+    downloadFailed: t('certificate.downloadFailed') || 'Failed to download certificate',
+    downloadNotAvailable: t('certificate.downloadNotAvailable') || 'Download is not available on this device',
+    
+    // Alert
+    shareError: t('certificate.failedToShare') || 'Failed to share certificate',
+    
+    // Razorpay
+    razorpay: t('donation.razorpay') || 'Razorpay',
+    
+    // Value labels
+    paymentId: t('certificate.paymentId') || 'Payment ID',
+  };
+
+  const route = useRoute();
+  const [certificates, setCertificates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [selectedCert, setSelectedCert] = useState(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [showCertificateView, setShowCertificateView] = useState(false);
+  const [currentCert, setCurrentCert] = useState(null);
+  const scrollViewRef = useRef();
+
+  const [stats, setStats] = useState({
+    total: 0,
+    donationCerts: 0,
+    membershipCerts: 0,
+    volunteerCerts: 0,
+    totalAmount: 0
+  });
+
+  useEffect(() => {
+    fetchData();
+    setupRealtimeListener();
+  }, []);
+
+  useEffect(() => {
+    if (route.params?.certificate && certificates.length > 0) {
+      const cert = certificates.find(c => c.id === route.params.certificate.id);
+      if (cert) {
+        setCurrentCert(cert);
+        setShowCertificateView(true);
+      }
+    }
+  }, [route.params?.certificate, certificates]);
+
+  const setupRealtimeListener = () => {
+  const auth = getAuthInstance(); // ✅ ADD THIS
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    const q = query(
+      collection(db, 'certificates'),
+      where('memberId', '==', userId),
+      where('status', '==', 'issued')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const certList = [];
+      let totalAmount = 0;
+      let donationCerts = 0;
+      let membershipCerts = 0;
+      let volunteerCerts = 0;
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const cert = { id: doc.id, ...data };
+        certList.push(cert);
+        
+        totalAmount += data.amount || 0;
+        if (data.type === 'donation') donationCerts++;
+        else if (data.type === 'membership') membershipCerts++;
+        else if (data.type === 'volunteer') volunteerCerts++;
+      });
+
+      setCertificates(certList);
+      setStats({
+        total: certList.length,
+        donationCerts,
+        membershipCerts,
+        volunteerCerts,
+        totalAmount
+      });
+      setLoading(false);
+
+      if (route.params?.certificate && certList.length > 0) {
+        const cert = certList.find(c => c.id === route.params.certificate.id);
+        if (cert) {
+          setCurrentCert(cert);
+          setShowCertificateView(true);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  };
+
+  const fetchData = async () => {
+  const auth = getAuthInstance(); // ✅ ADD THIS
+    setLoading(true);
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        setUserData(userDoc.data());
+      }
+
+      const certSnap = await getDocs(query(
+        collection(db, 'certificates'),
+        where('memberId', '==', userId),
+        where('status', '==', 'issued')
+      ));
+      
+      const certList = [];
+      let totalAmount = 0;
+      let donationCerts = 0;
+      let membershipCerts = 0;
+      let volunteerCerts = 0;
+
+      certSnap.forEach((doc) => {
+        const data = doc.data();
+        const cert = { id: doc.id, ...data };
+        certList.push(cert);
+        
+        totalAmount += data.amount || 0;
+        if (data.type === 'donation') donationCerts++;
+        else if (data.type === 'membership') membershipCerts++;
+        else if (data.type === 'volunteer') volunteerCerts++;
+      });
+
+      setCertificates(certList);
+      setStats({
+        total: certList.length,
+        donationCerts,
+        membershipCerts,
+        volunteerCerts,
+        totalAmount
+      });
+    } catch (error) {
+      console.error('Error fetching certificates:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  };
+
+  const getCertificateColor = (type) => {
+    switch(type) {
+      case 'donation': return '#ef4444';
+      case 'membership': return '#3b82f6';
+      case 'volunteer': return '#10b981';
+      default: return '#f59e0b';
+    }
+  };
+
+  const getCertificateBg = (type) => {
+    switch(type) {
+      case 'donation': return '#fee2e2';
+      case 'membership': return '#dbeafe';
+      case 'volunteer': return '#d1fae5';
+      default: return '#fef3c7';
+    }
+  };
+
+  const getTypeLabel = (type) => {
+    switch(type) {
+      case 'donation': return translations.donationCert;
+      case 'membership': return translations.membershipCert;
+      case 'volunteer': return translations.volunteerCert;
+      default: return translations.certificate;
+    }
+  };
+
+  const ProfessionalCertificateView = ({ cert }) => {
+    const color = getCertificateColor(cert.type);
+    const bgColor = getCertificateBg(cert.type);
+    const typeLabel = getTypeLabel(cert.type);
+    const donorName = cert.donorName || userData?.fullName || 'Member';
+    const amount = cert.amount || 0;
+    const purpose = cert.purpose || cert.type || 'General';
+    const date = cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    }) : new Date().toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+    const certNumber = cert.certificateNumber || `CERT-${Date.now().toString().slice(-8)}`;
+
+    return (
+      <View style={styles.certificateViewContainer}>
+        <LinearGradient
+          colors={['#f5f0eb', '#ffffff', '#f5f0eb']}
+          style={styles.certificateViewWrapper}
+        >
+          <View style={[styles.certificateBorder, { borderColor: color }]}>
+            <View style={[styles.certificateInnerBorder, { borderColor: color + '40' }]}>
+              
+              <View style={styles.ornamentContainer}>
+                <View style={[styles.ornamentLine, { backgroundColor: color }]} />
+                <View style={[styles.ornamentIcon, { backgroundColor: bgColor }]}>
+                  <MaterialIcons name="stars" size={20} color={color} />
+                </View>
+                <View style={[styles.ornamentLine, { backgroundColor: color }]} />
+              </View>
+
+              <View style={styles.certHeaderView}>
+                <Text style={[styles.certTitleView, { color }]}>{translations.certificate}</Text>
+                <Text style={styles.certSubtitleView}>{translations.ofAppreciation}</Text>
+                <View style={[styles.certTypeBadge, { backgroundColor: bgColor }]}>
+                  <Text style={[styles.certTypeText, { color }]}>{typeLabel.toUpperCase()}</Text>
+                </View>
+              </View>
+
+              <View style={[styles.certDivider, { backgroundColor: color + '30' }]} />
+
+              <View style={styles.certBodyView}>
+                <Text style={styles.certPresentedText}>{translations.presentedTo}</Text>
+                <Text style={styles.certDonorName}>{donorName}</Text>
+                
+                {amount > 0 ? (
+                  <>
+                    <Text style={styles.certContributionText}>{translations.recognition}</Text>
+                    <Text style={[styles.certAmountView, { color }]}>₹{amount.toLocaleString()}</Text>
+                  </>
+                ) : (
+                  <Text style={styles.certContributionText}>{translations.forPurpose}</Text>
+                )}
+                
+                <Text style={styles.certPurpose}>{purpose}</Text>
+                
+                <View style={styles.certQuoteContainer}>
+                  <Text style={styles.certQuote}>{translations.generosityQuote}</Text>
+                </View>
+              </View>
+
+              <View style={[styles.certDivider, { backgroundColor: color + '30' }]} />
+
+              <View style={styles.certFooterView}>
+                <View style={styles.certFooterInfo}>
+                  <Text style={styles.certFooterDate}>{translations.issuedOn} {date}</Text>
+                  <Text style={styles.certFooterNumber}>{translations.certificateNo} {certNumber}</Text>
+                  {cert.paymentId && (
+                    <View style={styles.certPaymentBadge}>
+                      <MaterialIcons name="security" size={12} color="#3b82f6" />
+                      <Text style={styles.certPaymentText}>{translations.verifiedByRazorpay}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.certActionButtons}>
+            <TouchableOpacity 
+              style={[styles.certActionBtn, styles.certActionClose]}
+              onPress={() => navigation.navigate('MemberProfile')}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="arrow-back" size={18} color="#ffffff" />
+              <Text style={styles.certActionBtnText}>{translations.profile}</Text>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  };
+
+  const handleShare = async (cert) => {
+    try {
+      const donorName = cert.donorName || userData?.fullName || 'Member';
+      const amount = cert.amount || 0;
+      const purpose = cert.purpose || cert.type || 'General';
+      const date = cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString() : new Date().toLocaleDateString();
+      const type = cert.type || 'General';
+      const typeLabel = getTypeLabel(cert.type);
+      
+      const message = `🏆 ${typeLabel.toUpperCase()} ${translations.certificate} 🏆
+
+${translations.presentedTo}
+
+${donorName}
+
+${amount > 0 ? `${translations.recognition}
+
+₹${amount.toLocaleString()}
+
+${translations.forPurpose}` : translations.forPurpose}
+
+${purpose}
+
+${translations.generosityQuote}
+
+${translations.issuedOn} ${date}
+${translations.certificateNo} ${cert.certificateNumber || translations.nA}
+${cert.paymentId ? `${translations.paymentId}: ${cert.paymentId}` : ''}
+
+#NGOAppFresh #Certificate #GiveBack`;
+
+      await Share.share({
+        message: message,
+        title: translations.shareTitle,
+      });
+    } catch (error) {
+      Alert.alert(translations.error, translations.shareError);
+    }
+  };
+
+  const handleDownload = async (cert) => {
+    setGeneratingPDF(true);
+    try {
+      const html = generateCertificateHTML(cert);
+      const filePath = FileSystem.documentDirectory + `certificate_${Date.now()}.html`;
+      
+      await FileSystem.writeAsStringAsync(filePath, html);
+      
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(filePath, {
+          mimeType: 'text/html',
+          dialogTitle: translations.shareTitle,
+        });
+      } else {
+        Alert.alert(translations.error, translations.downloadNotAvailable);
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert(translations.error, translations.downloadFailed);
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
+
+  const generateCertificateHTML = (cert) => {
+    const donorName = cert.donorName || userData?.fullName || 'Member';
+    const amount = cert.amount || 0;
+    const purpose = cert.purpose || cert.type || 'General';
+    const date = cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    }) : new Date().toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+    const certNumber = cert.certificateNumber || `CERT-${Date.now().toString().slice(-8)}`;
+    const type = cert.type || 'General';
+    const typeColors = {
+      donation: { color: '#ef4444', bg: '#fee2e2' },
+      membership: { color: '#3b82f6', bg: '#dbeafe' },
+      volunteer: { color: '#10b981', bg: '#d1fae5' },
+      default: { color: '#f59e0b', bg: '#fef3c7' }
+    };
+    const colorScheme = typeColors[type] || typeColors.default;
+    const typeLabel = getTypeLabel(cert.type);
+
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${translations.certificate}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Georgia', serif;
+      background: #f5f0eb;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      margin: 0;
+    }
+    .certificate-wrapper {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+      max-width: 800px;
+      width: 100%;
+    }
+    .certificate {
+      border: 8px double ${colorScheme.color};
+      padding: 35px;
+      text-align: center;
+      background: #fcfcfc;
+      position: relative;
+    }
+    .certificate::before {
+      content: '';
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      border: 2px solid ${colorScheme.color};
+      opacity: 0.15;
+    }
+    .ornament {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 10px;
+    }
+    .ornament-line {
+      flex: 1;
+      height: 2px;
+      background: ${colorScheme.color};
+      opacity: 0.3;
+      max-width: 80px;
+    }
+    .ornament-icon {
+      font-size: 24px;
+    }
+    .header h1 {
+      font-size: 44px;
+      color: ${colorScheme.color};
+      font-weight: bold;
+      letter-spacing: 8px;
+      margin-bottom: 2px;
+    }
+    .header .subtitle {
+      font-size: 18px;
+      color: #777;
+      letter-spacing: 6px;
+      font-style: italic;
+    }
+    .type-badge {
+      display: inline-block;
+      background: ${colorScheme.bg};
+      color: ${colorScheme.color};
+      padding: 4px 24px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: bold;
+      margin-top: 8px;
+      letter-spacing: 2px;
+    }
+    .divider {
+      width: 50%;
+      height: 2px;
+      background: ${colorScheme.color};
+      margin: 20px auto;
+      opacity: 0.25;
+    }
+    .body { margin: 25px 0; }
+    .body p {
+      font-size: 17px;
+      color: #444;
+      line-height: 2;
+    }
+    .donor-name {
+      font-size: 38px;
+      font-weight: bold;
+      color: #1a1a2e;
+      margin: 12px 0;
+      letter-spacing: 3px;
+    }
+    .amount {
+      font-size: 30px;
+      font-weight: bold;
+      color: ${colorScheme.color};
+      margin: 8px 0;
+    }
+    .purpose {
+      font-size: 20px;
+      color: #555;
+      margin: 8px 0;
+      font-style: italic;
+    }
+    .quote {
+      margin-top: 18px;
+      font-style: italic;
+      color: #777;
+      font-size: 15px;
+    }
+    .footer { margin-top: 25px; }
+    .footer .cert-number {
+      font-size: 12px;
+      color: #999;
+      margin-top: 8px;
+      font-family: monospace;
+    }
+    .footer .date {
+      font-size: 14px;
+      color: #666;
+    }
+    .seal {
+      margin: 15px auto;
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: 3px solid ${colorScheme.color};
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: ${colorScheme.color};
+      font-size: 12px;
+      font-weight: bold;
+      text-align: center;
+      background: ${colorScheme.bg};
+      line-height: 1.3;
+    }
+    .seal span { font-size: 9px; font-weight: normal; color: #888; }
+    .payment-badge {
+      display: inline-block;
+      background: #eff6ff;
+      color: #3b82f6;
+      padding: 2px 12px;
+      border-radius: 10px;
+      font-size: 10px;
+      margin-top: 4px;
+    }
+    @media print {
+      body { background: white; padding: 0; }
+      .certificate-wrapper { box-shadow: none; border-radius: 0; }
+    }
+    @media (max-width: 600px) {
+      .certificate-wrapper { padding: 15px; }
+      .certificate { padding: 18px; }
+      .header h1 { font-size: 28px; letter-spacing: 4px; }
+      .donor-name { font-size: 24px; }
+      .amount { font-size: 22px; }
+      .body p { font-size: 15px; }
+      .purpose { font-size: 17px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="certificate-wrapper">
+    <div class="certificate">
+      <div class="ornament">
+        <div class="ornament-line"></div>
+        <div class="ornament-icon">✦</div>
+        <div class="ornament-line"></div>
+      </div>
+      <div class="header">
+        <h1>${translations.certificate}</h1>
+        <div class="subtitle">${translations.ofAppreciation}</div>
+        <div class="type-badge">${typeLabel.toUpperCase()}</div>
+      </div>
+      <div class="divider"></div>
+      <div class="body">
+        <p>${translations.presentedTo}</p>
+        <div class="donor-name">${donorName}</div>
+        ${amount > 0 ? `
+          <p>${translations.recognition}</p>
+          <div class="amount">₹${amount.toLocaleString()}</div>
+        ` : `
+          <p>${translations.forPurpose}</p>
+        `}
+        <div class="purpose">${purpose}</div>
+        <div class="quote">${translations.generosityQuote}</div>
+      </div>
+      <div class="divider"></div>
+      <div class="footer">
+        <div class="seal">
+          NGO<br>App Fresh
+          <span>${translations.est} 2024</span>
+        </div>
+        <div class="date">${translations.issuedOn} ${date}</div>
+        <div class="cert-number">${translations.certificateNo} ${certNumber}</div>
+        ${cert.paymentId ? `<div class="payment-badge">${translations.paymentId}: ${cert.paymentId.slice(-12)}</div>` : ''}
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+  };
+
+  const CertificateCard = ({ cert }) => (
+    <TouchableOpacity 
+      style={styles.certCard}
+      onPress={() => {
+        setCurrentCert(cert);
+        setShowCertificateView(true);
+      }}
+      activeOpacity={0.7}
+    >
+      <View style={styles.certHeader}>
+        <View style={[styles.certIcon, { backgroundColor: getCertificateBg(cert.type) }]}>
+          <MaterialIcons name={getCertificateIcon(cert.type)} size={22} color={getCertificateColor(cert.type)} />
+        </View>
+        <View style={styles.certInfo}>
+          <Text style={styles.certTitle} numberOfLines={1}>{cert.title || `${getTypeLabel(cert.type)} ${translations.certificate}`}</Text>
+          <Text style={styles.certDate}>
+            {cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString() : translations.nA}
+          </Text>
+        </View>
+        {cert.paymentId && (
+          <View style={[styles.certStatus, { backgroundColor: '#3b82f6' }]}>
+            <Text style={styles.certStatusText}>{translations.razorpay}</Text>
+          </View>
+        )}
+      </View>
+      
+      {cert.description && (
+        <Text style={styles.certDescription} numberOfLines={2}>{cert.description}</Text>
+      )}
+      
+      {cert.amount && cert.amount > 0 && (
+        <View style={styles.certAmountBadge}>
+          <Text style={styles.certAmountText}>₹{cert.amount.toLocaleString()}</Text>
+        </View>
+      )}
+      
+      <View style={styles.certActions}>
+        <TouchableOpacity style={styles.certAction} onPress={() => handleShare(cert)} activeOpacity={0.7}>
+          <MaterialIcons name="share" size={18} color="#3b82f6" />
+          <Text style={styles.certActionText}>{translations.share}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.certAction} onPress={() => handleDownload(cert)} activeOpacity={0.7}>
+          <MaterialIcons name="download" size={18} color="#3b82f6" />
+          <Text style={styles.certActionText}>{translations.download}</Text>
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const getCertificateIcon = (type) => {
+    switch(type) {
+      case 'donation': return 'favorite';
+      case 'membership': return 'verified';
+      case 'volunteer': return 'handshake';
+      default: return 'verified';
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer} key={renderKey}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+        <Text style={styles.loadingText}>{translations.loadingCertificates}</Text>
+      </View>
+    );
+  }
+
+  if (showCertificateView && currentCert) {
+    return (
+      <View style={styles.certificateFullContainer}>
+        <ScrollView 
+          contentContainerStyle={styles.certificateScrollContent}
+          showsVerticalScrollIndicator={false}
+          ref={scrollViewRef}
+        >
+          <ProfessionalCertificateView cert={currentCert} />
+        </ScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container} key={renderKey}>
+      {/* Blue Header */}
+      <View style={styles.headerCard}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
+            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{translations.myCertificates}</Text>
+          <View style={{ width: 32 }} />
+        </View>
+      </View>
+
+      {/* Summary Stats */}
+      <View style={styles.summaryGrid}>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>{stats.total}</Text>
+          <Text style={styles.summaryLabel}>{translations.total}</Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>{stats.donationCerts}</Text>
+          <Text style={styles.summaryLabel}>{translations.donations}</Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>₹{stats.totalAmount.toLocaleString()}</Text>
+          <Text style={styles.summaryLabel}>{translations.amount}</Text>
+        </View>
+      </View>
+
+      {/* Certificate List */}
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3b82f6']} />
+        }
+        contentContainerStyle={styles.listContent}
+      >
+        {certificates.length === 0 ? (
+          <View style={styles.emptyState}>
+            <MaterialIcons name="verified" size={44} color="#d1d5db" />
+            <Text style={styles.emptyStateText}>{translations.noCertificates}</Text>
+            <Text style={styles.emptyStateSubtext}>{translations.noCertificatesSubtext}</Text>
+          </View>
+        ) : (
+          certificates.map((cert) => (
+            <CertificateCard key={cert.id} cert={cert} />
+          ))
+        )}
+        <View style={{ height: 20 }} />
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+
+  // Blue Header
+  headerCard: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    padding: 4,
+  },
+  headerTitle: {
+    fontFamily: Fonts.Bold,
+    fontSize: 20,
+    color: '#ffffff',
+    flex: 1,
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+  },
+  loadingText: {
+    fontFamily: Fonts.Regular,
+    marginTop: 10,
+    color: '#6b7280',
+    fontSize: 14,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+
+  summaryGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  summaryValue: {
+    fontFamily: Fonts.Bold,
+    fontSize: 20,
+    color: '#1f2937',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  summaryLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    paddingTop: 4,
+  },
+
+  certCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  certHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  certIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  certInfo: {
+    flex: 1,
+  },
+  certTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 15,
+    color: '#1f2937',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certDate: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  certStatusText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#ffffff',
+    fontSize: 9,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certDescription: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 8,
+    marginLeft: 52,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certAmountBadge: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginLeft: 52,
+    marginBottom: 8,
+  },
+  certAmountText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#ffffff',
+    fontSize: 12,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certActions: {
+    flexDirection: 'row',
+    gap: 16,
+    marginLeft: 52,
+  },
+  certAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  certActionText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+    color: '#3b82f6',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
+    gap: 12,
+  },
+  emptyStateText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 16,
+    color: '#1f2937',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  emptyStateSubtext: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  donateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  donateButtonText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#ffffff',
+    fontSize: 14,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+
+  // Professional Certificate View
+  certificateFullContainer: {
+    flex: 1,
+    backgroundColor: '#f5f0eb',
+  },
+  certificateScrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  certificateViewContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  certificateViewWrapper: {
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+    alignSelf: 'center',
+  },
+  certificateBorder: {
+    borderWidth: 8,
+    borderStyle: 'double',
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: '#ffffff',
+  },
+  certificateInnerBorder: {
+    borderWidth: 2,
+    borderRadius: 8,
+    padding: 16,
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  ornamentContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  ornamentLine: {
+    height: 2,
+    width: 50,
+    opacity: 0.5,
+  },
+  ornamentIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  certHeaderView: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  certTitleView: {
+    fontFamily: Fonts.Bold,
+    fontSize: 32,
+    letterSpacing: 4,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certSubtitleView: {
+    fontFamily: Fonts.Regular,
+    fontSize: 16,
+    color: '#666',
+    letterSpacing: 3,
+    fontStyle: 'italic',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certTypeBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderRadius: 16,
+    marginTop: 6,
+  },
+  certTypeText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+    letterSpacing: 1,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certDivider: {
+    height: 2,
+    width: '50%',
+    alignSelf: 'center',
+    marginVertical: 12,
+    opacity: 0.3,
+  },
+  certBodyView: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  certPresentedText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#444',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certDonorName: {
+    fontFamily: Fonts.Bold,
+    fontSize: 28,
+    color: '#1a1a2e',
+    marginVertical: 6,
+    letterSpacing: 2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certContributionText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#444',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certAmountView: {
+    fontFamily: Fonts.Bold,
+    fontSize: 26,
+    marginVertical: 4,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certPurpose: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 18,
+    color: '#555',
+    fontStyle: 'italic',
+    marginVertical: 4,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certQuoteContainer: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+  },
+  certQuote: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#777',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certFooterView: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+  },
+  certSeal: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  certSealText: {
+    fontFamily: Fonts.Bold,
+    fontSize: 12,
+    letterSpacing: 1,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certSealSubtext: {
+    fontFamily: Fonts.Regular,
+    fontSize: 8,
+    color: '#666',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certSealYear: {
+    fontFamily: Fonts.Regular,
+    fontSize: 7,
+    color: '#888',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certFooterInfo: {
+    alignItems: 'flex-end',
+  },
+  certFooterDate: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#555',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certFooterNumber: {
+    fontFamily: 'monospace',
+    fontSize: 10,
+    color: '#888',
+    marginTop: 2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certPaymentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+    gap: 4,
+  },
+  certPaymentText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 9,
+    color: '#3b82f6',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  certActionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+  },
+  certActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  certActionShare: {
+    backgroundColor: '#3b82f6',
+  },
+  certActionDownload: {
+    backgroundColor: '#10b981',
+  },
+  certActionClose: {
+    backgroundColor: '#6b7280',
+  },
+  certActionBtnText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 13,
+    color: '#ffffff',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+});

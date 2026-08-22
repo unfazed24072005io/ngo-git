@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Login Test</title>
+</head>
+<body>
+    <h1>Firebase Login Test</h1>
+    <div>
+        <input id="email" type="email" placeholder="Email" value="test123@gmail.com">
+        <br>
+        <input id="password" type="password" placeholder="Password" value="Test@123">
+        <br>
+        <button onclick="login()">Login</button>
+    </div>
+    <pre id="result"></pre>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+            "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import { initializeApp } from 'firebase/app';
+        import { getAuth, signInWithEmailAndPassword, browserLocalPersistence } from 'firebase/auth';
+
+        window.login = async function() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const result = document.getElementById('result');
+
+            result.textContent = '🔄 Logging in...';
+
+            try {
+                const firebaseConfig = {
+                    apiKey: "AIzaSyCSpFheSyB8ML2A8Ot7-9Zc2D55pAqBttE",
+                    authDomain: "ngo-app-54121.firebaseapp.com",
+                    projectId: "ngo-app-54121",
+                    storageBucket: "ngo-app-54121.firebasestorage.app",
+                    messagingSenderId: "860187159774",
+                    appId: "1:860187159774:android:6dfee16f67197e6c7da64f"
+                };
+
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                await auth.setPersistence(browserLocalPersistence);
+
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                result.textContent = `✅ SUCCESS! Logged in as: ${userCredential.user.email}\nUID: ${userCredential.user.uid}`;
+
+            } catch (error) {
+                result.textContent = `❌ ERROR:\nCode: ${error.code}\nMessage: ${error.message}`;
+            }
+        };
+    </script>
+</body>
+</html>

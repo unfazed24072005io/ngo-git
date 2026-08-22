@@ -1,0 +1,1876 @@
+// screens/workingMember/WorkingMemberWallet.js
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+  FlatList,
+  Alert,
+  ActivityIndicator,
+  TextInput,
+  Modal,
+  Dimensions,
+  Share,
+  Platform,
+  Animated
+} from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { db, getAuthInstance } from '../../config/firebase';
+
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  onSnapshot,
+  orderBy,
+  doc,
+  getDoc,
+  updateDoc,
+  addDoc,
+  Timestamp,
+  runTransaction
+} from 'firebase/firestore';
+import { Fonts } from '../../config/fonts';
+import { WalletService } from '../../services/WalletService';
+import { getLevelDetails, getLevelByMemberCount } from '../../config/commissionLevels';
+import { LevelUpdateService } from '../../services/LevelUpdateService';
+import { CommissionService } from '../../services/CommissionService';
+import { useLanguage } from '../../context/LanguageContext';
+
+const { width } = Dimensions.get('window');
+
+export default function WorkingMemberWallet({ navigation }) {
+  const { t, counter } = useLanguage();
+  
+  // Force re-render when language changes
+  const renderKey = `working-wallet-${counter}`;
+
+  // Get translations - EVERY SINGLE TEXT STRING is mapped to a translation key
+  const translations = {
+    // Common
+    error: t('common.error') || 'Error',
+    success: t('common.success') || 'Success',
+    loading: t('common.loading') || 'Loading...',
+    nA: t('common.nA') || 'N/A',
+    cancel: t('common.cancel') || 'Cancel',
+    close: t('common.close') || 'Close',
+    yes: t('common.yes') || 'Yes',
+    no: t('common.no') || 'No',
+    all: t('common.all') || 'All',
+    pending: t('common.pending') || 'Pending',
+    completed: t('common.completed') || 'Completed',
+    failed: t('common.failed') || 'Failed',
+    partial: t('common.partial') || 'Partial',
+    
+    // Wallet Header
+    myWallet: t('wallet.title') || 'My Wallet',
+    availableBalance: t('wallet.availableBalance') || 'Available Balance',
+    withdraw: t('wallet.withdraw') || 'Withdraw',
+    withdrawAll: t('wallet.withdrawAll') || 'Withdraw All',
+    pendingWithdrawal: t('wallet.pendingWithdrawal') || 'pending withdrawal',
+    pendingWithdrawals: t('wallet.pendingWithdrawals') || 'pending withdrawals',
+    
+    // Stats Cards
+    totalEarned: t('wallet.totalEarned') || 'Total Earned',
+    thisMonth: t('wallet.thisMonth') || 'This Month',
+    pendingCommission: t('wallet.pendingCommission') || 'Pending',
+    withdrawn: t('wallet.withdrawn') || 'Withdrawn',
+    
+    // Donation Commission
+    donationCommission: t('wallet.donationCommission') || 'Donation Commission',
+    earnedFromDonations: t('wallet.earnedFromDonations') || 'Earned from members\' donations',
+    
+    // Monthly Comparison
+    lastMonth: t('wallet.lastMonth') || 'Last Month',
+    difference: t('wallet.difference') || 'Difference',
+    
+    // Level Progress
+    currentLevel: t('wallet.currentLevel') || 'Current Level',
+    directCommission: t('wallet.directCommission') || 'Direct',
+    secondaryCommission: t('wallet.secondaryCommission') || 'Secondary',
+    membersNeeded: t('wallet.membersNeeded') || 'members needed for',
+    eligibleForPromotion: t('wallet.eligibleForPromotion') || '✅ Eligible for promotion!',
+    
+    // Commission Summary
+    commissionSummary: t('wallet.commissionSummary') || 'Commission Summary',
+    commissionBreakdown: t('wallet.commissionBreakdown') || 'Commission Breakdown',
+    directCommissionLabel: t('wallet.directCommissionLabel') || 'Direct Commission',
+    secondaryCommissionLabel: t('wallet.secondaryCommissionLabel') || 'Secondary Commission',
+    donationCommissionLabel: t('wallet.donationCommissionLabel') || 'Donation Commission',
+    totalCommission: t('wallet.totalCommission') || 'Total Commission',
+    
+    // Transaction History
+    transactionHistory: t('wallet.transactionHistory') || 'Transaction History',
+    credits: t('wallet.credits') || 'Credits',
+    debits: t('wallet.debits') || 'Debits',
+    noTransactions: t('wallet.noTransactions') || 'No transactions yet',
+    noTransactionsSubtext: t('wallet.noTransactionsSubtext') || 'Earn commissions by registering members',
+    
+    // Transaction Types
+    donationCommissionType: t('wallet.donationCommissionType') || 'Donation Commission',
+    directCommissionType: t('wallet.directCommissionType') || 'Direct Commission',
+    secondaryCommissionType: t('wallet.secondaryCommissionType') || 'Secondary Commission',
+    withdrawal: t('wallet.withdrawal') || 'Withdrawal',
+    transaction: t('wallet.transaction') || 'Transaction',
+    commissionEarned: t('wallet.commissionEarned') || 'Commission earned',
+    
+    // Withdraw Modal
+    withdrawFunds: t('wallet.withdrawFunds') || 'Withdraw Funds',
+    minimumWithdrawal: t('wallet.minimumWithdrawal') || 'Minimum withdrawal: ₹100',
+    amount: t('wallet.amount') || 'Amount (₹)',
+    enterAmount: t('wallet.enterAmount') || 'Enter amount to withdraw',
+    accountHolderName: t('wallet.accountHolderName') || 'Account Holder Name',
+    enterAccountHolderName: t('wallet.enterAccountHolderName') || 'Enter account holder name',
+    bankName: t('wallet.bankName') || 'Bank Name',
+    enterBankName: t('wallet.enterBankName') || 'Enter bank name',
+    accountNumber: t('wallet.accountNumber') || 'Account Number',
+    enterAccountNumber: t('wallet.enterAccountNumber') || 'Enter account number',
+    ifscCode: t('wallet.ifscCode') || 'IFSC Code',
+    enterIfscCode: t('wallet.enterIfscCode') || 'Enter IFSC code',
+    upiId: t('wallet.upiId') || 'UPI ID (Optional)',
+    enterUpiId: t('wallet.enterUpiId') || 'Enter UPI ID (e.g., name@upi)',
+    requestWithdrawal: t('wallet.requestWithdrawal') || 'Request Withdrawal',
+    processingTime: t('wallet.processingTime') || 'Processing time: 24-48 hours.',
+    required: t('common.required') || 'Required',
+    
+    // Alerts
+    enterValidAmount: t('wallet.enterValidAmount') || 'Please enter a valid amount',
+    insufficientBalance: t('wallet.insufficientBalance') || 'Insufficient balance',
+    minimumAmountError: t('wallet.minimumAmountError') || 'Minimum withdrawal amount is ₹100',
+    fillBankDetails: t('wallet.fillBankDetails') || 'Please fill all bank details',
+    withdrawalRequested: t('wallet.withdrawalRequested') || '✅ Withdrawal Requested',
+    withdrawalSuccessMessage: t('wallet.withdrawalSuccessMessage') || 'Your withdrawal request of ₹{amount} has been submitted successfully.',
+    processingTimeMessage: t('wallet.processingTimeMessage') || '📅 Processing Time: 24-48 hours',
+    amountLabel: t('wallet.amountLabel') || '💳 Amount: ₹{amount}',
+    accountLabel: t('wallet.accountLabel') || '🏦 Account: {account}',
+    withdrawalFailed: t('wallet.withdrawalFailed') || 'Failed to process withdrawal',
+    
+    // Share Message
+    walletSummary: t('wallet.walletSummary') || '💰 My Wallet Summary',
+    levelLabel: t('wallet.levelLabel') || '🏅 Level: {level}',
+    balanceLabel: t('wallet.balanceLabel') || '💵 Available Balance: ₹{balance}',
+    totalEarnedLabel: t('wallet.totalEarnedLabel') || '📈 Total Earned: ₹{total}',
+    pendingCommissionLabel: t('wallet.pendingCommissionLabel') || '⏳ Pending Commission: ₹{pending}',
+    thisMonthLabel: t('wallet.thisMonthLabel') || '📊 This Month: ₹{thisMonth}',
+    lastMonthLabel: t('wallet.lastMonthLabel') || '📉 Last Month: ₹{lastMonth}',
+    donationCommissionLabelShare: t('wallet.donationCommissionLabelShare') || '❤️ Donation Commission: ₹{donation}',
+    withdrawnLabel: t('wallet.withdrawnLabel') || '📤 Withdrawn: ₹{withdrawn}',
+    pendingWithdrawalsLabel: t('wallet.pendingWithdrawalsLabel') || '🔄 Pending Withdrawals: ₹{pendingWithdrawals}',
+    shareFooter: t('wallet.shareFooter') || '🚀 Keep referring more members to earn more!',
+    myWalletSummary: t('wallet.myWalletSummary') || 'My Wallet Summary',
+    
+    // Loading
+    loadingWallet: t('wallet.loadingWallet') || 'Loading wallet...',
+  };
+
+  const [walletData, setWalletData] = useState({
+    balance: 0,
+    totalEarned: 0,
+    totalWithdrawn: 0,
+    pendingCommission: 0,
+    pendingWithdrawals: 0,
+    thisMonthEarnings: 0,
+    lastMonthEarnings: 0,
+    donationCommissionTotal: 0
+  });
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [withdrawModalVisible, setWithdrawModalVisible] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [upiId, setUpiId] = useState('');
+  const [bankDetails, setBankDetails] = useState({
+    accountNumber: '',
+    ifscCode: '',
+    accountHolderName: '',
+    bankName: ''
+  });
+  const [selectedTab, setSelectedTab] = useState('all');
+  const [commissionSummary, setCommissionSummary] = useState({
+    direct: 0,
+    secondary: 0,
+    donation: 0,
+    directCount: 0,
+    secondaryCount: 0,
+    donationCount: 0
+  });
+  const [userData, setUserData] = useState(null);
+  const [levelDetails, setLevelDetails] = useState(null);
+  const [filterType, setFilterType] = useState('all');
+  const [showCommissionBreakdown, setShowCommissionBreakdown] = useState(false);
+  const [showLevelProgress, setShowLevelProgress] = useState(true);
+  const [fadeAnim] = useState(new Animated.Value(0));
+
+  useEffect(() => {
+    fetchUserData();
+    setupRealtimeListener();
+    fetchWalletData();
+    fetchCommissionSummary();
+    calculateMonthlyEarnings();
+    fetchDonationCommissionTotal();
+    animateIn();
+  }, []);
+
+  const animateIn = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true
+    }).start();
+  };
+
+  const fetchUserData = async () => {
+    const auth = getAuthInstance();
+
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+      
+      const docRef = doc(db, 'users', userId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setUserData(data);
+        const level = data.level || 'I';
+        setLevelDetails(getLevelDetails(level));
+        setWalletData(prev => ({
+          ...prev,
+          donationCommissionTotal: data.totalDonationCommission || 0
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
+  };
+
+  const setupRealtimeListener = () => {
+  const auth = getAuthInstance();
+
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    const q = query(
+      collection(db, 'walletTransactions'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const transactionsList = [];
+      let totalEarned = 0;
+      let pendingCommission = 0;
+      let totalWithdrawn = 0;
+      let pendingWithdrawals = 0;
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const transaction = { id: doc.id, ...data };
+        
+        if (data.createdAt?.toDate) {
+          transaction.createdAt = data.createdAt.toDate();
+        }
+        
+        const isDonation = data.description?.toLowerCase().includes('donation') || false;
+        transaction.isDonation = isDonation;
+        
+        transactionsList.push(transaction);
+
+        if (data.type === 'direct_commission' || data.type === 'secondary_commission') {
+          if (data.status === 'pending' || data.status === 'partially_paid') {
+            pendingCommission += data.amount || 0;
+          } else if (data.status === 'completed' || data.status === 'paid') {
+            totalEarned += data.amount || 0;
+          }
+        } else if (data.type === 'withdrawal') {
+          if (data.status === 'completed') {
+            totalWithdrawn += data.amount || 0;
+          } else if (data.status === 'pending') {
+            pendingWithdrawals += data.amount || 0;
+          }
+        }
+      });
+
+      setTransactions(transactionsList);
+      setWalletData(prev => ({
+        ...prev,
+        totalEarned,
+        pendingCommission,
+        totalWithdrawn,
+        pendingWithdrawals
+      }));
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  };
+
+  const fetchWalletData = async () => {
+    const auth = getAuthInstance();
+
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const wallet = await WalletService.getOrCreateWallet(userId);
+      setWalletData(prev => ({
+        ...prev,
+        balance: wallet.balance || 0,
+        totalEarned: wallet.totalEarned || 0,
+        totalWithdrawn: wallet.totalWithdrawn || 0,
+        pendingCommission: wallet.pendingCommission || 0
+      }));
+    } catch (error) {
+      console.error('Error fetching wallet data:', error);
+    }
+  };
+
+  const fetchCommissionSummary = async () => {
+    const auth = getAuthInstance();
+
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const q = query(
+        collection(db, 'walletTransactions'),
+        where('userId', '==', userId),
+        where('type', 'in', ['direct_commission', 'secondary_commission'])
+      );
+
+      const snapshot = await getDocs(q);
+      let direct = 0;
+      let secondary = 0;
+      let donation = 0;
+      let directCount = 0;
+      let secondaryCount = 0;
+      let donationCount = 0;
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const isDonation = data.description?.toLowerCase().includes('donation') || false;
+        
+        if (data.type === 'direct_commission') {
+          if (data.status === 'completed' || data.status === 'paid') {
+            if (isDonation) {
+              donation += data.amount || 0;
+              donationCount++;
+            } else {
+              direct += data.amount || 0;
+              directCount++;
+            }
+          }
+        } else if (data.type === 'secondary_commission') {
+          if (data.status === 'completed' || data.status === 'paid') {
+            secondary += data.amount || 0;
+            secondaryCount++;
+          }
+        }
+      });
+
+      setCommissionSummary({ direct, secondary, donation, directCount, secondaryCount, donationCount });
+    } catch (error) {
+      console.error('Error fetching commission summary:', error);
+    }
+  };
+
+  const fetchDonationCommissionTotal = async () => {
+    try {
+    const auth = getAuthInstance();
+
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+      
+      const total = await CommissionService.getTotalDonationCommission(userId);
+      setWalletData(prev => ({
+        ...prev,
+        donationCommissionTotal: total
+      }));
+    } catch (error) {
+      console.error('Error fetching donation commission total:', error);
+    }
+  };
+
+  const calculateMonthlyEarnings = async () => {
+    const auth = getAuthInstance();
+
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+      const q = query(
+        collection(db, 'walletTransactions'),
+        where('userId', '==', userId),
+        where('type', 'in', ['direct_commission', 'secondary_commission']),
+        where('status', 'in', ['completed', 'paid'])
+      );
+
+      const snapshot = await getDocs(q);
+      let thisMonth = 0;
+      let lastMonth = 0;
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const createdAt = data.createdAt?.toDate?.() || new Date(data.createdAt);
+        if (createdAt >= startOfMonth) {
+          thisMonth += data.amount || 0;
+        } else if (createdAt >= startOfLastMonth && createdAt < startOfMonth) {
+          lastMonth += data.amount || 0;
+        }
+      });
+
+      setWalletData(prev => ({
+        ...prev,
+        thisMonthEarnings: thisMonth,
+        lastMonthEarnings: lastMonth
+      }));
+    } catch (error) {
+      console.error('Error calculating monthly earnings:', error);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    const auth = getAuthInstance();
+
+    if (!withdrawAmount || isNaN(withdrawAmount) || parseFloat(withdrawAmount) <= 0) {
+      Alert.alert(translations.error, translations.enterValidAmount);
+      return;
+    }
+
+    const amount = parseFloat(withdrawAmount);
+    if (amount > walletData.balance) {
+      Alert.alert(translations.error, translations.insufficientBalance);
+      return;
+    }
+
+    if (amount < 100) {
+      Alert.alert(translations.error, translations.minimumAmountError);
+      return;
+    }
+
+    if (!bankDetails.accountNumber || !bankDetails.ifscCode || !bankDetails.accountHolderName) {
+      Alert.alert(translations.error, translations.fillBankDetails);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const userId = auth.currentUser?.uid;
+
+      const result = await WalletService.processWithdrawal(
+        userId,
+        amount,
+        {
+          bankName: bankDetails.bankName || 'Bank Transfer',
+          accountNumber: bankDetails.accountNumber,
+          ifscCode: bankDetails.ifscCode,
+          accountHolderName: bankDetails.accountHolderName,
+          upiId: upiId
+        }
+      );
+
+      if (result.success) {
+        Alert.alert(
+          translations.withdrawalRequested,
+          translations.withdrawalSuccessMessage.replace('{amount}', amount.toLocaleString()) + '\n\n' +
+          translations.processingTimeMessage + '\n' +
+          translations.amountLabel.replace('{amount}', amount.toLocaleString()) + '\n' +
+          translations.accountLabel.replace('{account}', bankDetails.accountNumber.slice(-4)),
+          [
+            {
+              text: translations.yes,
+              onPress: () => {
+                setWithdrawModalVisible(false);
+                setWithdrawAmount('');
+                setUpiId('');
+                setBankDetails({
+                  accountNumber: '',
+                  ifscCode: '',
+                  accountHolderName: '',
+                  bankName: ''
+                });
+                fetchWalletData();
+                calculateMonthlyEarnings();
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      Alert.alert(translations.error, error.message || translations.withdrawalFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchUserData();
+    await fetchWalletData();
+    await fetchCommissionSummary();
+    await calculateMonthlyEarnings();
+    await fetchDonationCommissionTotal();
+    setRefreshing(false);
+  };
+
+  const getFilteredTransactions = () => {
+    let filtered = transactions;
+
+    if (selectedTab === 'credit') {
+      filtered = filtered.filter(t =>
+        t.type === 'direct_commission' || t.type === 'secondary_commission'
+      );
+    } else if (selectedTab === 'debit') {
+      filtered = filtered.filter(t => t.type === 'withdrawal');
+    }
+
+    if (filterType === 'completed') {
+      filtered = filtered.filter(t => t.status === 'completed' || t.status === 'paid');
+    } else if (filterType === 'pending') {
+      filtered = filtered.filter(t => t.status === 'pending' || t.status === 'partially_paid');
+    }
+
+    return filtered;
+  };
+
+  const getTransactionTypeColor = (type, isDonation = false) => {
+    if (type === 'direct_commission') {
+      return isDonation ? '#f59e0b' : '#8b5cf6';
+    }
+    if (type === 'secondary_commission') return '#10b981';
+    if (type === 'withdrawal') return '#ef4444';
+    return '#6b7280';
+  };
+
+  const getTransactionIcon = (type, isDonation = false) => {
+    if (type === 'direct_commission') {
+      return isDonation ? 'volunteer-activism' : 'person-add';
+    }
+    if (type === 'secondary_commission') return 'share';
+    if (type === 'withdrawal') return 'arrow-upward';
+    return 'receipt';
+  };
+
+  const getTransactionTitle = (type, isDonation = false) => {
+    if (type === 'direct_commission') {
+      return isDonation ? translations.donationCommissionType : translations.directCommissionType;
+    }
+    if (type === 'secondary_commission') return translations.secondaryCommissionType;
+    if (type === 'withdrawal') return translations.withdrawal;
+    return translations.transaction;
+  };
+
+  const handleShare = async () => {
+    try {
+      const levelTitle = levelDetails?.title || translations.nA;
+      const message = 
+        `${translations.walletSummary}\n\n` +
+        `${translations.levelLabel.replace('{level}', levelTitle)}\n` +
+        `${translations.balanceLabel.replace('{balance}', walletData.balance.toLocaleString())}\n` +
+        `${translations.totalEarnedLabel.replace('{total}', walletData.totalEarned.toLocaleString())}\n` +
+        `${translations.pendingCommissionLabel.replace('{pending}', walletData.pendingCommission.toLocaleString())}\n` +
+        `${translations.thisMonthLabel.replace('{thisMonth}', walletData.thisMonthEarnings.toLocaleString())}\n` +
+        `${translations.lastMonthLabel.replace('{lastMonth}', walletData.lastMonthEarnings.toLocaleString())}\n` +
+        `${translations.donationCommissionLabelShare.replace('{donation}', walletData.donationCommissionTotal.toLocaleString())}\n` +
+        `${translations.withdrawnLabel.replace('{withdrawn}', walletData.totalWithdrawn.toLocaleString())}\n` +
+        `${translations.pendingWithdrawalsLabel.replace('{pendingWithdrawals}', walletData.pendingWithdrawals.toLocaleString())}\n\n` +
+        `${translations.shareFooter}`;
+      
+      await Share.share({
+        message: message,
+        title: translations.myWalletSummary
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
+    }
+  };
+
+  const StatCard = ({ label, value, icon, color, subtitle }) => (
+    <View style={[styles.statCard]}>
+      <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
+        <MaterialIcons name={icon} size={20} color={color} />
+      </View>
+      <View style={styles.statContent}>
+        <Text style={[styles.statValue, { color }]} numberOfLines={1}>₹{value.toLocaleString()}</Text>
+        <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
+        {subtitle && <Text style={styles.statSubtitle} numberOfLines={1}>{subtitle}</Text>}
+      </View>
+    </View>
+  );
+
+  const TransactionItem = ({ item }) => {
+    const isDonation = item.isDonation || false;
+    const isCredit = item.type === 'direct_commission' || item.type === 'secondary_commission';
+    const color = getTransactionTypeColor(item.type, isDonation);
+    const icon = getTransactionIcon(item.type, isDonation);
+    const title = getTransactionTitle(item.type, isDonation);
+    
+    let levelName = '';
+    if (item.levelId && !isDonation) {
+      const level = getLevelDetails(item.levelId);
+      levelName = level?.title || '';
+    }
+
+    const statusColor = item.status === 'completed' || item.status === 'paid' ? '#10b981' :
+                        item.status === 'pending' || item.status === 'partially_paid' ? '#f59e0b' : '#ef4444';
+    const statusText = item.status === 'completed' || item.status === 'paid' ? translations.completed :
+                       item.status === 'pending' ? translations.pending :
+                       item.status === 'partially_paid' ? translations.partial : translations.failed;
+
+    return (
+      <TouchableOpacity 
+        style={[styles.transactionItem, isDonation && styles.donationTransaction]}
+        activeOpacity={0.7}
+      >
+        <View style={styles.transactionLeft}>
+          <View style={[styles.transactionIcon, { backgroundColor: color + '15' }]}>
+            <MaterialIcons name={icon} size={18} color={color} />
+          </View>
+          <View style={styles.transactionInfo}>
+            <Text style={styles.transactionTitle} numberOfLines={1}>
+              {title}
+              {levelName && !isDonation && ` (${levelName})`}
+              {isDonation && ' ❤️'}
+            </Text>
+            <Text style={styles.transactionDescription} numberOfLines={1}>
+              {item.description || (isCredit ? translations.commissionEarned : translations.withdrawal)}
+            </Text>
+            <Text style={styles.transactionDate} numberOfLines={1}>
+              {item.createdAt ? new Date(item.createdAt).toLocaleString() : translations.nA}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.transactionRight}>
+          <Text style={[
+            styles.transactionAmount,
+            { color: isDonation ? '#f59e0b' : (isCredit ? '#10b981' : '#ef4444') }
+          ]}>
+            {isCredit ? '+' : '-'}₹{item.amount?.toLocaleString() || 0}
+          </Text>
+          <View style={[styles.transactionStatus, { backgroundColor: statusColor }]}>
+            <Text style={styles.transactionStatusText} numberOfLines={1}>{statusText}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const CommissionBreakdown = () => {
+    if (!showCommissionBreakdown) return null;
+
+    return (
+      <Animated.View style={[styles.breakdownContainer, { opacity: fadeAnim }]}>
+        <View style={styles.breakdownHeader}>
+          <Text style={styles.breakdownTitle}>{translations.commissionBreakdown}</Text>
+          <TouchableOpacity onPress={() => setShowCommissionBreakdown(false)}>
+            <MaterialIcons name="close" size={20} color="#6b7280" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.breakdownItem}>
+          <View style={styles.breakdownLeft}>
+            <View style={[styles.breakdownDot, { backgroundColor: '#8b5cf6' }]} />
+            <Text style={styles.breakdownLabel}>{translations.directCommissionLabel}</Text>
+          </View>
+          <View style={styles.breakdownRight}>
+            <Text style={styles.breakdownValue} numberOfLines={1}>₹{commissionSummary.direct.toLocaleString()}</Text>
+            <Text style={styles.breakdownCount} numberOfLines={1}>({commissionSummary.directCount} txns)</Text>
+          </View>
+        </View>
+        <View style={styles.breakdownItem}>
+          <View style={styles.breakdownLeft}>
+            <View style={[styles.breakdownDot, { backgroundColor: '#10b981' }]} />
+            <Text style={styles.breakdownLabel}>{translations.secondaryCommissionLabel}</Text>
+          </View>
+          <View style={styles.breakdownRight}>
+            <Text style={styles.breakdownValue} numberOfLines={1}>₹{commissionSummary.secondary.toLocaleString()}</Text>
+            <Text style={styles.breakdownCount} numberOfLines={1}>({commissionSummary.secondaryCount} txns)</Text>
+          </View>
+        </View>
+        <View style={styles.breakdownItem}>
+          <View style={styles.breakdownLeft}>
+            <View style={[styles.breakdownDot, { backgroundColor: '#f59e0b' }]} />
+            <Text style={styles.breakdownLabel}>{translations.donationCommissionLabel}</Text>
+          </View>
+          <View style={styles.breakdownRight}>
+            <Text style={styles.breakdownValue} numberOfLines={1}>₹{commissionSummary.donation.toLocaleString()}</Text>
+            <Text style={styles.breakdownCount} numberOfLines={1}>({commissionSummary.donationCount} txns)</Text>
+          </View>
+        </View>
+        <View style={styles.breakdownTotal}>
+          <Text style={styles.breakdownTotalLabel}>{translations.totalCommission}</Text>
+          <Text style={styles.breakdownTotalValue} numberOfLines={1}>
+            ₹{(commissionSummary.direct + commissionSummary.secondary + commissionSummary.donation).toLocaleString()}
+          </Text>
+        </View>
+      </Animated.View>
+    );
+  };
+
+  // Donation Commission Card
+  const DonationCommissionCard = () => (
+    <View style={styles.donationCard}>
+      <View style={styles.donationCardHeader}>
+        <View style={styles.donationCardIcon}>
+          <MaterialIcons name="volunteer-activism" size={22} color="#f59e0b" />
+        </View>
+        <Text style={styles.donationCardTitle} numberOfLines={1}>{translations.donationCommission}</Text>
+      </View>
+      <View style={styles.donationCardContent}>
+        <Text style={styles.donationCardAmount} numberOfLines={1}>
+          ₹{walletData.donationCommissionTotal.toLocaleString()}
+        </Text>
+        <Text style={styles.donationCardSubtext} numberOfLines={1}>
+          {translations.earnedFromDonations}
+        </Text>
+      </View>
+    </View>
+  );
+
+  // Level Progress Card
+  const LevelProgressCard = () => {
+    if (!levelDetails || !userData) return null;
+
+    const directCount = userData.directReferrals?.length || 0;
+    const level = userData.level || 'I';
+    
+    const getNextLevel = (currentLevel) => {
+      const levels = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+      const idx = levels.indexOf(currentLevel);
+      if (idx < levels.length - 1) return levels[idx + 1];
+      return null;
+    };
+
+    const nextLevel = getNextLevel(level);
+    const nextLevelDetails = nextLevel ? getLevelDetails(nextLevel) : null;
+    const progress = nextLevelDetails ? Math.min((directCount / nextLevelDetails.minMembers) * 100, 100) : 100;
+
+    if (!showLevelProgress) return null;
+
+    return (
+      <Animated.View style={[styles.levelProgressCard, { opacity: fadeAnim }]}>
+        <TouchableOpacity 
+          style={styles.levelProgressClose}
+          onPress={() => setShowLevelProgress(false)}
+        >
+          <MaterialIcons name="close" size={16} color="#6b7280" />
+        </TouchableOpacity>
+        
+        <View style={styles.levelProgressHeader}>
+          <View>
+            <Text style={styles.levelProgressTitle}>{translations.currentLevel}</Text>
+            <View style={styles.levelBadgeContainer}>
+              <Text style={styles.levelBadgeEmoji}>{levelDetails.badge || '⭐'}</Text>
+              <Text style={styles.levelProgressLevel} numberOfLines={1}>{levelDetails.title}</Text>
+            </View>
+          </View>
+          <View style={styles.levelCommissionRates}>
+            <Text style={styles.levelRateText} numberOfLines={1}>{translations.directCommission}: {levelDetails.directCommission}%</Text>
+            <Text style={styles.levelRateText} numberOfLines={1}>{translations.secondaryCommission}: {levelDetails.secondaryCommission}%</Text>
+          </View>
+        </View>
+
+        {nextLevelDetails && (
+          <>
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${Math.min(progress, 100)}%`, backgroundColor: levelDetails.color }]} />
+              </View>
+              <Text style={styles.progressText} numberOfLines={1}>{Math.round(Math.min(progress, 100))}%</Text>
+            </View>
+            <View style={styles.nextLevelInfo}>
+              <Text style={styles.nextLevelText} numberOfLines={2}>
+                {directCount} / {nextLevelDetails.minMembers} {translations.membersNeeded} 
+                <Text style={[styles.nextLevelHighlight, { color: nextLevelDetails.color }]}>
+                  {nextLevelDetails.title}
+                </Text>
+                {directCount >= nextLevelDetails.minMembers && (
+                  <Text style={styles.eligibleText}> {translations.eligibleForPromotion}</Text>
+                )}
+              </Text>
+            </View>
+          </>
+        )}
+      </Animated.View>
+    );
+  };
+
+  // Monthly Comparison Card
+  const MonthlyComparison = () => (
+    <View style={styles.monthlyComparisonCard}>
+      <View style={styles.monthlyComparisonItem}>
+        <Text style={styles.monthlyComparisonLabel} numberOfLines={1}>{translations.thisMonth}</Text>
+        <Text style={[styles.monthlyComparisonValue, { color: '#10b981' }]} numberOfLines={1}>
+          ₹{walletData.thisMonthEarnings.toLocaleString()}
+        </Text>
+      </View>
+      <View style={styles.monthlyComparisonDivider} />
+      <View style={styles.monthlyComparisonItem}>
+        <Text style={styles.monthlyComparisonLabel} numberOfLines={1}>{translations.lastMonth}</Text>
+        <Text style={[styles.monthlyComparisonValue, { color: '#8b5cf6' }]} numberOfLines={1}>
+          ₹{walletData.lastMonthEarnings.toLocaleString()}
+        </Text>
+      </View>
+      <View style={styles.monthlyComparisonDivider} />
+      <View style={styles.monthlyComparisonItem}>
+        <Text style={styles.monthlyComparisonLabel} numberOfLines={1}>{translations.difference}</Text>
+        <Text style={[
+          styles.monthlyComparisonValue,
+          { color: walletData.thisMonthEarnings >= walletData.lastMonthEarnings ? '#10b981' : '#ef4444' }
+        ]} numberOfLines={1}>
+          {walletData.thisMonthEarnings >= walletData.lastMonthEarnings ? '▲' : '▼'} 
+          ₹{(walletData.thisMonthEarnings - walletData.lastMonthEarnings).toLocaleString()}
+        </Text>
+      </View>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#8b5cf6" />
+        <Text style={styles.loadingText}>{translations.loadingWallet}</Text>
+      </View>
+    );
+  }
+
+  const filteredTransactions = getFilteredTransactions();
+
+  return (
+    <View style={styles.container} key={renderKey}>
+      {/* Purple Header */}
+      <View style={styles.headerCard}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>{translations.myWallet}</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+              <MaterialIcons name="share" size={22} color="#ffffff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
+              <MaterialIcons name="refresh" size={22} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Balance Card inside header */}
+        <View style={styles.balanceCard}>
+          <Text style={styles.balanceLabel} numberOfLines={1}>{translations.availableBalance}</Text>
+          <Text style={styles.balanceAmount} numberOfLines={1}>₹{walletData.balance.toLocaleString()}</Text>
+          <View style={styles.balanceActions}>
+            <TouchableOpacity
+              style={[styles.withdrawButton, walletData.balance <= 0 && styles.withdrawButtonDisabled]}
+              onPress={() => setWithdrawModalVisible(true)}
+              disabled={walletData.balance <= 0}
+            >
+              <MaterialIcons name="payment" size={18} color="#ffffff" />
+              <Text style={styles.withdrawButtonText} numberOfLines={1}>{translations.withdraw}</Text>
+            </TouchableOpacity>
+            {walletData.balance > 0 && (
+              <TouchableOpacity
+                style={styles.withdrawAllButton}
+                onPress={() => {
+                  setWithdrawAmount(String(walletData.balance));
+                  setWithdrawModalVisible(true);
+                }}
+              >
+                <Text style={styles.withdrawAllText} numberOfLines={1}>{translations.withdrawAll}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {walletData.pendingWithdrawals > 0 && (
+            <View style={styles.pendingWithdrawalBadge}>
+              <MaterialIcons name="pending" size={14} color="#f59e0b" />
+              <Text style={styles.pendingWithdrawalText} numberOfLines={1}>
+                {walletData.pendingWithdrawals} {walletData.pendingWithdrawals > 1 ? translations.pendingWithdrawals : translations.pendingWithdrawal}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Stats Cards */}
+      <View style={styles.statsGrid}>
+        <StatCard
+          label={translations.totalEarned}
+          value={walletData.totalEarned}
+          icon="attach-money"
+          color="#10b981"
+        />
+        <StatCard
+          label={translations.thisMonth}
+          value={walletData.thisMonthEarnings}
+          icon="trending-up"
+          color="#8b5cf6"
+        />
+        <StatCard
+          label={translations.pendingCommission}
+          value={walletData.pendingCommission}
+          icon="pending"
+          color="#f59e0b"
+        />
+        <StatCard
+          label={translations.withdrawn}
+          value={walletData.totalWithdrawn}
+          icon="arrow-upward"
+          color="#ef4444"
+        />
+      </View>
+
+      {/* Donation Commission Card */}
+      <DonationCommissionCard />
+
+      {/* Monthly Comparison */}
+      <MonthlyComparison />
+
+      {/* Level Progress */}
+      <LevelProgressCard />
+
+      {/* Commission Summary */}
+      <View style={styles.commissionSummaryWrapper}>
+        <TouchableOpacity 
+          style={styles.commissionSummaryHeader}
+          onPress={() => setShowCommissionBreakdown(!showCommissionBreakdown)}
+        >
+          <View style={styles.commissionSummaryLeft}>
+            <MaterialIcons name="receipt" size={20} color="#8b5cf6" />
+            <Text style={styles.commissionSummaryTitle} numberOfLines={1}>{translations.commissionSummary}</Text>
+          </View>
+          <View style={styles.commissionSummaryRight}>
+            <Text style={styles.commissionSummaryTotal} numberOfLines={1}>
+              ₹{(commissionSummary.direct + commissionSummary.secondary + commissionSummary.donation).toLocaleString()}
+            </Text>
+            <MaterialIcons 
+              name={showCommissionBreakdown ? 'expand-less' : 'expand-more'} 
+              size={24} 
+              color="#6b7280" 
+            />
+          </View>
+        </TouchableOpacity>
+        {showCommissionBreakdown && <CommissionBreakdown />}
+      </View>
+
+      {/* Transaction History - FIXED SCROLLING */}
+      <View style={styles.historySection}>
+        <View style={styles.historyHeader}>
+          <Text style={styles.historyTitle} numberOfLines={1}>{translations.transactionHistory}</Text>
+          <View style={styles.historyControls}>
+            <TouchableOpacity
+              style={[styles.filterButton, filterType === 'all' && styles.filterButtonActive]}
+              onPress={() => setFilterType('all')}
+            >
+              <Text style={[styles.filterText, filterType === 'all' && styles.filterTextActive]} numberOfLines={1}>{translations.all}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterButton, filterType === 'completed' && styles.filterButtonActive]}
+              onPress={() => setFilterType('completed')}
+            >
+              <Text style={[styles.filterText, filterType === 'completed' && styles.filterTextActive]} numberOfLines={1}>{translations.completed}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterButton, filterType === 'pending' && styles.filterButtonActive]}
+              onPress={() => setFilterType('pending')}
+            >
+              <Text style={[styles.filterText, filterType === 'pending' && styles.filterTextActive]} numberOfLines={1}>{translations.pending}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tabButton, selectedTab === 'all' && styles.tabButtonActive]}
+            onPress={() => setSelectedTab('all')}
+          >
+            <Text style={[styles.tabText, selectedTab === 'all' && styles.tabTextActive]} numberOfLines={1}>{translations.all}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, selectedTab === 'credit' && styles.tabButtonActive]}
+            onPress={() => setSelectedTab('credit')}
+          >
+            <MaterialIcons name="arrow-downward" size={14} color={selectedTab === 'credit' ? '#8b5cf6' : '#6b7280'} />
+            <Text style={[styles.tabText, selectedTab === 'credit' && styles.tabTextActive]} numberOfLines={1}>{translations.credits}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, selectedTab === 'debit' && styles.tabButtonActive]}
+            onPress={() => setSelectedTab('debit')}
+          >
+            <MaterialIcons name="arrow-upward" size={14} color={selectedTab === 'debit' ? '#ef4444' : '#6b7280'} />
+            <Text style={[styles.tabText, selectedTab === 'debit' && styles.tabTextActive]} numberOfLines={1}>{translations.debits}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ✅ FIXED: FlatList with proper height for scrolling */}
+        <FlatList
+          data={filteredTransactions}
+          keyExtractor={(item) => item.id || Math.random().toString()}
+          renderItem={({ item }) => <TransactionItem item={item} />}
+          showsVerticalScrollIndicator={true}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#8b5cf6']} />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <MaterialIcons name="history" size={44} color="#d1d5db" />
+              <Text style={styles.emptyStateText}>{translations.noTransactions}</Text>
+              <Text style={styles.emptyStateSubtext}>{translations.noTransactionsSubtext}</Text>
+            </View>
+          }
+          contentContainerStyle={styles.transactionList}
+          style={styles.flatList}
+        />
+      </View>
+
+      {/* Withdraw Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={withdrawModalVisible}
+        onRequestClose={() => setWithdrawModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle} numberOfLines={1}>{translations.withdrawFunds}</Text>
+              <TouchableOpacity onPress={() => setWithdrawModalVisible(false)}>
+                <MaterialIcons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.modalBody}>
+                <View style={styles.modalBalanceContainer}>
+                  <Text style={styles.modalBalanceLabel} numberOfLines={1}>{translations.availableBalance}</Text>
+                  <Text style={styles.modalBalance} numberOfLines={1}>₹{walletData.balance.toLocaleString()}</Text>
+                  <Text style={styles.modalBalanceSub} numberOfLines={1}>{translations.minimumWithdrawal}</Text>
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel} numberOfLines={1}>{translations.amount} *</Text>
+                  <TextInput
+                    style={styles.fieldInput}
+                    value={withdrawAmount}
+                    onChangeText={setWithdrawAmount}
+                    placeholder={translations.enterAmount}
+                    keyboardType="numeric"
+                    placeholderTextColor="#9ca3af"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel} numberOfLines={1}>{translations.accountHolderName} *</Text>
+                  <TextInput
+                    style={styles.fieldInput}
+                    value={bankDetails.accountHolderName}
+                    onChangeText={(text) => setBankDetails({ ...bankDetails, accountHolderName: text })}
+                    placeholder={translations.enterAccountHolderName}
+                    placeholderTextColor="#9ca3af"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel} numberOfLines={1}>{translations.bankName} *</Text>
+                  <TextInput
+                    style={styles.fieldInput}
+                    value={bankDetails.bankName}
+                    onChangeText={(text) => setBankDetails({ ...bankDetails, bankName: text })}
+                    placeholder={translations.enterBankName}
+                    placeholderTextColor="#9ca3af"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel} numberOfLines={1}>{translations.accountNumber} *</Text>
+                  <TextInput
+                    style={styles.fieldInput}
+                    value={bankDetails.accountNumber}
+                    onChangeText={(text) => setBankDetails({ ...bankDetails, accountNumber: text })}
+                    placeholder={translations.enterAccountNumber}
+                    keyboardType="numeric"
+                    placeholderTextColor="#9ca3af"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel} numberOfLines={1}>{translations.ifscCode} *</Text>
+                  <TextInput
+                    style={styles.fieldInput}
+                    value={bankDetails.ifscCode}
+                    onChangeText={(text) => setBankDetails({ ...bankDetails, ifscCode: text.toUpperCase() })}
+                    placeholder={translations.enterIfscCode}
+                    autoCapitalize="characters"
+                    placeholderTextColor="#9ca3af"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel} numberOfLines={1}>{translations.upiId}</Text>
+                  <TextInput
+                    style={styles.fieldInput}
+                    value={upiId}
+                    onChangeText={setUpiId}
+                    placeholder={translations.enterUpiId}
+                    placeholderTextColor="#9ca3af"
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                  onPress={handleWithdraw}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <>
+                      <MaterialIcons name="check-circle" size={20} color="#ffffff" />
+                      <Text style={styles.submitButtonText} numberOfLines={1}>{translations.requestWithdrawal}</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <View style={styles.termsContainer}>
+                  <MaterialIcons name="info" size={16} color="#6b7280" />
+                  <Text style={styles.termsText} numberOfLines={2}>
+                    {translations.minimumWithdrawal} {translations.processingTime}
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+
+  // Purple Header
+  headerCard: {
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  backButton: { padding: 4 },
+  headerTitle: {
+    fontFamily: Fonts.Bold,
+    fontSize: 22,
+    color: '#ffffff',
+    flex: 1,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  shareButton: { padding: 4 },
+  refreshButton: { padding: 4 },
+
+  balanceCard: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  balanceLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  balanceAmount: {
+    fontFamily: Fonts.Bold,
+    fontSize: 36,
+    color: '#ffffff',
+    marginVertical: 8,
+  },
+  balanceActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  withdrawButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  withdrawButtonDisabled: {
+    opacity: 0.5,
+  },
+  withdrawButtonText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#ffffff',
+    fontSize: 14,
+  },
+  withdrawAllButton: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  withdrawAllText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+    color: '#ffffff',
+  },
+  pendingWithdrawalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 8,
+    gap: 4,
+  },
+  pendingWithdrawalText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#ffffff',
+  },
+
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginTop: 12,
+    gap: 6,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: '22%',
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  statIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  statContent: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  statValue: {
+    fontFamily: Fonts.Bold,
+    fontSize: 14,
+  },
+  statLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 9,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  statSubtitle: {
+    fontFamily: Fonts.Regular,
+    fontSize: 8,
+    color: '#9ca3af',
+    marginTop: 1,
+  },
+
+  donationCard: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#fef3c7',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  donationCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  donationCardIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fef3c7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  donationCardTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#1f2937',
+  },
+  donationCardContent: {
+    marginTop: 8,
+  },
+  donationCardAmount: {
+    fontFamily: Fonts.Bold,
+    fontSize: 24,
+    color: '#f59e0b',
+  },
+  donationCardSubtext: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+
+  monthlyComparisonCard: {
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  monthlyComparisonItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  monthlyComparisonLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 10,
+    color: '#6b7280',
+  },
+  monthlyComparisonValue: {
+    fontFamily: Fonts.Bold,
+    fontSize: 14,
+    marginTop: 2,
+  },
+  monthlyComparisonDivider: {
+    width: 1,
+    backgroundColor: '#e5e7eb',
+    marginHorizontal: 6,
+  },
+
+  levelProgressCard: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    position: 'relative',
+  },
+  levelProgressClose: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    padding: 4,
+    zIndex: 1,
+  },
+  levelProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+    paddingRight: 20,
+  },
+  levelProgressTitle: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  levelBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  levelBadgeEmoji: {
+    fontSize: 20,
+  },
+  levelProgressLevel: {
+    fontFamily: Fonts.Bold,
+    fontSize: 18,
+    color: '#1f2937',
+  },
+  levelCommissionRates: {
+    alignItems: 'flex-end',
+  },
+  levelRateText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  progressBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 11,
+    color: '#6b7280',
+    minWidth: 36,
+    textAlign: 'right',
+  },
+  nextLevelInfo: {
+    marginTop: 6,
+  },
+  nextLevelText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  nextLevelHighlight: {
+    fontFamily: Fonts.SemiBold,
+  },
+  eligibleText: {
+    color: '#10b981',
+    fontFamily: Fonts.SemiBold,
+  },
+
+  commissionSummaryWrapper: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    overflow: 'hidden',
+  },
+  commissionSummaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+  },
+  commissionSummaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
+  commissionSummaryTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#1f2937',
+    flexShrink: 1,
+  },
+  commissionSummaryRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+  commissionSummaryTotal: {
+    fontFamily: Fonts.Bold,
+    fontSize: 16,
+    color: '#10b981',
+  },
+  breakdownContainer: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+  },
+  breakdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  breakdownTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 13,
+    color: '#1f2937',
+  },
+  breakdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  breakdownLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
+  breakdownDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  breakdownLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#1f2937',
+    flexShrink: 1,
+  },
+  breakdownRight: {
+    alignItems: 'flex-end',
+  },
+  breakdownValue: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 13,
+    color: '#1f2937',
+  },
+  breakdownCount: {
+    fontFamily: Fonts.Regular,
+    fontSize: 10,
+    color: '#6b7280',
+  },
+  breakdownTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    marginTop: 6,
+    borderTopWidth: 2,
+    borderTopColor: '#e5e7eb',
+  },
+  breakdownTotalLabel: {
+    fontFamily: Fonts.Bold,
+    fontSize: 14,
+    color: '#1f2937',
+  },
+  breakdownTotalValue: {
+    fontFamily: Fonts.Bold,
+    fontSize: 16,
+    color: '#10b981',
+  },
+
+  historySection: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    flexWrap: 'wrap',
+  },
+  historyTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 16,
+    color: '#1f2937',
+  },
+  historyControls: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  filterButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+  },
+  filterButtonActive: {
+    backgroundColor: '#8b5cf6',
+  },
+  filterText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 10,
+    color: '#6b7280',
+  },
+  filterTextActive: {
+    color: '#ffffff',
+    fontFamily: Fonts.SemiBold,
+  },
+
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    padding: 2,
+    marginBottom: 10,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  tabButtonActive: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  tabText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  tabTextActive: {
+    color: '#1f2937',
+  },
+
+  flatList: {
+    flex: 1,
+    minHeight: 400,
+  },
+  transactionList: {
+    paddingBottom: 20,
+    flexGrow: 1,
+  },
+
+  transactionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  donationTransaction: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fef3c7',
+  },
+  transactionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  transactionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    flexShrink: 0,
+  },
+  transactionInfo: {
+    flex: 1,
+  },
+  transactionTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 13,
+    color: '#1f2937',
+  },
+  transactionDescription: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  transactionDate: {
+    fontFamily: Fonts.Regular,
+    fontSize: 10,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  transactionRight: {
+    alignItems: 'flex-end',
+    flexShrink: 0,
+  },
+  transactionAmount: {
+    fontFamily: Fonts.Bold,
+    fontSize: 15,
+  },
+  transactionStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  transactionStatusText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 9,
+    color: '#ffffff',
+  },
+
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 8,
+    paddingHorizontal: 20,
+  },
+  emptyStateText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 16,
+    color: '#1f2937',
+    textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+  },
+  loadingText: {
+    fontFamily: Fonts.Regular,
+    marginTop: 10,
+    color: '#6b7280',
+    fontSize: 14,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontFamily: Fonts.Bold,
+    fontSize: 20,
+    color: '#1f2937',
+    flex: 1,
+  },
+  modalBody: {
+    gap: 12,
+  },
+  modalBalanceContainer: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 10,
+    padding: 14,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalBalanceLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  modalBalance: {
+    fontFamily: Fonts.Bold,
+    fontSize: 24,
+    color: '#1f2937',
+    marginTop: 4,
+  },
+  modalBalanceSub: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  field: {
+    marginBottom: 4,
+  },
+  fieldLabel: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 13,
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  fieldInput: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 14,
+    backgroundColor: '#f9fafb',
+    fontFamily: Fonts.Regular,
+    color: '#1f2937',
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#8b5cf6',
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 8,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#ffffff',
+    fontSize: 16,
+  },
+  termsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  termsText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+    textAlign: 'center',	
+    flexShrink: 1,
+  },
+});

@@ -67,6 +67,7 @@ export default function OnlineClassManagement({ navigation }) {
     couldNotOpen: t('onlineClasses.couldNotOpen') || 'Could not open the meeting link',
     nA: t('common.nA') || 'N/A',
     registered: t('onlineClasses.registered') || 'registered',
+    loading: t('common.loading') || 'Loading...',
   });
 
   const translations = getTranslations();
@@ -171,10 +172,10 @@ export default function OnlineClassManagement({ navigation }) {
         await updateDoc(doc(db, 'onlineClasses', editingClass.id), data);
         Alert.alert(translations.success, translations.classUpdated);
       } else {
-        const auth = getAuthInstance(); // ✅ ADD THIS
-data.createdAt = new Date().toISOString();
-data.createdBy = auth.currentUser?.uid || 'admin';
-await addDoc(collection(db, 'onlineClasses'), data);
+        const auth = getAuthInstance();
+        data.createdAt = new Date().toISOString();
+        data.createdBy = auth.currentUser?.uid || 'admin';
+        await addDoc(collection(db, 'onlineClasses'), data);
         Alert.alert(translations.success, translations.classCreated);
       }
 
@@ -299,13 +300,17 @@ await addDoc(collection(db, 'onlineClasses'), data);
     }
   };
 
+  // ✅ Updated StatCard - Same as EmployeeManagement
   const StatCard = ({ label, count, icon, color }) => (
-    <View style={[styles.statCard, { borderLeftColor: color }]}>
-      <View style={styles.statIconContainer}>
-        <MaterialIcons name={icon} size={20} color={color} />
+    <View style={[styles.statCard, { backgroundColor: color + '15' }]}>
+      {/* Icon on top */}
+      <View style={[styles.statIconContainer, { backgroundColor: color + '20' }]}>
+        <MaterialIcons name={icon} size={24} color={color} />
       </View>
-      <View style={styles.statTextContainer}>
-        <Text style={styles.statCount}>{count}</Text>
+      
+      {/* Number and Label side by side */}
+      <View style={styles.statTextRow}>
+        <Text style={[styles.statCount, { color }]}>{count}</Text>
         <Text style={styles.statLabel}>{label}</Text>
       </View>
     </View>
@@ -396,6 +401,15 @@ await addDoc(collection(db, 'onlineClasses'), data);
       </TouchableOpacity>
     );
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer} key={renderKey}>
+        <ActivityIndicator size="large" color="#FF7722" />
+        <Text style={styles.loadingText}>{translations.loading}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container} key={renderKey}>
@@ -818,7 +832,6 @@ await addDoc(collection(db, 'onlineClasses'), data);
   );
 }
 
-// ... (styles remain exactly the same as your original file)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -876,44 +889,50 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     textAlignVertical: 'center',
   },
+  // ✅ Updated Stats styles - Same as EmployeeManagement
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 6,
+    marginTop: 4,
   },
   statCard: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.15)',
-    padding: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
     borderRadius: 10,
-    gap: 8,
+    minHeight: 75,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   statIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 4,
   },
-  statTextContainer: {
-    flex: 1,
+  statTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
   },
   statCount: {
     fontFamily: Fonts.Bold,
     fontSize: 16,
     color: '#ffffff',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+    textAlign: 'center',
   },
   statLabel: {
     fontFamily: Fonts.Regular,
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.8)',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.75)',
+    textAlign: 'center',
   },
   listContent: {
     paddingHorizontal: 16,
@@ -1057,6 +1076,20 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.Regular,
     fontSize: 13,
     color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fdf8f3',
+  },
+  loadingText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 10,
     includeFontPadding: false,
     textAlignVertical: 'center',
   },

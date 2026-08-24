@@ -1578,21 +1578,7 @@ const downloadQuoteImage = async (imageUrl, quoteText) => {
           )}
         </View>
 
-        {/* Download Button */}
-        <TouchableOpacity
-          style={[styles.quoteModalDownloadBtn, downloadingQuote && { opacity: 0.6 }]}
-          onPress={() => downloadQuoteImage(selectedQuote.imageUrl, selectedQuote.text)}
-          disabled={downloadingQuote}
-        >
-          {downloadingQuote ? (
-            <ActivityIndicator size="small" color="#ffffff" />
-          ) : (
-            <>
-              <MaterialIcons name="download" size={22} color="#ffffff" />
-              <Text style={styles.quoteModalDownloadBtnText}>Download Image</Text>
-            </>
-          )}
-        </TouchableOpacity>
+          
 
         {/* Close Button */}
         <TouchableOpacity

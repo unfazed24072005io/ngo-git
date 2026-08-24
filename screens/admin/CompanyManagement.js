@@ -624,73 +624,168 @@ const handleDocumentUpload = async () => {
       
     } else {
       // ============ MOBILE - FIXED ============
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/*'],
-        copyToCacheDirectory: true,
-      });
+      // Use ImagePicker for images on mobile (with cropping support)
+      // Use DocumentPicker for PDFs and documents
+      
+      // First, ask user what type of file they want to upload
+      Alert.alert(
+        'Select File Type',
+        'Choose what type of file you want to upload',
+        [
+          { 
+            text: 'Photo/Image', 
+            onPress: async () => {
+              // Use ImagePicker for images
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Permission Denied', 'Please allow access to your gallery');
+                return;
+              }
 
-      // ✅ Check if user cancelled
-      if (result.type === 'cancel') {
-        console.log('📄 User cancelled document picker');
-        return;
-      }
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
 
-      if (result.type === 'success') {
-        // ✅ Check file size
-        if (result.size > 32 * 1024 * 1024) {
-          Alert.alert('Error', 'File is too large. Maximum size is 32MB.');
-          return;
-        }
-        
-        // ✅ Convert to base64 for mobile
-        const base64Data = await convertToBase64({
-          uri: result.uri,
-          type: result.mimeType,
-          name: result.name,
-          size: result.size
-        });
-        
-        if (!base64Data) {
-          Alert.alert('Error', 'Failed to convert file to base64');
-          return;
-        }
-        
-        setUploading(true);
-        setUploadProgress(30);
-        
-        // ✅ Upload to ImgBB
-        const uploadResult = await uploadToImgBB(base64Data, result.name);
-        
-        setUploadProgress(70);
-        
-        // ✅ Determine document type
-        let docType = 'document';
-        if (result.name?.toLowerCase().endsWith('.pdf')) docType = 'pdf';
-        else if (result.name?.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)) docType = 'image';
-        else if (result.name?.toLowerCase().match(/\.(doc|docx)$/)) docType = 'document';
-        
-        // ✅ Update form with ImgBB URL
-        setDocumentForm({
-          ...documentForm,
-          title: result.name.replace(/\.[^/.]+$/, ''),
-          description: '',
-          type: docType,
-          fileUrl: uploadResult.url,
-          fileUrlDisplay: uploadResult.display_url,
-          deleteUrl: uploadResult.delete_url,
-          fileName: result.name,
-          fileSize: result.size,
-          uploadedAt: new Date().toISOString(),
-          imgbbId: uploadResult.id
-        });
-        
-        setUploadProgress(100);
-        setUploading(false);
-        
-        // ✅ Show modal with pre-filled data
-        setDocumentModalVisible(true);
-        Alert.alert('Success', 'File uploaded to ImgBB successfully! Click Save to add to documents.');
-      }
+              if (!result.canceled) {
+                const selected = result.assets[0];
+                
+                // Get base64 data
+                let base64Data = selected.base64;
+                if (!base64Data) {
+                  // If base64 is not directly available, read from URI
+                  try {
+                    const response = await fetch(selected.uri);
+                    const blob = await response.blob();
+                    base64Data = await new Promise((resolve) => {
+                      const reader = new FileReader();
+                      reader.onload = () => resolve(reader.result);
+                      reader.onerror = () => resolve(null);
+                      reader.readAsDataURL(blob);
+                    });
+                  } catch (e) {
+                    Alert.alert('Error', 'Failed to read image data');
+                    return;
+                  }
+                }
+                
+                if (!base64Data) {
+                  Alert.alert('Error', 'Failed to read image data');
+                  return;
+                }
+                
+                setUploading(true);
+                setUploadProgress(30);
+                
+                const uploadResult = await uploadToImgBB(base64Data, selected.fileName || 'image.jpg');
+                
+                setUploadProgress(70);
+                
+                let docType = 'image';
+                if (selected.fileName?.toLowerCase().endsWith('.pdf')) docType = 'pdf';
+                
+                setDocumentForm({
+                  ...documentForm,
+                  title: selected.fileName?.replace(/\.[^/.]+$/, '') || 'Image',
+                  description: '',
+                  type: docType,
+                  fileUrl: uploadResult.url,
+                  fileUrlDisplay: uploadResult.display_url,
+                  deleteUrl: uploadResult.delete_url,
+                  fileName: selected.fileName || 'image.jpg',
+                  fileSize: selected.fileSize || 0,
+                  uploadedAt: new Date().toISOString(),
+                  imgbbId: uploadResult.id
+                });
+                
+                setUploadProgress(100);
+                setUploading(false);
+                setDocumentModalVisible(true);
+                Alert.alert('Success', 'Image uploaded successfully! Click Save to add.');
+              }
+            }
+          },
+          { 
+            text: 'Document (PDF, DOC)', 
+            onPress: async () => {
+              // Use DocumentPicker for documents
+              const result = await DocumentPicker.getDocumentAsync({
+                type: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+                copyToCacheDirectory: true,
+              });
+
+              if (result.type === 'cancel') {
+                console.log('📄 User cancelled document picker');
+                return;
+              }
+
+              if (result.type === 'success' || result.uri) {
+                // Handle both old and new DocumentPicker API
+                const uri = result.uri || result.assets?.[0]?.uri;
+                const name = result.name || result.assets?.[0]?.name || 'document';
+                const size = result.size || result.assets?.[0]?.size || 0;
+                const mimeType = result.mimeType || result.assets?.[0]?.mimeType || 'application/pdf';
+
+                if (size > 32 * 1024 * 1024) {
+                  Alert.alert('Error', 'File is too large. Maximum size is 32MB.');
+                  return;
+                }
+                
+                // Read file as base64
+                try {
+                  const base64Data = await FileSystem.readAsStringAsync(uri, {
+                    encoding: FileSystem.EncodingType.Base64,
+                  });
+                  
+                  if (!base64Data) {
+                    Alert.alert('Error', 'Failed to read file');
+                    return;
+                  }
+                  
+                  const fullBase64 = `data:${mimeType};base64,${base64Data}`;
+                  
+                  setUploading(true);
+                  setUploadProgress(30);
+                  
+                  const uploadResult = await uploadToImgBB(fullBase64, name);
+                  
+                  setUploadProgress(70);
+                  
+                  let docType = 'document';
+                  if (name?.toLowerCase().endsWith('.pdf')) docType = 'pdf';
+                  
+                  setDocumentForm({
+                    ...documentForm,
+                    title: name.replace(/\.[^/.]+$/, ''),
+                    description: '',
+                    type: docType,
+                    fileUrl: uploadResult.url,
+                    fileUrlDisplay: uploadResult.display_url,
+                    deleteUrl: uploadResult.delete_url,
+                    fileName: name,
+                    fileSize: size,
+                    uploadedAt: new Date().toISOString(),
+                    imgbbId: uploadResult.id
+                  });
+                  
+                  setUploadProgress(100);
+                  setUploading(false);
+                  setDocumentModalVisible(true);
+                  Alert.alert('Success', 'Document uploaded successfully! Click Save to add.');
+                  
+                } catch (readError) {
+                  console.error('Error reading file:', readError);
+                  Alert.alert('Error', 'Failed to read file');
+                  setUploading(false);
+                }
+              }
+            }
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
     }
   } catch (error) {
     console.error('Error uploading document:', error);
@@ -4434,11 +4529,12 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
   },
   committeeHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+  marginBottom: 8,
+  flexWrap: 'wrap', // ✅ Add this
+},
   committeeName: {
     fontFamily: Fonts.Bold,
     fontSize: 16,
@@ -4462,12 +4558,17 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   committeeActions: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  committeeActionButton: {
-    padding: 4,
-  },
+  flexDirection: 'row',
+  gap: 4, // ✅ Reduce gap
+  flexShrink: 0, // ✅ Prevent shrinking
+  alignItems: 'center',
+},
+committeeActionButton: {
+  padding: 4,
+  minWidth: 28, // ✅ Ensure minimum touch target
+  alignItems: 'center',
+  justifyContent: 'center',
+},
   committeeMembers: {
     marginTop: 8,
     paddingTop: 8,

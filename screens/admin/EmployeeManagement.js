@@ -547,17 +547,23 @@ data.createdBy = auth.currentUser?.uid || 'admin';
   };
 
   const StatCard = ({ label, count, icon, color }) => (
-    <View style={[styles.statCard, { borderLeftColor: color }]}>
-      <View style={styles.statIconContainer}>
-        <MaterialIcons name={icon} size={isSmallDevice ? 16 : 20} color={color} />
-      </View>
-      <View>
-        <Text style={[styles.statCount, { fontSize: isSmallDevice ? 12 : 14 }]}>{count}</Text>
-        <Text style={[styles.statLabel, { fontSize: isSmallDevice ? 8 : 9 }]}>{label}</Text>
-      </View>
+  <View style={[styles.statCard, { borderLeftColor: color }]}>
+    {/* Icon on top */}
+    <View style={[styles.statIconContainer, { backgroundColor: color + '20' }]}>
+      <MaterialIcons name={icon} size={isSmallDevice ? 20 : 24} color={color} />
     </View>
-  );
-
+    
+    {/* Number in middle */}
+    <Text style={[styles.statCount, { fontSize: isSmallDevice ? 16 : 20, color }]}>
+      {count}
+    </Text>
+    
+    {/* Label at bottom */}
+    <Text style={[styles.statLabel, { fontSize: isSmallDevice ? 9 : 10 }]}>
+      {label}
+    </Text>
+  </View>
+);
   const EmployeeCard = ({ employee }) => (
     <TouchableOpacity 
       style={styles.employeeCard}
@@ -792,32 +798,32 @@ data.createdBy = auth.currentUser?.uid || 'admin';
           </View>
 
           {/* Stats */}
-          <View style={styles.statsContainer}>
-            <StatCard 
-              label={translations.total} 
-              count={employees.length} 
-              icon="people" 
-              color="#FF7722" 
-            />
-            <StatCard 
-              label={translations.active} 
-              count={employees.filter(e => e.status === 'active').length} 
-              icon="check-circle" 
-              color="#10b981" 
-            />
-            <StatCard 
-              label={translations.suspended} 
-              count={employees.filter(e => e.status === 'suspended').length} 
-              icon="block" 
-              color="#ef4444" 
-            />
-            <StatCard 
-              label={translations.canLogin} 
-              count={employees.filter(e => e.canLogin).length} 
-              icon="login" 
-              color="#8b5cf6" 
-            />
-          </View>
+<View style={styles.statsContainer}>
+  <StatCard 
+    label={translations.total} 
+    count={employees.length} 
+    icon="people" 
+    color="#FF7722" 
+  />
+  <StatCard 
+    label={translations.active} 
+    count={employees.filter(e => e.status === 'active').length} 
+    icon="check-circle" 
+    color="#10b981" 
+  />
+  <StatCard 
+    label={translations.suspended} 
+    count={employees.filter(e => e.status === 'suspended').length} 
+    icon="block" 
+    color="#ef4444" 
+  />
+  <StatCard 
+    label={translations.canLogin} 
+    count={employees.filter(e => e.canLogin).length} 
+    icon="login" 
+    color="#8b5cf6" 
+  />
+</View>
         </View>
 
         {/* Employee List */}
@@ -1391,35 +1397,42 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 6,
-  },
-  statCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    padding: 6,
-    borderRadius: 10,
-    gap: 6,
-  },
-  statIconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statCount: {
-    fontFamily: Fonts.Bold,
-    color: '#ffffff',
-  },
-  statLabel: {
-    fontFamily: Fonts.Regular,
-    color: 'rgba(255,255,255,0.8)',
-  },
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  gap: 6,
+  marginTop: 4,
+},
+statCard: {
+  flex: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+  backgroundColor: 'rgba(255,255,255,0.15)',
+  paddingVertical: 10,
+  paddingHorizontal: 4,
+  borderRadius: 10,
+  minHeight: 75,
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.1)',
+},
+statIconContainer: {
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginBottom: 4,
+},
+statCount: {
+  fontFamily: Fonts.Bold,
+  color: '#ffffff',
+  textAlign: 'center',
+  marginBottom: 1,
+},
+statLabel: {
+  fontFamily: Fonts.Regular,
+  color: 'rgba(255,255,255,0.8)',
+  textAlign: 'center',
+},
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 20,

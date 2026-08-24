@@ -1067,17 +1067,17 @@ const resetNewMemberForm = () => {
 };
 
   const StatCard = ({ label, count, icon, color, active, onPress }) => (
-    <TouchableOpacity 
-      style={[styles.statCard, active && styles.statCardActive]} 
-      onPress={onPress}
-    >
-      <View style={[styles.statIconCircle, { backgroundColor: color + '15' }]}>
-        <MaterialIcons name={icon} size={isSmallDevice ? 16 : 20} color={color} />
-      </View>
-      <Text style={[styles.statType, { fontSize: isSmallDevice ? 7 : 8 }]}>{label}</Text>
-      <Text style={[styles.statCount, { fontSize: isSmallDevice ? 10 : 12, color }]}>{count}</Text>
-    </TouchableOpacity>
-  );
+  <TouchableOpacity 
+    style={[styles.statCard, active && styles.statCardActive]} 
+    onPress={onPress}
+  >
+    <View style={[styles.statIconCircle, { backgroundColor: color + '15' }]}>
+      <MaterialIcons name={icon} size={isSmallDevice ? 16 : 20} color={color} />
+    </View>
+    <Text style={styles.statType}>{label}</Text>
+    <Text style={[styles.statCount, { color }]}>{count}</Text>
+  </TouchableOpacity>
+);
 
   const StatusFilterChip = ({ label, count, active, onPress }) => (
     <TouchableOpacity
@@ -1421,32 +1421,39 @@ const resetNewMemberForm = () => {
             )}
           </View>
 
-          <View style={styles.statusFilterRow}>
-            <StatusFilterChip
-              label={translations.all}
-              count={getStatusCount('all')}
-              active={filterStatus === 'all'}
-              onPress={() => handleFilterStatus('all')}
-            />
-            <StatusFilterChip
-              label={translations.active}
-              count={getStatusCount('active')}
-              active={filterStatus === 'active'}
-              onPress={() => handleFilterStatus('active')}
-            />
-            <StatusFilterChip
-              label={translations.pending}
-              count={getStatusCount('pending')}
-              active={filterStatus === 'pending'}
-              onPress={() => handleFilterStatus('pending')}
-            />
-            <StatusFilterChip
-              label={translations.suspended}
-              count={getStatusCount('suspended')}
-              active={filterStatus === 'suspended'}
-              onPress={() => handleFilterStatus('suspended')}
-            />
-          </View>
+          <View style={styles.statusFilterWrapper}>
+  <ScrollView 
+    horizontal 
+    showsHorizontalScrollIndicator={false}
+    contentContainerStyle={styles.statusFilterScrollContent}
+    style={{ flexGrow: 0 }}
+  >
+    <StatusFilterChip
+      label={translations.all}
+      count={getStatusCount('all')}
+      active={filterStatus === 'all'}
+      onPress={() => handleFilterStatus('all')}
+    />
+    <StatusFilterChip
+      label={translations.active}
+      count={getStatusCount('active')}
+      active={filterStatus === 'active'}
+      onPress={() => handleFilterStatus('active')}
+    />
+    <StatusFilterChip
+      label={translations.pending}
+      count={getStatusCount('pending')}
+      active={filterStatus === 'pending'}
+      onPress={() => handleFilterStatus('pending')}
+    />
+    <StatusFilterChip
+      label={translations.suspended}
+      count={getStatusCount('suspended')}
+      active={filterStatus === 'suspended'}
+      onPress={() => handleFilterStatus('suspended')}
+    />
+  </ScrollView>
+</View>
 
           <View style={styles.statsWrapper}>
             <ScrollView 
@@ -2487,12 +2494,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.Regular,
     color: '#1f2937',
   },
-  statusFilterRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-    flexWrap: 'wrap',
-  },
+  
   statusChip: {
     paddingVertical: 5,
     paddingHorizontal: 12,
@@ -2544,9 +2546,10 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   statType: {
-    fontFamily: Fonts.Regular,
+    fontFamily: Fonts.Bold,
     color: 'rgba(255,255,255,0.8)',
     textAlign: 'center',
+    fontSize: 11
   },
   statCount: {
     fontFamily: Fonts.Bold,
@@ -3217,6 +3220,14 @@ idCardPhoto: {
   borderRadius: 3,
   borderWidth: 1,
   borderColor: '#d1d5db',
+},
+statusFilterWrapper: {
+  marginBottom: 12,
+},
+statusFilterScrollContent: {
+  gap: 8,
+  paddingVertical: 4,
+  alignItems: 'center',
 },
 idCardPhotoPlaceholder: {
   width: 60,

@@ -1153,80 +1153,208 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* Leadership/Committees */}
-        {committees.length > 0 && (
-          <View style={styles.leadershipContainer}>
-            <Text style={styles.leadershipTitle}>{t('home.leadership') || 'Leadership & Committees'}</Text>
-            {committees.map((committee) => {
-              const isExpanded = expandedCommittees[committee.id];
-              const memberCount = committee.members?.length || 0;
+{committees.length > 0 && (
+  <View style={styles.leadershipContainer}>
+    <View style={styles.sectionHeader}>
+      <MaterialIcons name="groups" size={22} color="#FF7722" />
+      <Text style={styles.sectionTitle}>{t('home.leadership') || 'Leadership & Committees'}</Text>
+    </View>
+    
+    {committees.map((committee) => {
+      const isExpanded = expandedCommittees[committee.id];
+      const memberCount = committee.members?.length || 0;
+      const subcommitteeCount = committee.subcommittees?.length || 0;
 
-              return (
-                <View key={committee.id} style={styles.committeeCard}>
-                  <TouchableOpacity
-                    style={styles.committeeHeaderRow}
-                    onPress={() => toggleCommittee(committee.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.committeeHeaderLeft}>
-                      <View style={styles.committeeIconContainer}>
-                        <MaterialIcons name="groups" size={20} color="#FF7722" />
-                      </View>
-                      <View style={styles.committeeHeaderInfo}>
-                        <Text style={styles.committeeName}>{getTranslatedCommitteeName(committee)}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.committeeHeaderRight}>
-                      {committee.description && (
-                        <MaterialIcons name="info-outline" size={18} color="#9ca3af" style={styles.committeeInfoIcon} />
-                      )}
-                      <MaterialIcons name={isExpanded ? 'expand-less' : 'expand-more'} size={24} color="#6b7280" />
-                    </View>
-                  </TouchableOpacity>
-
-                  {committee.description && (
-                    <Text style={styles.committeeDesc}>{getTranslatedCommitteeDesc(committee)}</Text>
+      return (
+        <View key={committee.id} style={styles.committeeCard}>
+          {/* Committee Header - Always Visible */}
+          <TouchableOpacity
+            style={styles.committeeHeaderRow}
+            onPress={() => toggleCommittee(committee.id)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.committeeHeaderLeft}>
+              <View style={styles.committeeIconContainer}>
+                <MaterialIcons name="groups" size={22} color="#FF7722" />
+              </View>
+              <View style={styles.committeeHeaderInfo}>
+                <Text style={styles.committeeName}>
+                  {getTranslatedCommitteeName(committee)}
+                </Text>
+                <View style={styles.committeeBadges}>
+                  {memberCount > 0 && (
+                    <Text style={styles.committeeMemberCount}>
+                      {memberCount} {memberCount === 1 ? 'Member' : 'Members'}
+                    </Text>
                   )}
-
-                  {isExpanded && memberCount > 0 && (
-                    <View style={styles.committeeMembersList}>
-                      {committee.members.slice(0, 10).map((member, index) => (
-                        <View key={member.id || index} style={styles.committeeMemberItem}>
-                          {member.photo ? (
-                            <Image source={{ uri: member.photo }} style={styles.committeeMemberPhoto} />
-                          ) : (
-                            <View style={[styles.leaderIcon, { backgroundColor: member.color || '#FF7722' }]}>
-                              <Text style={styles.leaderInitial}>{getTranslatedMemberName(member).charAt(0)}</Text>
-                            </View>
-                          )}
-                          <View style={styles.leaderContent}>
-                            <Text style={styles.leaderName}>{getTranslatedMemberName(member)}</Text>
-                            <Text style={styles.leaderRole}>{getTranslatedMemberRole(member)}</Text>
-                            {member.phone && (
-                              <Text style={styles.leaderContact}>
-                                <MaterialIcons name="phone" size={12} color="#6b7280" /> {member.phone}
-                              </Text>
-                            )}
-                            {member.email && (
-                              <Text style={styles.leaderContact}>
-                                <MaterialIcons name="email" size={12} color="#6b7280" /> {member.email}
-                              </Text>
-                            )}
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  {isExpanded && memberCount === 0 && (
-                    <View style={styles.noMembersContainer}>
-                      <Text style={styles.noMembersText}>{t('company.noMembers') || 'No members added yet'}</Text>
-                    </View>
+                  {subcommitteeCount > 0 && (
+                    <Text style={styles.subcommitteeCount}>
+                      {subcommitteeCount} {subcommitteeCount === 1 ? 'Subcommittee' : 'Subcommittees'}
+                    </Text>
                   )}
                 </View>
-              );
-            })}
-          </View>
-        )}
+              </View>
+            </View>
+            <View style={styles.committeeHeaderRight}>
+              {committee.description && (
+                <MaterialIcons name="info-outline" size={18} color="#9ca3af" style={styles.committeeInfoIcon} />
+              )}
+              <MaterialIcons 
+                name={isExpanded ? 'expand-less' : 'expand-more'} 
+                size={28} 
+                color="#6b7280" 
+              />
+            </View>
+          </TouchableOpacity>
+
+          {/* Committee Description */}
+          {committee.description && (
+            <Text style={styles.committeeDescription}>
+              {getTranslatedCommitteeDesc(committee)}
+            </Text>
+          )}
+
+          {/* Committee Members - Expandable */}
+          {isExpanded && memberCount > 0 && (
+            <View style={styles.committeeMembersList}>
+              <Text style={styles.membersListTitle}>Members</Text>
+              <View style={styles.membersGrid}>
+                {committee.members.map((member, index) => (
+                  <View key={member.id || index} style={styles.committeeMemberCard}>
+                    {member.photo ? (
+                      <Image 
+                        source={{ uri: member.photo }} 
+                        style={styles.committeeMemberPhoto} 
+                      />
+                    ) : (
+                      <View style={[styles.leaderIcon, { backgroundColor: '#FF7722' }]}>
+                        <Text style={styles.leaderInitial}>
+                          {getTranslatedMemberName(member).charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.leaderContent}>
+                      <Text style={styles.leaderName}>
+                        {getTranslatedMemberName(member)}
+                      </Text>
+                      <Text style={styles.leaderRole}>
+                        {getTranslatedMemberRole(member)}
+                      </Text>
+                      {member.position && (
+                        <Text style={styles.leaderPosition}>
+                          {member.position}
+                        </Text>
+                      )}
+                      <View style={styles.leaderContacts}>
+                        {member.phone && (
+                          <TouchableOpacity 
+                            style={styles.leaderContactBtn}
+                            onPress={() => handleCallPress(member.phone)}
+                            activeOpacity={0.7}
+                          >
+                            <MaterialIcons name="phone" size={12} color="#6b7280" />
+                            <Text style={styles.leaderContactText}>{member.phone}</Text>
+                          </TouchableOpacity>
+                        )}
+                        {member.email && (
+                          <TouchableOpacity 
+                            style={styles.leaderContactBtn}
+                            onPress={() => handleEmailPress(member.email)}
+                            activeOpacity={0.7}
+                          >
+                            <MaterialIcons name="email" size={12} color="#6b7280" />
+                            <Text style={styles.leaderContactText}>{member.email}</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      {member.bio && (
+                        <Text style={styles.leaderBio} numberOfLines={2}>
+                          {member.bio}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* ✅ SUBCOMMITTEES SECTION */}
+          {isExpanded && subcommitteeCount > 0 && (
+            <View style={styles.subcommitteesContainer}>
+              <View style={styles.subcommitteesHeader}>
+                <MaterialIcons name="layers" size={18} color="#8b5cf6" />
+                <Text style={styles.subcommitteesTitle}>Subcommittees</Text>
+              </View>
+              {committee.subcommittees.map((sub) => {
+                const subMemberCount = sub.members?.length || 0;
+                return (
+                  <View key={sub.id} style={styles.subcommitteeCard}>
+                    <View style={styles.subcommitteeHeader}>
+                      <View style={styles.subcommitteeInfo}>
+                        <Text style={styles.subcommitteeName}>{sub.name}</Text>
+                        {sub.description && (
+                          <Text style={styles.subcommitteeDescription} numberOfLines={1}>
+                            {sub.description}
+                          </Text>
+                        )}
+                        <Text style={styles.subcommitteeType}>
+                          {sub.type?.charAt(0).toUpperCase() + sub.type?.slice(1)}
+                        </Text>
+                        {subMemberCount > 0 && (
+                          <Text style={styles.subcommitteeMemberCount}>
+                            {subMemberCount} {subMemberCount === 1 ? 'Member' : 'Members'}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Subcommittee Members */}
+                    {sub.members && sub.members.length > 0 && (
+                      <View style={styles.subcommitteeMembers}>
+                        {sub.members.map((member, idx) => (
+                          <View key={member.id || idx} style={styles.subcommitteeMemberItem}>
+                            {member.photo ? (
+                              <Image 
+                                source={{ uri: member.photo }} 
+                                style={[styles.committeeMemberPhoto, { width: 32, height: 32, marginRight: 8 }]} 
+                              />
+                            ) : (
+                              <View style={[styles.leaderIcon, { width: 32, height: 32, marginRight: 8 }]}>
+                                <Text style={[styles.leaderInitial, { fontSize: 12 }]}>
+                                  {member.name?.charAt(0) || 'M'}
+                                </Text>
+                              </View>
+                            )}
+                            <View style={styles.subcommitteeMemberInfo}>
+                              <Text style={styles.subcommitteeMemberName}>{member.name}</Text>
+                              <Text style={styles.subcommitteeMemberRole}>{member.role}</Text>
+                              {member.position && (
+                                <Text style={styles.subcommitteeMemberPosition}>{member.position}</Text>
+                              )}
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* No Members Message */}
+          {isExpanded && memberCount === 0 && subcommitteeCount === 0 && (
+            <View style={styles.noMembersContainer}>
+              <MaterialIcons name="people-outline" size={24} color="#d1d5db" />
+              <Text style={styles.noMembersText}>{t('company.noMembers') || 'No members or subcommittees added yet'}</Text>
+            </View>
+          )}
+        </View>
+      );
+    })}
+  </View>
+)}
 
         {/* Members */}
         {members.length > 0 && (
@@ -2605,6 +2733,86 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+// Add after the existing committee styles
+
+committeeMemberCount: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+  marginTop: 1,
+},
+committeeDescription: {
+  fontFamily: Fonts.Regular,
+  fontSize: 13,
+  color: '#4b5563',
+  lineHeight: 20,
+  marginTop: 4,
+  marginBottom: 4,
+  paddingLeft: 48,
+},
+membersGrid: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 10,
+  paddingTop: 4,
+},
+committeeMemberCard: {
+  flexDirection: 'row',
+  alignItems: 'flex-start',
+  backgroundColor: '#ffffff',
+  borderRadius: 10,
+  padding: 12,
+  width: '100%',
+  borderWidth: 1,
+  borderColor: '#f0f0f0',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.03,
+  shadowRadius: 2,
+  elevation: 1,
+},
+committeeMemberPhoto: {
+  width: 50,
+  height: 50,
+  borderRadius: 25,
+  marginRight: 12,
+  borderWidth: 2,
+  borderColor: '#FF7722',
+  backgroundColor: '#f3f4f6',
+},
+leaderContacts: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 8,
+  marginTop: 4,
+},
+leaderContactBtn: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 4,
+  backgroundColor: '#f9fafb',
+  paddingHorizontal: 8,
+  paddingVertical: 2,
+  borderRadius: 4,
+},
+leaderContactText: {
+  fontFamily: Fonts.Regular,
+  fontSize: 11,
+  color: '#6b7280',
+},
+leaderPosition: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#9ca3af',
+  marginTop: 1,
+},
+leaderBio: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+  lineHeight: 18,
+  marginTop: 4,
+},
   faqQuestion: {
     fontFamily: Fonts.SemiBold,
     fontSize: 14,
@@ -2755,6 +2963,121 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     textAlignVertical: 'center',
   },
+// Add after the existing committee styles
+
+committeeBadges: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 6,
+  marginTop: 2,
+},
+subcommitteeCount: {
+  fontFamily: Fonts.Regular,
+  fontSize: 11,
+  color: '#8b5cf6',
+  backgroundColor: '#f5f3ff',
+  paddingHorizontal: 8,
+  paddingVertical: 1,
+  borderRadius: 10,
+},
+membersListTitle: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 13,
+  color: '#6b7280',
+  marginBottom: 8,
+},
+
+// Subcommittee Styles
+subcommitteesContainer: {
+  marginTop: 12,
+  paddingTop: 12,
+  borderTopWidth: 1,
+  borderTopColor: '#e5e7eb',
+},
+subcommitteesHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  marginBottom: 8,
+},
+subcommitteesTitle: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 13,
+  color: '#6b7280',
+},
+subcommitteeCard: {
+  backgroundColor: '#f3f4f6',
+  borderRadius: 8,
+  padding: 10,
+  marginBottom: 8,
+  borderWidth: 1,
+  borderColor: '#e5e7eb',
+},
+subcommitteeHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+},
+subcommitteeInfo: {
+  flex: 1,
+},
+subcommitteeName: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 14,
+  color: '#1f2937',
+},
+subcommitteeDescription: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+  marginTop: 1,
+},
+subcommitteeType: {
+  fontFamily: Fonts.Regular,
+  fontSize: 10,
+  color: '#9ca3af',
+  marginTop: 2,
+},
+subcommitteeMemberCount: {
+  fontFamily: Fonts.Regular,
+  fontSize: 10,
+  color: '#8b5cf6',
+  marginTop: 2,
+},
+subcommitteeMembers: {
+  marginTop: 8,
+  paddingTop: 8,
+  borderTopWidth: 1,
+  borderTopColor: '#e5e7eb',
+},
+subcommitteeMemberItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingVertical: 4,
+  paddingHorizontal: 4,
+  backgroundColor: '#ffffff',
+  borderRadius: 6,
+  marginBottom: 4,
+},
+subcommitteeMemberInfo: {
+  flex: 1,
+},
+subcommitteeMemberName: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 12,
+  color: '#1f2937',
+},
+subcommitteeMemberRole: {
+  fontFamily: Fonts.Regular,
+  fontSize: 10,
+  color: '#6b7280',
+},
+subcommitteeMemberPosition: {
+  fontFamily: Fonts.Regular,
+  fontSize: 10,
+  color: '#9ca3af',
+  marginTop: 1,
+},
   quoteAuthor: {
     fontFamily: Fonts.SemiBold,
     fontSize: 12,

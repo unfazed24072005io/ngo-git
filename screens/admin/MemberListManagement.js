@@ -772,69 +772,74 @@ const fetchRegistrationFeeDetails = async (memberId) => {
       </View>
 
       <View style={styles.actionButtons}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.viewButton]}
-          onPress={() => handleViewMember(member)}
-          activeOpacity={0.7}
-        >
-          <MaterialIcons name="visibility" size={14} color="#ffffff" />
-          <Text style={styles.actionButtonText}>{translations.view}</Text>
-        </TouchableOpacity>
-        {member.role !== 'admin' && (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.feeButton]}
-            onPress={() => {
-              setSelectedMemberForFee(member);
-              setFeeAmount('');
-              setFeeNote('');
-              setFeeModalVisible(true);
-            }}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons name="payments" size={14} color="#ffffff" />
-            <Text style={styles.actionButtonText}>{translations.addFee}</Text>
-          </TouchableOpacity>
-        )}
-        {member.status !== 'active' && member.role !== 'admin' && (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.approveButton]}
-            onPress={() => handleStatusUpdate(member.id, 'active')}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons name="check-circle" size={14} color="#ffffff" />
-            <Text style={styles.actionButtonText}>{translations.approve}</Text>
-          </TouchableOpacity>
-        )}
-        {member.status !== 'suspended' && member.status !== 'active' && member.role !== 'admin' && (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.suspendButton]}
-            onPress={() => handleStatusUpdate(member.id, 'suspended')}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons name="block" size={14} color="#ffffff" />
-            <Text style={styles.actionButtonText}>{translations.suspend}</Text>
-          </TouchableOpacity>
-        )}
-        {member.status === 'suspended' && member.role !== 'admin' && (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.reactivateButton]}
-            onPress={() => handleStatusUpdate(member.id, 'active')}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons name="refresh" size={14} color="#ffffff" />
-            <Text style={styles.actionButtonText}>{translations.reactivate}</Text>
-          </TouchableOpacity>
-        )}
-        {member.role !== 'admin' && (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.deleteButton]}
-            onPress={() => handleDelete(member.id)}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons name="delete" size={14} color="#ffffff" />
-          </TouchableOpacity>
-        )}
-      </View>
+  <TouchableOpacity 
+    style={[styles.actionButton, styles.viewButton]}
+    onPress={() => handleViewMember(member)}
+    activeOpacity={0.7}
+  >
+    <MaterialIcons name="visibility" size={14} color="#ffffff" />
+    <Text style={styles.actionButtonText}>{translations.view}</Text>
+  </TouchableOpacity>
+  
+  {member.role !== 'admin' && (
+    <TouchableOpacity 
+      style={[styles.actionButton, styles.feeButton]}
+      onPress={() => {
+        setSelectedMemberForFee(member);
+        setFeeAmount('');
+        setFeeNote('');
+        setFeeModalVisible(true);
+      }}
+      activeOpacity={0.7}
+    >
+      <MaterialIcons name="payments" size={14} color="#ffffff" />
+      <Text style={styles.actionButtonText}>{translations.addFee}</Text>
+    </TouchableOpacity>
+  )}
+  
+  {member.status !== 'active' && member.role !== 'admin' && (
+    <TouchableOpacity 
+      style={[styles.actionButton, styles.approveButton]}
+      onPress={() => handleStatusUpdate(member.id, 'active')}
+      activeOpacity={0.7}
+    >
+      <MaterialIcons name="check-circle" size={14} color="#ffffff" />
+      <Text style={styles.actionButtonText}>{translations.approve}</Text>
+    </TouchableOpacity>
+  )}
+  
+  {member.status !== 'suspended' && member.status !== 'active' && member.role !== 'admin' && (
+    <TouchableOpacity 
+      style={[styles.actionButton, styles.suspendButton]}
+      onPress={() => handleStatusUpdate(member.id, 'suspended')}
+      activeOpacity={0.7}
+    >
+      <MaterialIcons name="block" size={14} color="#ffffff" />
+      <Text style={styles.actionButtonText}>{translations.suspend}</Text>
+    </TouchableOpacity>
+  )}
+  
+  {member.status === 'suspended' && member.role !== 'admin' && (
+    <TouchableOpacity 
+      style={[styles.actionButton, styles.reactivateButton]}
+      onPress={() => handleStatusUpdate(member.id, 'active')}
+      activeOpacity={0.7}
+    >
+      <MaterialIcons name="refresh" size={14} color="#ffffff" />
+      <Text style={styles.actionButtonText}>{translations.reactivate}</Text>
+    </TouchableOpacity>
+  )}
+  
+  {member.role !== 'admin' && (
+    <TouchableOpacity 
+      style={[styles.actionButton, styles.deleteButton]}
+      onPress={() => handleDelete(member.id)}
+      activeOpacity={0.7}
+    >
+      <MaterialIcons name="delete" size={14} color="#ffffff" />
+    </TouchableOpacity>
+  )}
+</View>
     </TouchableOpacity>
   );
 
@@ -1510,20 +1515,23 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   actionButtons: {
-    flexDirection: 'row',
-    marginTop: 8,
-    justifyContent: 'flex-end',
-    gap: 4,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 4,
-    gap: 4,
-  },
+  flexDirection: 'row',
+  flexWrap: 'wrap', // Add this to allow wrapping
+  marginTop: 8,
+  justifyContent: 'flex-end',
+  gap: 4,
+},
+actionButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 8,
+  paddingVertical: 5,
+  borderRadius: 4,
+  gap: 4,
+  minWidth: 30, // Add minimum width
+  marginBottom: 4, // Add margin bottom for wrapped items
+},
   viewButton: {
     backgroundColor: '#FF7722',
   },

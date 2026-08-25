@@ -144,6 +144,13 @@ export default function WorkingMemberManagement() {
   const [workingMembers, setWorkingMembers] = useState([]);
   const [filteredMembers, setFilteredMembers] = useState([]);
   const [search, setSearch] = useState('');
+// Add with other state declarations
+const [assignModalVisible, setAssignModalVisible] = useState(false);
+const [selectedMemberForAssign, setSelectedMemberForAssign] = useState(null);
+const [availableSubMembers, setAvailableSubMembers] = useState([]);
+const [selectedSubMemberId, setSelectedSubMemberId] = useState(null);
+const [selectedSubMemberName, setSelectedSubMemberName] = useState('');
+const [searchSubMember, setSearchSubMember] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
@@ -180,13 +187,23 @@ const [newMemberData, setNewMemberData] = useState({
   level: 'I',
   status: 'active',
   role: 'working',
-  profilePhoto: null
+  profilePhoto: null,
+  parentId: '', // ✅ Add parent ID
 });
 const [savingMember, setSavingMember] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterLevel, setFilterLevel] = useState('All');
 // Add with other state declarations
+// Add with other state declarations
+const [parentMemberId, setParentMemberId] = useState(null);
+
+const [parentMemberName, setParentMemberName] = useState('');
+const [showParentSelector, setShowParentSelector] = useState(false);
+const [availableParents, setAvailableParents] = useState([]);
+const [searchParent, setSearchParent] = useState('');
+const [registrationMethod, setRegistrationMethod] = useState('email'); // 'email' or 'phone'
+const [showRegistrationMethodModal, setShowRegistrationMethodModal] = useState(false);
 const [referralModalVisible, setReferralModalVisible] = useState(false);
 const [selectedMemberForReferral, setSelectedMemberForReferral] = useState(null);
 const [referralCode, setReferralCode] = useState('');
@@ -249,6 +266,49 @@ const fetchMemberCertificates = async (memberId) => {
   } catch (error) {
     console.error('Error fetching certificates:', error);
     setMemberCertificates([]);
+  }
+};
+// Fetch available members who can be parents (level higher than selected)
+// Fetch available members who can be parents (level HIGHER than selected)
+const fetchAvailableParents = async (selectedLevel) => {
+  if (!selectedLevel) return;
+  
+  try {
+    const levelsToUse = dynamicLevels.length > 0 ? dynamicLevels : getDefaultLevels();
+    const selectedLevelIndex = levelsToUse.findIndex(l => l.id === selectedLevel);
+    
+    // ✅ Parents must be at HIGHER levels (higher index = higher level)
+    const parentLevels = levelsToUse.filter((l, index) => index > selectedLevelIndex);
+    const parentLevelIds = parentLevels.map(l => l.id);
+    
+    if (parentLevelIds.length === 0) {
+      setAvailableParents([]);
+      return;
+    }
+    
+    const q = query(
+      collection(db, 'users'),
+      where('role', 'in', ['working', 'workingMember']),
+      where('status', '==', 'active')
+    );
+    const snapshot = await getDocs(q);
+    const parents = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      if (parentLevelIds.includes(data.level)) {
+        parents.push({
+          id: doc.id,
+          fullName: data.fullName || data.name || 'Unknown',
+          level: data.level,
+          levelName: getLevelLabel(data.level),
+          phone: data.phone || '',
+          email: data.email || '',
+        });
+      }
+    });
+    setAvailableParents(parents);
+  } catch (error) {
+    console.error('Error fetching parents:', error);
   }
 };
 // Add this function with other functions
@@ -567,7 +627,157 @@ const getCertificateIcon = (type) => {
     default: return 'verified';
   }
 };
+// Fetch members who can be assigned under this member (lower levels)
+// Fetch members who can be assigned under this member (LOWER levels)
+const fetchAvailableSubMembers = async (parentLevel) => {
+  if (!parentLevel) return;
+  
+  try {
+    const levelsToUse = dynamicLevels.length > 0 ? dynamicLevels : getDefaultLevels();
+    const parentLevelIndex = levelsToUse.findIndex(l => l.id === parentLevel);
+    
+    // ✅ Sub-members must be at LOWER levels (lower index = lower level)
+    const subLevels = levelsToUse.filter((l, index) => index < parentLevelIndex);
+    const subLevelIds = subLevels.map(l => l.id);
+    
+    if (subLevelIds.length === 0) {
+      setAvailableSubMembers([]);
+      return;
+    }
+    
+    const q = query(
+      collection(db, 'users'),
+      where('role', 'in', ['working', 'workingMember']),
+      where('status', '==', 'active')
+    );
+    const snapshot = await getDocs(q);
+    const subMembers = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      if (subLevelIds.includes(data.level)) {
+        if (!data.parentId) {
+          subMembers.push({
+            id: doc.id,
+            fullName: data.fullName || data.name || 'Unknown',
+            level: data.level,
+            levelName: getLevelLabel(data.level),
+            phone: data.phone || '',
+            email: data.email || '',
+          });
+        }
+      }
+    });
+    setAvailableSubMembers(subMembers);
+  } catch (error) {
+    console.error('Error fetching sub-members:', error);
+  }
+};
+// Assign a sub-member to the selected parent
+const handleAssignMember = async () => {
+  if (!selectedMemberForAssign || !selectedSubMemberId) {
+    Alert.alert('Error', 'Please select a member to assign');
+    return;
+  }
 
+  setSavingMember(true);
+  try {
+    // Update the sub-member's parent
+    const subMemberRef = doc(db, 'users', selectedSubMemberId);
+    await updateDoc(subMemberRef, {
+      parentId: selectedMemberForAssign.id,
+      parentName: selectedMemberForAssign.fullName,
+      updatedAt: new Date().toISOString()
+    });
+
+    // Update the parent's children list
+    const parentRef = doc(db, 'users', selectedMemberForAssign.id);
+    const parentDoc = await getDoc(parentRef);
+    if (parentDoc.exists()) {
+      const parentData = parentDoc.data();
+      const currentChildren = parentData.childrenIds || [];
+      if (!currentChildren.includes(selectedSubMemberId)) {
+        await updateDoc(parentRef, {
+          childrenIds: [...currentChildren, selectedSubMemberId],
+          updatedAt: new Date().toISOString()
+        });
+      }
+    }
+
+    Alert.alert(
+      'Success',
+      `${selectedSubMemberName} has been assigned under ${selectedMemberForAssign.fullName}`
+    );
+    
+    setAssignModalVisible(false);
+    setSelectedMemberForAssign(null);
+    setSelectedSubMemberId(null);
+    setSelectedSubMemberName('');
+    setAvailableSubMembers([]);
+    onRefresh();
+    
+  } catch (error) {
+    console.error('Error assigning member:', error);
+    Alert.alert('Error', 'Failed to assign member. Please try again.');
+  } finally {
+    setSavingMember(false);
+  }
+};
+// Unassign a sub-member from parent
+const handleUnassignMember = async (memberId) => {
+  Alert.alert(
+    'Unassign Member',
+    'Are you sure you want to remove this member from their parent?',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Unassign',
+        style: 'destructive',
+        onPress: async () => {
+          setSavingMember(true);
+          try {
+            const memberRef = doc(db, 'users', memberId);
+            const memberDoc = await getDoc(memberRef);
+            if (memberDoc.exists()) {
+              const memberData = memberDoc.data();
+              const parentId = memberData.parentId;
+              
+              // Remove parent from member
+              await updateDoc(memberRef, {
+                parentId: null,
+                parentName: null,
+                updatedAt: new Date().toISOString()
+              });
+
+              // Remove member from parent's children list
+              if (parentId) {
+                const parentRef = doc(db, 'users', parentId);
+                const parentDoc = await getDoc(parentRef);
+                if (parentDoc.exists()) {
+                  const parentData = parentDoc.data();
+                  const currentChildren = parentData.childrenIds || [];
+                  const updatedChildren = currentChildren.filter(id => id !== memberId);
+                  await updateDoc(parentRef, {
+                    childrenIds: updatedChildren,
+                    updatedAt: new Date().toISOString()
+                  });
+                }
+              }
+            }
+
+            Alert.alert('Success', 'Member unassigned successfully');
+            onRefresh();
+            
+          } catch (error) {
+            console.error('Error unassigning member:', error);
+            Alert.alert('Error', 'Failed to unassign member');
+          } finally {
+            setSavingMember(false);
+          }
+        }
+      }
+    ]
+  );
+};
 const getCertificateTypeLabel = (type) => {
   switch(type) {
     case 'donation': return 'Donation';
@@ -583,28 +793,50 @@ const handleAddWorkingMember = async () => {
     Alert.alert('Error', 'Full Name is required');
     return;
   }
-  if (!newMemberData.email.trim()) {
-    Alert.alert('Error', 'Email is required');
-    return;
-  }
-  if (!newMemberData.phone.trim()) {
-    Alert.alert('Error', 'Phone number is required');
-    return;
-  }
-  if (!newMemberData.password || newMemberData.password.length < 6) {
-    Alert.alert('Error', 'Password must be at least 6 characters');
-    return;
+  
+  // Validate email or phone based on registration method
+  if (registrationMethod === 'email') {
+    if (!newMemberData.email.trim()) {
+      Alert.alert('Error', 'Email is required');
+      return;
+    }
+    if (!newMemberData.password || newMemberData.password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
+  } else {
+    if (!newMemberData.phone.trim()) {
+      Alert.alert('Error', 'Phone number is required');
+      return;
+    }
+    if (!newMemberData.password || newMemberData.password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
   }
 
   setSavingMember(true);
   try {
-    // Create user with email and password
-    const auth = getAuthInstance(); // ✅ ADD THIS
-const userCredential = await createUserWithEmailAndPassword(
-  auth,
-  newMemberData.email.trim(),
-  newMemberData.password
-);
+    const auth = getAuthInstance();
+    let userCredential;
+    
+    if (registrationMethod === 'email') {
+      // Create with email and password
+      userCredential = await createUserWithEmailAndPassword(
+        auth,
+        newMemberData.email.trim(),
+        newMemberData.password
+      );
+    } else {
+      // Create with phone and password
+      // Note: Firebase Auth requires phone number with country code
+      const phoneNumber = `+91${newMemberData.phone.trim()}`;
+      userCredential = await createUserWithEmailAndPassword(
+        auth,
+        `${phoneNumber}@phone.auth`, // Firebase needs email format for phone auth
+        newMemberData.password
+      );
+    }
     
     const userId = userCredential.user.uid;
 
@@ -614,7 +846,7 @@ const userCredential = await createUserWithEmailAndPassword(
     // Save user data to Firestore
     const userData = {
       fullName: newMemberData.fullName.trim(),
-      email: newMemberData.email.trim().toLowerCase(),
+      email: registrationMethod === 'email' ? newMemberData.email.trim().toLowerCase() : '',
       phone: newMemberData.phone.trim(),
       address: newMemberData.address.trim(),
       village: newMemberData.village,
@@ -637,10 +869,32 @@ const userCredential = await createUserWithEmailAndPassword(
       directReferrals: [],
       registeredBy: auth.currentUser?.uid || 'admin',
       promotionPending: false,
-      walletCreated: false
+      walletCreated: false,
+      // ✅ Add parent relationship
+      parentId: parentMemberId || null,
+      parentName: parentMemberName || null,
+      registrationMethod: registrationMethod,
     };
 
     await setDoc(doc(db, 'users', userId), userData);
+
+    // ✅ Update parent's children list
+    if (parentMemberId) {
+      try {
+        const parentRef = doc(db, 'users', parentMemberId);
+        const parentDoc = await getDoc(parentRef);
+        if (parentDoc.exists()) {
+          const parentData = parentDoc.data();
+          const currentChildren = parentData.childrenIds || [];
+          await updateDoc(parentRef, {
+            childrenIds: [...currentChildren, userId],
+            updatedAt: new Date().toISOString()
+          });
+        }
+      } catch (error) {
+        console.error('Error updating parent children:', error);
+      }
+    }
 
     // Create wallet
     await setDoc(doc(db, 'wallets', userId), {
@@ -655,10 +909,12 @@ const userCredential = await createUserWithEmailAndPassword(
 
     Alert.alert(
       'Success',
-      `Working member "${newMemberData.fullName}" added successfully!`
+      `Working member "${newMemberData.fullName}" added successfully!${parentMemberName ? `\nAttached to: ${parentMemberName}` : ''}`
     );
     
     setAddMemberModalVisible(false);
+    setParentMemberId(null);
+    setParentMemberName('');
     resetNewMemberForm();
     onRefresh();
     
@@ -671,13 +927,14 @@ const userCredential = await createUserWithEmailAndPassword(
       errorMessage = 'Invalid email format.';
     } else if (error.code === 'auth/weak-password') {
       errorMessage = 'Password is too weak. Use at least 6 characters.';
+    } else if (error.code === 'auth/phone-number-already-exists') {
+      errorMessage = 'Phone number already registered.';
     }
     Alert.alert('Error', errorMessage);
   } finally {
     setSavingMember(false);
   }
 };
-
 const resetNewMemberForm = () => {
   setNewMemberData({
     fullName: '',
@@ -697,8 +954,12 @@ const resetNewMemberForm = () => {
     level: 'I',
     status: 'active',
     role: 'working',
-    profilePhoto: null
+    profilePhoto: null,
+    parentId: '',
   });
+  setParentMemberId(null);
+  setParentMemberName('');
+  setSearchParent('');
 };
 
   const setupRealtimeListener = () => {
@@ -828,26 +1089,31 @@ const resetNewMemberForm = () => {
   };
 
   const applyFilters = (data, searchText, status, level) => {
-    let filtered = data;
+  let filtered = data;
 
-    if (searchText) {
-      filtered = filtered.filter(member =>
-        member.fullName?.toLowerCase().includes(searchText.toLowerCase()) ||
-        member.email?.toLowerCase().includes(searchText.toLowerCase()) ||
-        member.levelTitle?.toLowerCase().includes(searchText.toLowerCase())
-      );
-    }
+  if (searchText) {
+    filtered = filtered.filter(member =>
+      member.fullName?.toLowerCase().includes(searchText.toLowerCase()) ||
+      member.email?.toLowerCase().includes(searchText.toLowerCase()) ||
+      member.levelTitle?.toLowerCase().includes(searchText.toLowerCase())
+    );
+  }
 
-    if (status !== 'all') {
-      filtered = filtered.filter(member => member.status === status);
-    }
+  if (status !== 'all') {
+    filtered = filtered.filter(member => member.status === status);
+  }
 
-    if (level !== 'All') {
-      filtered = filtered.filter(member => member.levelTitle?.toLowerCase() === level.toLowerCase());
-    }
+  // ✅ Filter by level name (dynamic)
+  if (level !== 'All') {
+    filtered = filtered.filter(member => {
+      // Get the level name from dynamic levels or fallback
+      const levelName = getLevelLabel(member.level);
+      return levelName.toLowerCase() === level.toLowerCase();
+    });
+  }
 
-    setFilteredMembers(filtered);
-  };
+  setFilteredMembers(filtered);
+};
 
   const handleSearch = (text) => {
     setSearch(text);
@@ -859,11 +1125,10 @@ const resetNewMemberForm = () => {
     applyFilters(workingMembers, search, status, filterLevel);
   };
 
-  const handleFilterLevel = (level) => {
-    setFilterLevel(level);
-    applyFilters(workingMembers, search, filterStatus, level);
-  };
-
+  const handleFilterLevel = (levelName) => {
+  setFilterLevel(levelName);
+  applyFilters(workingMembers, search, filterStatus, levelName);
+};
   const handleStatusUpdate = async (id, status) => {
     try {
       await updateDoc(doc(db, 'users', id), { 
@@ -1007,10 +1272,13 @@ const resetNewMemberForm = () => {
     setRefreshing(false);
   };
 
-  const getFilterCount = (filter) => {
-    if (filter === 'All') return workingMembers.length;
-    return workingMembers.filter(m => m.levelTitle?.toLowerCase() === filter.toLowerCase()).length;
-  };
+  const getFilterCount = (levelName) => {
+  if (levelName === 'All') return workingMembers.length;
+  return workingMembers.filter(m => {
+    const memberLevelName = getLevelLabel(m.level);
+    return memberLevelName.toLowerCase() === levelName.toLowerCase();
+  }).length;
+};
 
   const getStatusCount = (status) => {
     if (status === 'all') return workingMembers.length;
@@ -1071,9 +1339,6 @@ const resetNewMemberForm = () => {
     style={[styles.statCard, active && styles.statCardActive]} 
     onPress={onPress}
   >
-    <View style={[styles.statIconCircle, { backgroundColor: color + '15' }]}>
-      <MaterialIcons name={icon} size={isSmallDevice ? 16 : 20} color={color} />
-    </View>
     <Text style={styles.statType}>{label}</Text>
     <Text style={[styles.statCount, { color }]}>{count}</Text>
   </TouchableOpacity>
@@ -1232,6 +1497,20 @@ const resetNewMemberForm = () => {
   <MaterialIcons name="share" size={isSmallDevice ? 10 : 14} color="#ffffff" />
   <Text style={[styles.actionButtonText, { fontSize: isSmallDevice ? 7 : 9 }]}>Referral</Text>
 </TouchableOpacity>
+{/* Add this button in the cardActions section */}
+<TouchableOpacity 
+  style={[styles.actionButton, styles.assignButton]}
+  onPress={() => {
+    setSelectedMemberForAssign(member);
+    fetchAvailableSubMembers(member.level);
+    setSelectedSubMemberId(null);
+    setSelectedSubMemberName('');
+    setAssignModalVisible(true);
+  }}
+>
+  <MaterialIcons name="group-add" size={isSmallDevice ? 10 : 14} color="#ffffff" />
+  <Text style={[styles.actionButtonText, { fontSize: isSmallDevice ? 7 : 9 }]}>Assign</Text>
+</TouchableOpacity>
 <TouchableOpacity 
   style={[styles.actionButton, styles.downloadButton]}
   onPress={() => openDownloadModal(member)}
@@ -1387,16 +1666,23 @@ const resetNewMemberForm = () => {
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { fontSize: isSmallDevice ? 18 : 20 }]}>{translations.workingMembers}</Text>
 <View style={styles.headerRight}>
-    <TouchableOpacity 
-      style={styles.addButton}
-      onPress={() => {
-        resetNewMemberForm();
-        setAddMemberModalVisible(true);
-      }}
-    >
-      <MaterialIcons name="add" size={24} color="#ffffff" />
-    </TouchableOpacity>
-  </View>
+  <TouchableOpacity 
+    style={styles.addButton}
+    onPress={() => {
+      resetNewMemberForm();
+      setParentMemberId(null);
+      setParentMemberName('');
+      setSearchParent('');
+      setRegistrationMethod('email');
+      // Show registration method selection first
+      setShowRegistrationMethodModal(true);
+      // Pre-fetch parents for default level
+      fetchAvailableParents('I');
+    }}
+  >
+    <MaterialIcons name="add" size={24} color="#ffffff" />
+  </TouchableOpacity>
+</View>
             <TouchableOpacity 
               style={styles.refreshButton}
               onPress={onRefresh}
@@ -1456,36 +1742,57 @@ const resetNewMemberForm = () => {
 </View>
 
           <View style={styles.statsWrapper}>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false} 
-              contentContainerStyle={styles.statsScrollContent}
-              style={{ flexGrow: 0 }}
-            >
-              <StatCard 
-                label={translations.all} 
-                count={workingMembers.length} 
-                icon="people" 
-                color="#ffffff" 
-                active={filterLevel === 'All'}
-                onPress={() => handleFilterLevel('All')}
-              />
-              {['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'].map((key) => {
-                const level = getLevelDetails(key);
-                return (
-                  <StatCard 
-                    key={key}
-                    label={level.title} 
-                    count={workingMembers.filter(m => m.level === key).length} 
-                    icon="star" 
-                    color="#ffffff"
-                    active={filterLevel === level.title}
-                    onPress={() => handleFilterLevel(level.title)}
-                  />
-                );
-              })}
-            </ScrollView>
-          </View>
+  <ScrollView 
+    horizontal 
+    showsHorizontalScrollIndicator={false} 
+    contentContainerStyle={styles.statsScrollContent}
+    style={{ flexGrow: 0 }}
+  >
+    <StatCard 
+      label={translations.all} 
+      count={workingMembers.length} 
+      icon="people" 
+      color="#ffffff" 
+      active={filterLevel === 'All'}
+      onPress={() => handleFilterLevel('All')}
+    />
+    
+    {dynamicLevels.length > 0 ? (
+      dynamicLevels.map((level) => {
+        const count = workingMembers.filter(m => m.level === level.id).length;
+        const levelName = level.name || level.id;
+        return (
+          <StatCard 
+            key={level.id}
+            label={levelName}
+            count={count}
+            icon="star" 
+            color="#ffffff"
+            active={filterLevel === levelName}
+            onPress={() => handleFilterLevel(levelName)}
+          />
+        );
+      })
+    ) : (
+      // Fallback to default levels if dynamic levels not loaded
+      ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'].map((key) => {
+        const level = getLevelDetails(key);
+        const count = workingMembers.filter(m => m.level === key).length;
+        return (
+          <StatCard 
+            key={key}
+            label={level.title}
+            count={count}
+            icon="star" 
+            color="#ffffff"
+            active={filterLevel === level.title}
+            onPress={() => handleFilterLevel(level.title)}
+          />
+        );
+      })
+    )}
+  </ScrollView>
+</View>
         </View>
 
         <FlatList
@@ -1630,6 +1937,249 @@ const resetNewMemberForm = () => {
           </TouchableOpacity>
         </>
       )}
+    </View>
+  </View>
+</Modal>
+{/* Assign Member Modal */}
+<Modal
+  animationType="slide"
+  transparent={true}
+  visible={assignModalVisible}
+  onRequestClose={() => {
+    setAssignModalVisible(false);
+    setSelectedMemberForAssign(null);
+    setSelectedSubMemberId(null);
+    setSelectedSubMemberName('');
+  }}
+>
+  <View style={styles.modalContainer}>
+    <View style={styles.modalContent}>
+      <View style={styles.modalHeader}>
+        <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
+          Assign Member
+        </Text>
+        <TouchableOpacity onPress={() => {
+          setAssignModalVisible(false);
+          setSelectedMemberForAssign(null);
+        }}>
+          <MaterialIcons name="close" size={24} color="#6B7280" />
+        </TouchableOpacity>
+      </View>
+
+      {selectedMemberForAssign && (
+        <>
+          <View style={styles.assignParentInfo}>
+            <Text style={styles.assignLabel}>Parent:</Text>
+            <Text style={styles.assignParentName}>{selectedMemberForAssign.fullName}</Text>
+            <Text style={styles.assignParentLevel}>
+              Level: {getLevelLabel(selectedMemberForAssign.level)}
+            </Text>
+          </View>
+
+          <View style={styles.assignDivider} />
+
+          <Text style={styles.assignSubtitle}>
+            Select a member to assign under {selectedMemberForAssign.fullName}
+          </Text>
+
+          <View style={styles.assignSearchContainer}>
+            <TextInput
+              style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14, flex: 1 }]}
+              placeholder="Search member by name..."
+              placeholderTextColor="#9ca3af"
+              value={searchSubMember}
+              onChangeText={setSearchSubMember}
+            />
+            <TouchableOpacity
+              style={styles.parentSearchButton}
+              onPress={() => {
+                if (searchSubMember.trim()) {
+                  const filtered = availableSubMembers.filter(m => 
+                    m.fullName.toLowerCase().includes(searchSubMember.toLowerCase())
+                  );
+                  setAvailableSubMembers(filtered);
+                } else {
+                  fetchAvailableSubMembers(selectedMemberForAssign.level);
+                }
+              }}
+            >
+              <MaterialIcons name="search" size={20} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+
+          {availableSubMembers.length === 0 ? (
+            <View style={styles.assignEmptyState}>
+              <MaterialIcons name="people-outline" size={40} color="#d1d5db" />
+              <Text style={styles.assignEmptyText}>
+                No available members to assign
+              </Text>
+              <Text style={styles.assignEmptySubtext}>
+                All members at lower levels are already assigned
+              </Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.assignListContainer}>
+              {availableSubMembers.map((member) => (
+                <TouchableOpacity
+                  key={member.id}
+                  style={[
+                    styles.assignItem,
+                    selectedSubMemberId === member.id && styles.assignItemActive
+                  ]}
+                  onPress={() => {
+                    setSelectedSubMemberId(member.id);
+                    setSelectedSubMemberName(member.fullName);
+                  }}
+                >
+                  <View style={styles.assignItemLeft}>
+                    <View style={styles.assignItemAvatar}>
+                      <Text style={styles.assignItemAvatarText}>
+                        {member.fullName.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={styles.assignItemName}>{member.fullName}</Text>
+                      <Text style={styles.assignItemLevel}>
+                        Level: {member.levelName}
+                      </Text>
+                    </View>
+                  </View>
+                  {selectedSubMemberId === member.id && (
+                    <MaterialIcons name="check-circle" size={24} color="#10b981" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          {selectedSubMemberId && (
+            <View style={styles.assignSelectedContainer}>
+              <MaterialIcons name="link" size={16} color="#10b981" />
+              <Text style={styles.assignSelectedText}>
+                Assigning: {selectedSubMemberName}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.assignActions}>
+            <TouchableOpacity
+              style={[styles.assignButton, styles.assignCancelButton]}
+              onPress={() => {
+                setAssignModalVisible(false);
+                setSelectedMemberForAssign(null);
+                setSelectedSubMemberId(null);
+                setSelectedSubMemberName('');
+              }}
+            >
+              <Text style={styles.assignCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.assignButton, 
+                styles.assignConfirmButton,
+                (!selectedSubMemberId || savingMember) && { opacity: 0.6 }
+              ]}
+              onPress={handleAssignMember}
+              disabled={!selectedSubMemberId || savingMember}
+            >
+              {savingMember ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <MaterialIcons name="check" size={20} color="#ffffff" />
+                  <Text style={styles.assignConfirmText}>Assign</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+    </View>
+  </View>
+</Modal>
+{/* Registration Method Selection Modal */}
+<Modal
+  animationType="slide"
+  transparent={true}
+  visible={showRegistrationMethodModal}
+  onRequestClose={() => setShowRegistrationMethodModal(false)}
+>
+  <View style={styles.modalContainer}>
+    <View style={styles.modalContent}>
+      <View style={styles.modalHeader}>
+        <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
+          Registration Method
+        </Text>
+        <TouchableOpacity onPress={() => setShowRegistrationMethodModal(false)}>
+          <MaterialIcons name="close" size={24} color="#6B7280" />
+        </TouchableOpacity>
+      </View>
+
+      <Text style={[styles.modalSubText, { fontSize: isSmallDevice ? 12 : 13 }]}>
+        Choose how you want to register this working member
+      </Text>
+
+      <TouchableOpacity 
+        style={[styles.methodCard, registrationMethod === 'email' && styles.methodCardActive]}
+        onPress={() => {
+          setRegistrationMethod('email');
+          setShowRegistrationMethodModal(false);
+          setAddMemberModalVisible(true);
+          // Reset form
+          resetNewMemberForm();
+          // Fetch parents for initial level
+          fetchAvailableParents(newMemberData.level || 'I');
+        }}
+      >
+        <View style={[styles.methodIcon, { backgroundColor: registrationMethod === 'email' ? '#FF7722' : '#e5e7eb' }]}>
+          <MaterialIcons name="email" size={24} color={registrationMethod === 'email' ? '#ffffff' : '#6b7280'} />
+        </View>
+        <View style={styles.methodContent}>
+          <Text style={[styles.methodTitle, registrationMethod === 'email' && styles.methodTitleActive]}>
+            Email Registration
+          </Text>
+          <Text style={styles.methodDescription}>
+            Register using email and password
+          </Text>
+        </View>
+        {registrationMethod === 'email' && (
+          <MaterialIcons name="check-circle" size={20} color="#FF7722" />
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={[styles.methodCard, registrationMethod === 'phone' && styles.methodCardActive]}
+        onPress={() => {
+          setRegistrationMethod('phone');
+          setShowRegistrationMethodModal(false);
+          setAddMemberModalVisible(true);
+          // Reset form
+          resetNewMemberForm();
+          fetchAvailableParents(newMemberData.level || 'I');
+        }}
+      >
+        <View style={[styles.methodIcon, { backgroundColor: registrationMethod === 'phone' ? '#10b981' : '#e5e7eb' }]}>
+          <MaterialIcons name="phone" size={24} color={registrationMethod === 'phone' ? '#ffffff' : '#6b7280'} />
+        </View>
+        <View style={styles.methodContent}>
+          <Text style={[styles.methodTitle, registrationMethod === 'phone' && styles.methodTitleActive]}>
+            Phone Registration
+          </Text>
+          <Text style={styles.methodDescription}>
+            Register using phone number and password
+          </Text>
+        </View>
+        {registrationMethod === 'phone' && (
+          <MaterialIcons name="check-circle" size={20} color="#10b981" />
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.closeButton}
+        onPress={() => setShowRegistrationMethodModal(false)}
+      >
+        <Text style={[styles.closeButtonText, { fontSize: isSmallDevice ? 13 : 14 }]}>Cancel</Text>
+      </TouchableOpacity>
     </View>
   </View>
 </Modal>
@@ -1862,59 +2412,162 @@ const resetNewMemberForm = () => {
           </View>
         </View>
 
-        {/* Level Selection */}
-        <View style={styles.formSection}>
-          <Text style={[styles.formSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
-            Level Assignment
-          </Text>
+        {/* Level Selection */ }
+<View style={styles.formSection}>
+  <Text style={[styles.formSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
+    Level Assignment
+  </Text>
 
-          <View style={styles.formField}>
-            <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>Select Level *</Text>
-            <View style={styles.levelOptionsGrid}>
-              {dynamicLevels.length > 0 ? (
-                dynamicLevels.map((level) => {
-                  const isSelected = newMemberData.level === level.id;
-                  const levelColor = getLevelColor(level.id);
-                  return (
-                    <TouchableOpacity
-                      key={level.id}
-                      style={[
-                        styles.levelOption,
-                        isSelected && styles.levelOptionActive,
-                        { borderColor: isSelected ? levelColor : '#e5e7eb' }
-                      ]}
-                      onPress={() => setNewMemberData({...newMemberData, level: level.id})}
-                    >
-                      <MaterialIcons 
-                        name={getLevelIcon(level.id)} 
-                        size={isSmallDevice ? 10 : 14} 
-                        color={isSelected ? '#ffffff' : levelColor} 
-                      />
-                      <Text style={[
-                        styles.levelOptionText,
-                        isSelected && styles.levelOptionTextActive,
-                        { fontSize: isSmallDevice ? 9 : 10 }
-                      ]}>
-                        {level.id}
-                      </Text>
-                      <Text style={[
-                        styles.levelOptionSubText,
-                        isSelected && { color: '#ffffff' },
-                        { fontSize: isSmallDevice ? 7 : 8 }
-                      ]}>
-                        {level.directCommission}%/{level.secondaryCommission}%
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })
-              ) : (
-                <Text style={[styles.emptyText, { fontSize: isSmallDevice ? 12 : 13 }]}>
-                  Loading levels...
-                </Text>
-              )}
-            </View>
-          </View>
+  <View style={styles.formField}>
+    <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>Select Level *</Text>
+    <View style={styles.levelOptionsGrid}>
+      {dynamicLevels.length > 0 ? (
+        dynamicLevels.map((level) => {
+          const isSelected = newMemberData.level === level.id;
+          const levelColor = getLevelColor(level.id);
+          return (
+            <TouchableOpacity
+              key={level.id}
+              style={[
+                styles.levelOption,
+                isSelected && styles.levelOptionActive,
+                { borderColor: isSelected ? levelColor : '#e5e7eb' }
+              ]}
+              onPress={() => {
+                setNewMemberData({...newMemberData, level: level.id});
+                // Fetch available parents for this level
+                fetchAvailableParents(level.id);
+                // Reset parent selection
+                setParentMemberId(null);
+                setParentMemberName('');
+              }}
+            >
+              <MaterialIcons 
+                name={getLevelIcon(level.id)} 
+                size={isSmallDevice ? 10 : 14} 
+                color={isSelected ? '#ffffff' : levelColor} 
+              />
+              <Text style={[
+                styles.levelOptionText,
+                isSelected && styles.levelOptionTextActive,
+                { fontSize: isSmallDevice ? 9 : 10 }
+              ]}>
+                {level.id}
+              </Text>
+              <Text style={[
+                styles.levelOptionSubText,
+                isSelected && { color: '#ffffff' },
+                { fontSize: isSmallDevice ? 7 : 8 }
+              ]}>
+                {level.directCommission}%/{level.secondaryCommission}%
+              </Text>
+            </TouchableOpacity>
+          );
+        })
+      ) : (
+        <Text style={[styles.emptyText, { fontSize: isSmallDevice ? 12 : 13 }]}>
+          Loading levels...
+        </Text>
+      )}
+    </View>
+  </View>
+  
+  {/* Parent Selection - Only show if higher levels exist */}
+  {availableParents.length > 0 && (
+    <View style={styles.formField}>
+      <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+        Attach to Parent (Optional)
+      </Text>
+      <Text style={[styles.helperText, { fontSize: isSmallDevice ? 9 : 10 }]}>
+        Select a higher-level member to attach this member under them
+      </Text>
+      
+      <View style={styles.parentSearchContainer}>
+        <TextInput
+          style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14, flex: 1 }]}
+          placeholder="Search parent by name..."
+          placeholderTextColor="#9ca3af"
+          value={searchParent}
+          onChangeText={setSearchParent}
+        />
+        <TouchableOpacity
+          style={styles.parentSearchButton}
+          onPress={() => {
+            if (searchParent.trim()) {
+              const filtered = availableParents.filter(p => 
+                p.fullName.toLowerCase().includes(searchParent.toLowerCase())
+              );
+              // Show filtered results in a dropdown or list
+              setAvailableParents(filtered);
+            } else {
+              fetchAvailableParents(newMemberData.level);
+            }
+          }}
+        >
+          <MaterialIcons name="search" size={20} color="#ffffff" />
+        </TouchableOpacity>
+      </View>
+      
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        style={styles.parentListContainer}
+        contentContainerStyle={styles.parentListContent}
+      >
+        <TouchableOpacity
+          style={[
+            styles.parentChip,
+            !parentMemberId && styles.parentChipActive
+          ]}
+          onPress={() => {
+            setParentMemberId(null);
+            setParentMemberName('');
+          }}
+        >
+          <Text style={[styles.parentChipText, !parentMemberId && styles.parentChipTextActive]}>
+            None
+          </Text>
+        </TouchableOpacity>
+        
+        {availableParents.map((parent) => (
+          <TouchableOpacity
+            key={parent.id}
+            style={[
+              styles.parentChip,
+              parentMemberId === parent.id && styles.parentChipActive
+            ]}
+            onPress={() => {
+              setParentMemberId(parent.id);
+              setParentMemberName(parent.fullName);
+            }}
+          >
+            <Text style={[
+              styles.parentChipText,
+              parentMemberId === parent.id && styles.parentChipTextActive
+            ]}>
+              {parent.fullName} ({parent.levelName})
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+      
+      {parentMemberId && parentMemberName && (
+        <View style={styles.selectedParentContainer}>
+          <MaterialIcons name="link" size={16} color="#10b981" />
+          <Text style={styles.selectedParentText}>
+            Attached to: {parentMemberName}
+          </Text>
+          <TouchableOpacity onPress={() => {
+            setParentMemberId(null);
+            setParentMemberName('');
+          }}>
+            <MaterialIcons name="close" size={16} color="#ef4444" />
+          </TouchableOpacity>
         </View>
+      )}
+    </View>
+  )}
+</View>
 
         {/* ❌ REMOVED BOTTOM BUTTONS - No Cancel/Add buttons at bottom */}
       </ScrollView>
@@ -2549,7 +3202,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.Bold,
     color: 'rgba(255,255,255,0.8)',
     textAlign: 'center',
-    fontSize: 11
+    fontSize: 10
   },
   statCount: {
     fontFamily: Fonts.Bold,
@@ -3341,6 +3994,115 @@ certItem: {
   alignItems: 'center',
   gap: 8,
 },
+parentSearchContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+  marginBottom: 8,
+},
+parentSearchButton: {
+  backgroundColor: '#FF7722',
+  padding: 10,
+  borderRadius: 8,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+parentListContainer: {
+  maxHeight: 80,
+  marginBottom: 8,
+},
+parentListContent: {
+  gap: 8,
+  alignItems: 'center',
+},
+parentChip: {
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 16,
+  borderWidth: 1,
+  borderColor: '#e5e7eb',
+  backgroundColor: '#ffffff',
+},
+parentChipActive: {
+  backgroundColor: '#FF7722',
+  borderColor: '#FF7722',
+},
+parentChipText: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+},
+parentChipTextActive: {
+  color: '#ffffff',
+},
+selectedParentContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#f0fdf4',
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 8,
+  gap: 6,
+  borderWidth: 1,
+  borderColor: '#bbf7d0',
+},
+selectedParentText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 12,
+  color: '#10b981',
+  flex: 1,
+},
+methodCard: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#ffffff',
+  borderRadius: 12,
+  padding: 16,
+  marginBottom: 12,
+  borderWidth: 2,
+  borderColor: '#e5e7eb',
+},
+methodCardActive: {
+  borderColor: '#FF7722',
+  backgroundColor: '#fff5eb',
+},
+methodIcon: {
+  width: 44,
+  height: 44,
+  borderRadius: 22,
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginRight: 14,
+  flexShrink: 0,
+},
+methodContent: {
+  flex: 1,
+},
+methodTitle: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 16,
+  color: '#1f2937',
+},
+methodTitleActive: {
+  color: '#FF7722',
+},
+methodDescription: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+},
+modalSubText: {
+  fontFamily: Fonts.Regular,
+  color: '#6b7280',
+  textAlign: 'center',
+  marginBottom: 16,
+},
+helperText: {
+  fontFamily: Fonts.Regular,
+  color: '#6b7280',
+  marginBottom: 6,
+  marginTop: 2,
+},
 certItemIcon: {
   width: 28,
   height: 28,
@@ -3551,6 +4313,162 @@ modalSaveButtonText: {
   walletStat: {
     alignItems: 'center',
   },
+assignButton: {
+  backgroundColor: '#8b5cf6',
+},
+assignParentInfo: {
+  backgroundColor: '#f9fafb',
+  padding: 12,
+  borderRadius: 8,
+  marginBottom: 12,
+},
+assignLabel: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+},
+assignParentName: {
+  fontFamily: Fonts.Bold,
+  fontSize: 16,
+  color: '#1f2937',
+  marginTop: 2,
+},
+assignParentLevel: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+  marginTop: 2,
+},
+assignDivider: {
+  height: 1,
+  backgroundColor: '#e5e7eb',
+  marginVertical: 12,
+},
+assignSubtitle: {
+  fontFamily: Fonts.Regular,
+  fontSize: 14,
+  color: '#6b7280',
+  marginBottom: 12,
+},
+assignSearchContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+  marginBottom: 12,
+},
+assignListContainer: {
+  maxHeight: 250,
+  marginBottom: 12,
+},
+assignItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: 12,
+  backgroundColor: '#f9fafb',
+  borderRadius: 8,
+  marginBottom: 6,
+  borderWidth: 1,
+  borderColor: 'transparent',
+},
+assignItemActive: {
+  borderColor: '#8b5cf6',
+  backgroundColor: '#f5f3ff',
+},
+assignItemLeft: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 10,
+},
+assignItemAvatar: {
+  width: 32,
+  height: 32,
+  borderRadius: 16,
+  backgroundColor: '#8b5cf615',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+assignItemAvatarText: {
+  fontFamily: Fonts.Bold,
+  fontSize: 14,
+  color: '#8b5cf6',
+},
+assignItemName: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 14,
+  color: '#1f2937',
+},
+assignItemLevel: {
+  fontFamily: Fonts.Regular,
+  fontSize: 11,
+  color: '#6b7280',
+},
+assignEmptyState: {
+  alignItems: 'center',
+  paddingVertical: 30,
+  gap: 4,
+},
+assignEmptyText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 14,
+  color: '#1f2937',
+},
+assignEmptySubtext: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+},
+assignSelectedContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#f0fdf4',
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 8,
+  gap: 6,
+  marginBottom: 12,
+  borderWidth: 1,
+  borderColor: '#bbf7d0',
+},
+assignSelectedText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 13,
+  color: '#10b981',
+  flex: 1,
+},
+assignActions: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  gap: 12,
+  marginTop: 8,
+},
+assignButton: {
+  paddingVertical: 5,
+  borderRadius: 8,
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexDirection: 'row',
+  gap: 6,
+backgroundColor: '#8b5cf6',
+},
+assignCancelButton: {
+  backgroundColor: '#f3f4f6',
+  borderWidth: 1,
+  borderColor: '#e5e7eb',
+},
+assignConfirmButton: {
+  backgroundColor: '#8b5cf6',
+},
+assignCancelText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 14,
+  color: '#6b7280',
+},
+assignConfirmText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 14,
+  color: '#ffffff',
+},
   walletStatValue: {
     fontFamily: Fonts.Bold,
     color: '#1f2937',

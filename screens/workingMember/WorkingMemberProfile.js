@@ -823,7 +823,7 @@ export default function MemberProfile({ navigation }) {
 {/* More Settings Button */}
 <TouchableOpacity 
   style={styles.moreSettingsButton}
-  onPress={() => navigation.navigate('MemberMoreSettingsTabs')}
+  onPress={() => navigation.navigate('WorkingMemberMoreSettingsTabs')}
   activeOpacity={0.7}
 >
   <View style={styles.moreSettingsLeft}>
@@ -831,17 +831,17 @@ export default function MemberProfile({ navigation }) {
       <MaterialIcons name="settings" size={responsiveFont(24)} color="#ffffff" />
     </View>
     <View style={styles.moreSettingsTextContainer}>
-      <Text style={styles.moreSettingsTitle}>{translations.moreSettings}</Text>
-      <Text style={styles.moreSettingsSubtitle}>{translations.moreSettingsSubtitle}</Text>
+      <Text style={styles.moreSettingsTitle}>More Settings</Text>
+      <Text style={styles.moreSettingsSubtitle}>Applications, Classes, Commission, Org, Quotes, Add Member</Text>
     </View>
   </View>
   <MaterialIcons name="chevron-right" size={responsiveFont(24)} color="#ffffff" />
 </TouchableOpacity>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.7}>
-          <MaterialIcons name="logout" size={responsiveFont(20)} color="#ffffff" />
-          <Text style={styles.logoutButtonText}>{translations.logout}</Text>
-        </TouchableOpacity>
-
+{/* ✅ ADD THIS - Logout Button */}
+<TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.7}>
+  <MaterialIcons name="logout" size={responsiveFont(20)} color="#ffffff" />
+  <Text style={styles.logoutButtonText}>{translations.logout}</Text>
+</TouchableOpacity>
         <View style={styles.versionContainer}>
           <Text style={styles.versionFooterText}>NGO App v1.0.0</Text>
         </View>

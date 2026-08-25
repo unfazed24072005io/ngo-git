@@ -19,7 +19,7 @@ import HomeScreen from './screens/HomeScreen';
 import ShopScreen from './screens/ShopScreen';
 import EventsScreen from './screens/EventsScreen';
 import ProfileScreen from './screens/ProfileScreen';
-
+import WorkingMemberCreateAssign from './screens/workingMember/WorkingMemberCreateAssign';
 // Auth Screens
 import LoginScreen from './screens/LoginScreen';
 import DonorProfile from './screens/donation/DonorProfile';
@@ -353,7 +353,7 @@ function OrganizationSettingsTabs() {
     { name: 'Dashboard', icon: 'dashboard', label: 'Dashboard' },
     { name: 'WorkingMembers', icon: 'people-outline', label: 'Working' },
     { name: 'Finances', icon: 'attach-money', label: 'Finances' },
-    { name: 'Commission', icon: 'workspace-premium', label: 'Commission' },
+    { name: 'Commission', icon: 'workspace-premium', label: 'Payouts' },
     { name: 'Employees', icon: 'people', label: 'Employees' },
     { name: 'Classes', icon: 'video-library', label: 'Classes' },
     { name: 'Quotes', icon: 'format-quote', label: 'Quotes' },
@@ -415,6 +415,7 @@ function MemberMoreSettingsTabs() {
 
 // ============ WORKING MEMBER MORE SETTINGS TABS ============
 // ============ WORKING MEMBER MORE SETTINGS TABS ============
+// ============ WORKING MEMBER MORE SETTINGS TABS ============
 function WorkingMemberMoreSettingsTabs() {
   const tabs = [
     { name: 'Applications', icon: 'handshake', label: 'Apps' },
@@ -422,6 +423,7 @@ function WorkingMemberMoreSettingsTabs() {
     { name: 'Commission', icon: 'attach-money', label: 'Commission' },
     { name: 'Organisation', icon: 'business', label: 'Org' },
     { name: 'Quotes', icon: 'format-quote', label: 'Quotes' },
+    { name: 'CreateMember', icon: 'person-add', label: 'Add Member' },
   ];
 
   return (
@@ -439,13 +441,13 @@ function WorkingMemberMoreSettingsTabs() {
       <Tab.Screen name="Applications" component={WorkingMemberApplications} />
       <Tab.Screen name="Classes" component={WorkingMemberClasses} />
       <Tab.Screen name="Commission" component={WorkingMemberCommission} />
-      {/* ✅ FIXED: Use WorkingMemberCompany instead of CompanyManagement */}
       <Tab.Screen name="Organisation" component={WorkingMemberCompany} />
       <Tab.Screen name="Quotes" component={WorkingMemberQuotes} />
+      {/* ✅ Add Create Member Screen */}
+      <Tab.Screen name="CreateMember" component={WorkingMemberCreateAssign} />
     </Tab.Navigator>
   );
 }
-
 // ============ EMPLOYEE TABS ============
 function EmployeeTabsNav() {
   const tabs = [
@@ -643,78 +645,80 @@ export default function App() {
         <StatusBar style="auto" />
         <NavigationContainer>
           <Stack.Navigator 
-            initialRouteName="PublicTabs"
-            screenOptions={{ headerShown: false }}
-          >
-            {/* Public Tabs */}
-            <Stack.Screen name="PublicTabs" component={PublicTabs} />
-            
-            {/* Member More Settings */}
-            <Stack.Screen name="MemberMoreSettingsTabs" component={MemberMoreSettingsTabs} />
-            
-            {/* Auth Screens */}
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
-            
-            {/* Organization Settings */}
-            <Stack.Screen name="OrganizationSettingsTabs" component={OrganizationSettingsTabs} />
-            
-            {/* Working Member More Settings */}
-            <Stack.Screen name="WorkingMemberMoreSettingsTabs" component={WorkingMemberMoreSettingsTabs} />
-            
-            {/* Employee Tabs */}
-            <Stack.Screen name="EmployeeTabs" component={EmployeeTabsNav} />
-            
-            {/* Admin Screens */}
-            <Stack.Screen name="AdminTabs" component={AdminTabs} />
-            <Stack.Screen name="WorkingMemberList" component={WorkingMemberManagement} />
-            <Stack.Screen name="CompanyProfile" component={CompanyProfileManagement} />
-            <Stack.Screen name="AdminProfile" component={AdminProfile} />
-            <Stack.Screen name="AdminNotificationTabs" component={AdminNotificationTabs} />
-            
-            {/* Member Screens */}
-            <Stack.Screen name="MemberTabs" component={MemberTabs} />
-            <Stack.Screen name="MemberProfile" component={MemberProfile} />
-            <Stack.Screen name="MemberIDCard" component={MemberIDCard} />
-            <Stack.Screen name="MemberCertificate" component={MemberCertificate} />
-            <Stack.Screen name="MemberECommerce" component={MemberECommerce} />
-            <Stack.Screen name="DonationScreen" component={DonationScreen} />
-            <Stack.Screen name="CartScreen" component={CartScreen} />
-            <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} />
-            <Stack.Screen name="MemberEvents" component={MemberEvents} />
-            <Stack.Screen name="MemberNotice" component={MemberNotice} />
-            <Stack.Screen name="MemberCompany" component={MemberCompany} />
-            <Stack.Screen name="MemberComplaint" component={MemberComplaint} />
-            <Stack.Screen name="MyOrders" component={MyOrders} />
-            <Stack.Screen name="MemberApplications" component={MemberApplications} />
-            <Stack.Screen name="MemberNotificationTabs" component={MemberNotificationTabs} />
-            
-            {/* Donation Screens */}
-            <Stack.Screen name="DonationTabs" component={DonationTabs} />
-            <Stack.Screen name="DonorProfile" component={DonorProfile} />
-            <Stack.Screen name="DonorCompany" component={DonorCompany} />
-            
-            {/* Working Member Screens */}
-            <Stack.Screen name="WorkingMemberTabs" component={WorkingMemberTabs} />
-            <Stack.Screen name="WorkingMemberProfile" component={WorkingMemberProfile} />
-            <Stack.Screen name="WorkingMemberIDCard" component={WorkingMemberIDCard} />
-            <Stack.Screen name="WorkingMemberCertificate" component={WorkingMemberCertificate} />
-            <Stack.Screen name="WorkingMemberECommerce" component={WorkingMemberECommerce} />
-            <Stack.Screen name="WorkingMemberCart" component={WorkingMemberCart} />
-            <Stack.Screen name="WorkingMemberCheckout" component={WorkingMemberCheckout} />
-            <Stack.Screen name="WorkingMemberMyOrders" component={WorkingMemberMyOrders} />
-            <Stack.Screen name="WorkingMemberDonation" component={WorkingMemberDonation} />
-            <Stack.Screen name="WorkingMemberEvents" component={WorkingMemberEvents} />
-            <Stack.Screen name="WorkingMemberNotice" component={WorkingMemberNotice} />
-            <Stack.Screen name="WorkingMemberCompany" component={WorkingMemberCompany} />
-            <Stack.Screen name="WorkingMemberComplaint" component={WorkingMemberComplaint} />
-            <Stack.Screen name="WorkingMemberSuggestion" component={WorkingMemberSuggestion} />
-            <Stack.Screen name="WorkingMemberRegisteredMembers" component={WorkingMemberRegisteredMembers} />
-            <Stack.Screen name="WorkingMemberCommission" component={WorkingMemberCommission} />
-            <Stack.Screen name="WorkingMemberWallet" component={WorkingMemberWallet} />
-            <Stack.Screen name="WorkingMemberNotificationTabs" component={WorkingMemberNotificationTabs} />
-            <Stack.Screen name="WorkingMemberMemberDetail" component={WorkingMemberMemberDetail} />
-          </Stack.Navigator>
+  initialRouteName="PublicTabs"
+  screenOptions={{ headerShown: false }}
+>
+  {/* Public Tabs */}
+  <Stack.Screen name="PublicTabs" component={PublicTabs} />
+  
+  {/* Member More Settings */}
+  <Stack.Screen name="MemberMoreSettingsTabs" component={MemberMoreSettingsTabs} />
+  
+  {/* Auth Screens */}
+  <Stack.Screen name="Login" component={LoginScreen} />
+  <Stack.Screen name="Register" component={RegisterScreen} />
+  
+  {/* Organization Settings */}
+  <Stack.Screen name="OrganizationSettingsTabs" component={OrganizationSettingsTabs} />
+  
+  {/* Working Member More Settings */}
+  <Stack.Screen name="WorkingMemberMoreSettingsTabs" component={WorkingMemberMoreSettingsTabs} />
+  
+  {/* Employee Tabs */}
+  <Stack.Screen name="EmployeeTabs" component={EmployeeTabsNav} />
+  
+  {/* Admin Screens */}
+  <Stack.Screen name="AdminTabs" component={AdminTabs} />
+  <Stack.Screen name="WorkingMemberList" component={WorkingMemberManagement} />
+  <Stack.Screen name="CompanyProfile" component={CompanyProfileManagement} />
+  <Stack.Screen name="AdminProfile" component={AdminProfile} />
+  <Stack.Screen name="AdminNotificationTabs" component={AdminNotificationTabs} />
+  
+  {/* Member Screens */}
+  <Stack.Screen name="MemberTabs" component={MemberTabs} />
+  <Stack.Screen name="MemberProfile" component={MemberProfile} />
+  <Stack.Screen name="MemberIDCard" component={MemberIDCard} />
+  <Stack.Screen name="MemberCertificate" component={MemberCertificate} />
+  <Stack.Screen name="MemberECommerce" component={MemberECommerce} />
+  <Stack.Screen name="DonationScreen" component={DonationScreen} />
+  <Stack.Screen name="CartScreen" component={CartScreen} />
+  <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} />
+  <Stack.Screen name="MemberEvents" component={MemberEvents} />
+  <Stack.Screen name="MemberNotice" component={MemberNotice} />
+  <Stack.Screen name="MemberCompany" component={MemberCompany} />
+  <Stack.Screen name="MemberComplaint" component={MemberComplaint} />
+  <Stack.Screen name="MyOrders" component={MyOrders} />
+  <Stack.Screen name="MemberApplications" component={MemberApplications} />
+  <Stack.Screen name="MemberNotificationTabs" component={MemberNotificationTabs} />
+  
+  {/* Donation Screens */}
+  <Stack.Screen name="DonationTabs" component={DonationTabs} />
+  <Stack.Screen name="DonorProfile" component={DonorProfile} />
+  <Stack.Screen name="DonorCompany" component={DonorCompany} />
+  
+  {/* Working Member Screens */}
+  <Stack.Screen name="WorkingMemberTabs" component={WorkingMemberTabs} />
+  <Stack.Screen name="WorkingMemberProfile" component={WorkingMemberProfile} />
+  <Stack.Screen name="WorkingMemberIDCard" component={WorkingMemberIDCard} />
+  <Stack.Screen name="WorkingMemberCertificate" component={WorkingMemberCertificate} />
+  <Stack.Screen name="WorkingMemberECommerce" component={WorkingMemberECommerce} />
+  <Stack.Screen name="WorkingMemberCart" component={WorkingMemberCart} />
+  <Stack.Screen name="WorkingMemberCheckout" component={WorkingMemberCheckout} />
+  <Stack.Screen name="WorkingMemberMyOrders" component={WorkingMemberMyOrders} />
+  <Stack.Screen name="WorkingMemberDonation" component={WorkingMemberDonation} />
+  <Stack.Screen name="WorkingMemberEvents" component={WorkingMemberEvents} />
+  <Stack.Screen name="WorkingMemberNotice" component={WorkingMemberNotice} />
+  <Stack.Screen name="WorkingMemberCompany" component={WorkingMemberCompany} />
+  <Stack.Screen name="WorkingMemberComplaint" component={WorkingMemberComplaint} />
+  <Stack.Screen name="WorkingMemberSuggestion" component={WorkingMemberSuggestion} />
+  <Stack.Screen name="WorkingMemberRegisteredMembers" component={WorkingMemberRegisteredMembers} />
+  <Stack.Screen name="WorkingMemberCommission" component={WorkingMemberCommission} />
+  <Stack.Screen name="WorkingMemberWallet" component={WorkingMemberWallet} />
+  <Stack.Screen name="WorkingMemberNotificationTabs" component={WorkingMemberNotificationTabs} />
+  <Stack.Screen name="WorkingMemberMemberDetail" component={WorkingMemberMemberDetail} />
+  {/* ✅ ADD THIS LINE - Working Member Create & Assign */}
+  <Stack.Screen name="WorkingMemberCreateAssign" component={WorkingMemberCreateAssign} options={{ headerShown: false }} />
+</Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>
     </LanguageProvider>

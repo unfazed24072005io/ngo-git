@@ -268,6 +268,30 @@ const [detailForm, setDetailForm] = useState({
   const [committeeMemberModalVisible, setCommitteeMemberModalVisible] = useState(false);
   const [editingCommitteeMember, setEditingCommitteeMember] = useState(null);
   const [selectedCommitteeId, setSelectedCommitteeId] = useState(null);
+// Subcommittee States
+const [subcommitteeModalVisible, setSubcommitteeModalVisible] = useState(false);
+const [editingSubcommittee, setEditingSubcommittee] = useState(null);
+const [selectedCommitteeForSub, setSelectedCommitteeForSub] = useState(null);
+const [subcommitteeForm, setSubcommitteeForm] = useState({
+  name: '',
+  description: '',
+  type: 'standing',
+  members: [],
+  order: 0
+});
+const [subcommitteeMemberModalVisible, setSubcommitteeMemberModalVisible] = useState(false);
+const [editingSubcommitteeMember, setEditingSubcommitteeMember] = useState(null);
+const [selectedSubcommitteeId, setSelectedSubcommitteeId] = useState(null);
+const [subcommitteeMemberForm, setSubcommitteeMemberForm] = useState({
+  name: '',
+  role: '',
+  position: '',
+  phone: '',
+  email: '',
+  photo: '',
+  bio: '',
+  order: 0
+});
 const committeeIdRef = useRef(null);
   const [committeeMemberForm, setCommitteeMemberForm] = useState({
   name: '',
@@ -956,7 +980,220 @@ const handleDocumentUpload = async () => {
   };
 
   // ============ UPLOAD HANDLERS ============
+// ============ SUBCOMMITTEE MEMBER FUNCTIONS ============
 
+const handleAddSubcommitteeMember = async () => {
+  console.log('🔵 handleAddSubcommitteeMember called');
+  console.log('🔵 selectedCommitteeForSub:', selectedCommitteeForSub);
+  console.log('🔵 selectedSubcommitteeId:', selectedSubcommitteeId);
+  console.log('🔵 subcommitteeMemberForm:', subcommitteeMemberForm);
+  
+  // Validate required fields
+  if (!subcommitteeMemberForm.name || !subcommitteeMemberForm.name.trim()) {
+    Alert.alert('Error', 'Member Name is required');
+    return;
+  }
+  
+  if (!subcommitteeMemberForm.role || !subcommitteeMemberForm.role.trim()) {
+    Alert.alert('Error', 'Member Role is required');
+    return;
+  }
+
+  // Validate committee selection
+  if (!selectedCommitteeForSub || !selectedCommitteeForSub.id) {
+    Alert.alert('Error', 'No committee selected. Please try again.');
+    return;
+  }
+
+  // Validate subcommittee selection
+  if (!selectedSubcommitteeId) {
+    Alert.alert('Error', 'No subcommittee selected. Please try again.');
+    return;
+  }
+
+  try {
+    const committeeRef = doc(db, 'company', 'profile', 'committees', selectedCommitteeForSub.id);
+    
+    // Get the latest committee data from Firestore
+    const committeeDoc = await getDoc(committeeRef);
+    if (!committeeDoc.exists()) {
+      Alert.alert('Error', 'Committee not found. Please refresh and try again.');
+      return;
+    }
+    
+    const committeeData = committeeDoc.data();
+    console.log('🔵 Committee data found');
+
+    // Create new member
+    const newMember = {
+      id: Date.now().toString() + '_' + Math.random().toString(36).substr(2, 8),
+      name: subcommitteeMemberForm.name.trim(),
+      role: subcommitteeMemberForm.role.trim(),
+      position: subcommitteeMemberForm.position?.trim() || '',
+      phone: subcommitteeMemberForm.phone?.trim() || '',
+      email: subcommitteeMemberForm.email?.trim() || '',
+      photo: subcommitteeMemberForm.photo || '',
+      bio: subcommitteeMemberForm.bio?.trim() || '',
+      order: parseInt(subcommitteeMemberForm.order) || 0,
+      addedAt: new Date().toISOString()
+    };
+    
+    console.log('🔵 New member:', newMember);
+
+    // Find and update the specific subcommittee
+    const currentSubcommittees = committeeData.subcommittees || [];
+    const updatedSubcommittees = currentSubcommittees.map(sub => {
+      if (sub.id === selectedSubcommitteeId) {
+        return {
+          ...sub,
+          members: [...(sub.members || []), newMember]
+        };
+      }
+      return sub;
+    });
+
+    // Update Firestore
+    await updateDoc(committeeRef, {
+      subcommittees: updatedSubcommittees,
+      updatedAt: new Date().toISOString()
+    });
+
+    console.log('✅ Firestore updated');
+
+    // Update local state
+    const updatedCommittees = committees.map(c => {
+      if (c.id === selectedCommitteeForSub.id) {
+        return { ...c, subcommittees: updatedSubcommittees };
+      }
+      return c;
+    });
+    setCommittees(updatedCommittees);
+
+    // Reset and close
+    setSubcommitteeMemberModalVisible(false);
+    setSubcommitteeMemberForm({
+      name: '',
+      role: '',
+      position: '',
+      phone: '',
+      email: '',
+      photo: '',
+      bio: '',
+      order: 0
+    });
+    setEditingSubcommitteeMember(null);
+    setSelectedSubcommitteeId(null);
+    
+    Alert.alert('✅ Success', 'Member added to subcommittee successfully!');
+    
+  } catch (error) {
+    console.error('❌ Error adding subcommittee member:', error);
+    Alert.alert('Error', error.message || 'Failed to add member. Please try again.');
+  }
+};
+const handleEditSubcommitteeMember = async () => {
+  console.log('🔵 handleEditSubcommitteeMember called');
+  console.log('🔵 editingSubcommitteeMember:', editingSubcommitteeMember);
+  console.log('🔵 selectedCommitteeForSub:', selectedCommitteeForSub);
+  console.log('🔵 selectedSubcommitteeId:', selectedSubcommitteeId);
+  console.log('🔵 subcommitteeMemberForm:', subcommitteeMemberForm);
+  
+  if (!editingSubcommitteeMember || !editingSubcommitteeMember.id) {
+    Alert.alert('Error', 'No member selected to edit');
+    return;
+  }
+
+  if (!selectedCommitteeForSub || !selectedCommitteeForSub.id) {
+    Alert.alert('Error', 'No committee selected');
+    return;
+  }
+
+  if (!selectedSubcommitteeId) {
+    Alert.alert('Error', 'No subcommittee selected');
+    return;
+  }
+
+  if (!subcommitteeMemberForm.name || !subcommitteeMemberForm.name.trim()) {
+    Alert.alert('Error', 'Member Name is required');
+    return;
+  }
+
+  if (!subcommitteeMemberForm.role || !subcommitteeMemberForm.role.trim()) {
+    Alert.alert('Error', 'Member Role is required');
+    return;
+  }
+
+  try {
+    const committeeRef = doc(db, 'company', 'profile', 'committees', selectedCommitteeForSub.id);
+    
+    const committeeDoc = await getDoc(committeeRef);
+    if (!committeeDoc.exists()) {
+      Alert.alert('Error', 'Committee not found');
+      return;
+    }
+    
+    const committeeData = committeeDoc.data();
+    const currentSubcommittees = committeeData.subcommittees || [];
+
+    // Update the specific subcommittee member
+    const updatedSubcommittees = currentSubcommittees.map(sub => {
+      if (sub.id === selectedSubcommitteeId) {
+        const updatedMembers = (sub.members || []).map(m => {
+          if (m.id === editingSubcommitteeMember.id) {
+            return {
+              ...m,
+              name: subcommitteeMemberForm.name.trim(),
+              role: subcommitteeMemberForm.role.trim(),
+              position: subcommitteeMemberForm.position?.trim() || '',
+              phone: subcommitteeMemberForm.phone?.trim() || '',
+              email: subcommitteeMemberForm.email?.trim() || '',
+              photo: subcommitteeMemberForm.photo || '',
+              bio: subcommitteeMemberForm.bio?.trim() || '',
+              order: parseInt(subcommitteeMemberForm.order) || 0,
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return m;
+        });
+        return { ...sub, members: updatedMembers };
+      }
+      return sub;
+    });
+
+    await updateDoc(committeeRef, {
+      subcommittees: updatedSubcommittees,
+      updatedAt: new Date().toISOString()
+    });
+
+    const updatedCommittees = committees.map(c => {
+      if (c.id === selectedCommitteeForSub.id) {
+        return { ...c, subcommittees: updatedSubcommittees };
+      }
+      return c;
+    });
+    setCommittees(updatedCommittees);
+
+    setSubcommitteeMemberModalVisible(false);
+    setSubcommitteeMemberForm({
+      name: '',
+      role: '',
+      position: '',
+      phone: '',
+      email: '',
+      photo: '',
+      bio: '',
+      order: 0
+    });
+    setEditingSubcommitteeMember(null);
+    setSelectedSubcommitteeId(null);
+    
+    Alert.alert('✅ Success', 'Member updated successfully!');
+    
+  } catch (error) {
+    console.error('❌ Error editing subcommittee member:', error);
+    Alert.alert('Error', error.message || 'Failed to update member');
+  }
+};
   const handleLogoUpload = async () => {
     Alert.alert(
       translations.selectImage,
@@ -1534,7 +1771,277 @@ const auth = getAuthInstance(); // ✅ ADD THIS
       Alert.alert(translations.error, error.message);
     }
   };
+// ============ SUBCOMMITTEE FUNCTIONS ============
 
+// ============ SUBCOMMITTEE FUNCTIONS ============
+
+
+
+
+const handleDeleteSubcommittee = async (committeeId, subcommitteeId) => {
+  Alert.alert(
+    'Delete Subcommittee',
+    'Are you sure you want to delete this subcommittee?',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const committeeRef = doc(db, 'company', 'profile', 'committees', committeeId);
+            const committee = committees.find(c => c.id === committeeId);
+            if (!committee) return;
+
+            const updatedSubcommittees = (committee.subcommittees || []).filter(sub => sub.id !== subcommitteeId);
+
+            await updateDoc(committeeRef, {
+              subcommittees: updatedSubcommittees,
+              updatedAt: new Date().toISOString()
+            });
+
+            const updatedCommittees = committees.map(c => {
+              if (c.id === committeeId) {
+                return { ...c, subcommittees: updatedSubcommittees };
+              }
+              return c;
+            });
+            setCommittees(updatedCommittees);
+
+            Alert.alert('Success', 'Subcommittee deleted successfully!');
+          } catch (error) {
+            console.error('Error deleting subcommittee:', error);
+            Alert.alert('Error', error.message || 'Failed to delete subcommittee');
+          }
+        }
+      }
+    ]
+  );
+};
+
+const resetSubcommitteeForm = () => {
+  setSubcommitteeForm({
+    name: '',
+    description: '',
+    type: 'standing',
+    members: [],
+    order: 0
+  });
+  setEditingSubcommittee(null);
+  setSelectedCommitteeForSub(null);
+};
+// ============ SUBCOMMITTEE MEMBER FUNCTIONS ============
+
+// Replace the handleAddSubcommittee function with this:
+
+const handleAddSubcommittee = async (committee) => {
+  console.log('🔵 handleAddSubcommittee called with committee:', committee);
+  console.log('🔵 subcommitteeForm:', subcommitteeForm);
+  
+  const auth = getAuthInstance();
+  
+  // ✅ Use the committee passed as parameter
+  if (!committee || !committee.id) {
+    Alert.alert('Error', 'No committee selected. Please try again.');
+    console.error('❌ committee is null or invalid');
+    return;
+  }
+
+  if (!subcommitteeForm.name || !subcommitteeForm.name.trim()) {
+    Alert.alert('Error', 'Subcommittee name is required');
+    return;
+  }
+
+  try {
+    console.log('🔵 Updating committee:', committee.id);
+    
+    const committeeRef = doc(db, 'company', 'profile', 'committees', committee.id);
+    const committeeDoc = await getDoc(committeeRef);
+    
+    if (!committeeDoc.exists()) {
+      Alert.alert('Error', 'Committee not found. Please refresh and try again.');
+      return;
+    }
+    
+    const committeeData = committeeDoc.data();
+    console.log('🔵 Committee data found');
+
+    const newSubcommittee = {
+      id: Date.now().toString() + '_' + Math.random().toString(36).substr(2, 8),
+      name: subcommitteeForm.name.trim(),
+      description: subcommitteeForm.description?.trim() || '',
+      type: subcommitteeForm.type || 'standing',
+      members: [],
+      order: parseInt(subcommitteeForm.order) || 0,
+      createdAt: new Date().toISOString()
+    };
+    
+    console.log('🔵 New subcommittee:', newSubcommittee);
+
+    const currentSubcommittees = committeeData.subcommittees || [];
+    console.log('🔵 Current subcommittees:', currentSubcommittees.length);
+    
+    await updateDoc(committeeRef, {
+      subcommittees: [...currentSubcommittees, newSubcommittee],
+      updatedAt: new Date().toISOString()
+    });
+
+    console.log('✅ Firestore updated');
+
+    // Update local state
+    const updatedCommittees = committees.map(c => {
+      if (c.id === committee.id) {
+        return { 
+          ...c, 
+          subcommittees: [...(c.subcommittees || []), newSubcommittee],
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return c;
+    });
+    setCommittees(updatedCommittees);
+
+    setSubcommitteeModalVisible(false);
+    resetSubcommitteeForm();
+    
+    Alert.alert('✅ Success', 'Subcommittee added successfully!');
+    
+  } catch (error) {
+    console.error('❌ Error adding subcommittee:', error);
+    Alert.alert('Error', error.message || 'Failed to add subcommittee. Please try again.');
+  }
+};
+
+const handleEditSubcommittee = async (committee, subcommittee) => {
+  console.log('🔵 handleEditSubcommittee called');
+  console.log('🔵 committee:', committee);
+  console.log('🔵 subcommittee:', subcommittee);
+  
+  if (!subcommittee || !subcommittee.id) {
+    Alert.alert('Error', 'No subcommittee selected to edit');
+    return;
+  }
+
+  if (!committee || !committee.id) {
+    Alert.alert('Error', 'No committee selected');
+    return;
+  }
+
+  if (!subcommitteeForm.name || !subcommitteeForm.name.trim()) {
+    Alert.alert('Error', 'Subcommittee name is required');
+    return;
+  }
+
+  try {
+    const committeeRef = doc(db, 'company', 'profile', 'committees', committee.id);
+    
+    const committeeDoc = await getDoc(committeeRef);
+    if (!committeeDoc.exists()) {
+      Alert.alert('Error', 'Committee not found');
+      return;
+    }
+    
+    const committeeData = committeeDoc.data();
+    const currentSubcommittees = committeeData.subcommittees || [];
+
+    const updatedSubcommittees = currentSubcommittees.map(sub => {
+      if (sub.id === subcommittee.id) {
+        return {
+          ...sub,
+          name: subcommitteeForm.name.trim(),
+          description: subcommitteeForm.description?.trim() || '',
+          type: subcommitteeForm.type || 'standing',
+          order: parseInt(subcommitteeForm.order) || 0,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return sub;
+    });
+
+    await updateDoc(committeeRef, {
+      subcommittees: updatedSubcommittees,
+      updatedAt: new Date().toISOString()
+    });
+
+    const updatedCommittees = committees.map(c => {
+      if (c.id === committee.id) {
+        return { ...c, subcommittees: updatedSubcommittees };
+      }
+      return c;
+    });
+    setCommittees(updatedCommittees);
+
+    setSubcommitteeModalVisible(false);
+    resetSubcommitteeForm();
+    Alert.alert('✅ Success', 'Subcommittee updated successfully!');
+    
+  } catch (error) {
+    console.error('❌ Error editing subcommittee:', error);
+    Alert.alert('Error', error.message || 'Failed to update subcommittee');
+  }
+};
+const handleDeleteSubcommitteeMember = async (committeeId, subcommitteeId, memberId) => {
+  Alert.alert(
+    'Delete Member',
+    'Are you sure you want to remove this member from the subcommittee?',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const committeeRef = doc(db, 'company', 'profile', 'committees', committeeId);
+            const committee = committees.find(c => c.id === committeeId);
+            if (!committee) return;
+
+            const updatedSubcommittees = (committee.subcommittees || []).map(sub => {
+              if (sub.id === subcommitteeId) {
+                return {
+                  ...sub,
+                  members: (sub.members || []).filter(m => m.id !== memberId)
+                };
+              }
+              return sub;
+            });
+
+            await updateDoc(committeeRef, {
+              subcommittees: updatedSubcommittees,
+              updatedAt: new Date().toISOString()
+            });
+
+            const updatedCommittees = committees.map(c => {
+              if (c.id === committeeId) {
+                return { ...c, subcommittees: updatedSubcommittees };
+              }
+              return c;
+            });
+            setCommittees(updatedCommittees);
+
+            Alert.alert('Success', 'Member removed successfully!');
+          } catch (error) {
+            console.error('Error deleting subcommittee member:', error);
+            Alert.alert('Error', error.message || 'Failed to remove member');
+          }
+        }
+      }
+    ]
+  );
+};
+
+const resetSubcommitteeMemberForm = () => {
+  setSubcommitteeMemberForm({
+    name: '',
+    role: '',
+    position: '',
+    phone: '',
+    email: '',
+    photo: '',
+    bio: '',
+    order: 0
+  });
+  setEditingSubcommitteeMember(null);
+};
   const handleEditCommittee = async () => {
     if (!editingCommittee) return;
     
@@ -2603,132 +3110,248 @@ const auth = getAuthInstance(); // ✅ ADD THIS
               </View>
 
               {committees.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <MaterialIcons name="groups" size={40} color="#d1d5db" />
-                  <Text style={styles.emptyStateText}>{translations.noCommittees}</Text>
-                </View>
-              ) : (
-                committees.map((committee) => (
-                  <View key={committee.id} style={styles.committeeCard}>
-                    <View style={styles.committeeHeader}>
-                      <View>
-                        <Text style={styles.committeeName}>{committee.name}</Text>
-                        {committee.description && (
-                          <Text style={styles.committeeDescription} numberOfLines={1}>
-                            {committee.description}
-                          </Text>
-                        )}
-                        <Text style={styles.committeeType}>
-                          {committee.type?.charAt(0).toUpperCase() + committee.type?.slice(1) || translations.standing}
-                        </Text>
-                      </View>
-                      <View style={styles.committeeActions}>
-                        <TouchableOpacity 
+  <View style={styles.emptyState}>
+    <MaterialIcons name="groups" size={40} color="#d1d5db" />
+    <Text style={styles.emptyStateText}>{translations.noCommittees}</Text>
+  </View>
+) : (
+  committees.map((committee) => (
+    <View key={committee.id} style={styles.committeeCard}>
+      <View style={styles.committeeHeader}>
+        <View>
+          <Text style={styles.committeeName}>{committee.name}</Text>
+          {committee.description && (
+            <Text style={styles.committeeDescription} numberOfLines={1}>
+              {committee.description}
+            </Text>
+          )}
+          <Text style={styles.committeeType}>
+            {committee.type?.charAt(0).toUpperCase() + committee.type?.slice(1) || translations.standing}
+          </Text>
+        </View>
+        <View style={styles.committeeActions}>
+          {/* Add Subcommittee Button */}
+<TouchableOpacity 
   onPress={() => {
-    console.log('Add member button pressed for committee:', committee.id);
-    // Store in both state and ref
-    setSelectedCommitteeId(committee.id);
-    committeeIdRef.current = committee.id; // Store in ref as backup
-    console.log('Stored committee ID in ref:', committeeIdRef.current);
-    
-    setCommitteeMemberForm({
+    console.log('🔵 Add Subcommittee button clicked for committee:', committee.id, committee.name);
+    // Set the editing state to null (for Add mode)
+    setEditingSubcommittee(null);
+    // Reset form
+    setSubcommitteeForm({
       name: '',
-      role: '',
-      position: '',
-      phone: '',
-      email: '',
-      photo: '',
-      bio: '',
+      description: '',
+      type: 'standing',
+      members: [],
       order: 0
     });
-    setEditingCommitteeMember(null);
-    setCommitteeMemberModalVisible(true);
+    // Open modal with committee passed
+    setSelectedCommitteeForSub(committee);
+    setSubcommitteeModalVisible(true);
   }}
   style={styles.committeeActionButton}
 >
-  <MaterialIcons name="person-add" size={20} color="#3b82f6" />
+  <MaterialIcons name="layers" size={20} color="#8b5cf6" />
 </TouchableOpacity>
-                        <TouchableOpacity 
-                          onPress={() => {
-                            setEditingCommittee(committee);
-                            setCommitteeForm(committee);
-                            setCommitteeModalVisible(true);
-                          }}
-                          style={styles.committeeActionButton}
-                        >
-                          <MaterialIcons name="edit" size={20} color="#3b82f6" />
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                          onPress={() => handleDeleteCommittee(committee.id)}
-                          style={styles.committeeActionButton}
-                        >
-                          <MaterialIcons name="delete" size={20} color="#ef4444" />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-
-                    {committee.members && committee.members.length > 0 && (
-  <View style={styles.committeeMembers}>
-    {committee.members.map((member, index) => (
-      <View key={member.id || index} style={styles.committeeMemberCard}>
-        <View style={styles.committeeMemberInfo}>
-          {member.photo ? (
-            <Image 
-              source={{ uri: member.photo }} 
-              style={styles.committeeMemberAvatarImage} 
-            />
-          ) : (
-            <View style={styles.committeeAvatar}>
-              <Text style={styles.committeeAvatarText}>
-                {member.name?.charAt(0) || 'M'}
-              </Text>
-            </View>
-          )}
-          <View style={styles.committeeMemberDetails}>
-            <Text style={styles.committeeMemberName}>{member.name}</Text>
-            <Text style={styles.committeeMemberRole}>{member.role}</Text>
-            {member.position && (
-              <Text style={styles.committeeMemberPosition}>{member.position}</Text>
-            )}
-          </View>
-        </View>
-        <View style={styles.committeeMemberActions}>
           <TouchableOpacity 
             onPress={() => {
-              console.log('Editing member:', member.id, 'from committee:', committee.id);
-              setSelectedCommitteeId(committee.id);
-              committeeIdRef.current = committee.id;
-              setEditingCommitteeMember(member);
-              setCommitteeMemberForm({
-                name: member.name || '',
-                role: member.role || '',
-                position: member.position || '',
-                phone: member.phone || '',
-                email: member.email || '',
-                photo: member.photo || '',
-                bio: member.bio || '',
-                order: member.order || 0
-              });
-              setCommitteeMemberModalVisible(true);
+              setEditingCommittee(committee);
+              setCommitteeForm(committee);
+              setCommitteeModalVisible(true);
             }}
             style={styles.committeeActionButton}
           >
-            <MaterialIcons name="edit" size={16} color="#3b82f6" />
+            <MaterialIcons name="edit" size={20} color="#3b82f6" />
           </TouchableOpacity>
           <TouchableOpacity 
-            onPress={() => handleDeleteCommitteeMember(committee.id, member.id)}
+            onPress={() => handleDeleteCommittee(committee.id)}
             style={styles.committeeActionButton}
           >
-            <MaterialIcons name="delete" size={16} color="#ef4444" />
+            <MaterialIcons name="delete" size={20} color="#ef4444" />
           </TouchableOpacity>
         </View>
       </View>
-    ))}
-  </View>
-)}
+
+      {/* Committee Members (Existing) */}
+      {committee.members && committee.members.length > 0 && (
+        <View style={styles.committeeMembers}>
+          <Text style={styles.committeeMembersTitle}>Members</Text>
+          {committee.members.map((member, index) => (
+            <View key={member.id || index} style={styles.committeeMemberCard}>
+              <View style={styles.committeeMemberInfo}>
+                {member.photo ? (
+                  <Image 
+                    source={{ uri: member.photo }} 
+                    style={styles.committeeMemberAvatarImage} 
+                  />
+                ) : (
+                  <View style={styles.committeeAvatar}>
+                    <Text style={styles.committeeAvatarText}>
+                      {member.name?.charAt(0) || 'M'}
+                    </Text>
                   </View>
-                ))
+                )}
+                <View style={styles.committeeMemberDetails}>
+                  <Text style={styles.committeeMemberName}>{member.name}</Text>
+                  <Text style={styles.committeeMemberRole}>{member.role}</Text>
+                </View>
+              </View>
+              <View style={styles.committeeMemberActions}>
+                <TouchableOpacity 
+                  onPress={() => {
+                    setSelectedCommitteeId(committee.id);
+                    setEditingCommitteeMember(member);
+                    setCommitteeMemberForm({
+                      name: member.name || '',
+                      role: member.role || '',
+                      position: member.position || '',
+                      phone: member.phone || '',
+                      email: member.email || '',
+                      photo: member.photo || '',
+                      bio: member.bio || '',
+                      order: member.order || 0
+                    });
+                    setCommitteeMemberModalVisible(true);
+                  }}
+                  style={styles.committeeActionButton}
+                >
+                  <MaterialIcons name="edit" size={16} color="#3b82f6" />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={() => handleDeleteCommitteeMember(committee.id, member.id)}
+                  style={styles.committeeActionButton}
+                >
+                  <MaterialIcons name="delete" size={16} color="#ef4444" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* ✅ SUBCOMMITTEES SECTION */}
+      {committee.subcommittees && committee.subcommittees.length > 0 && (
+        <View style={styles.subcommitteesContainer}>
+          <View style={styles.subcommitteesHeader}>
+            <MaterialIcons name="layers" size={18} color="#8b5cf6" />
+            <Text style={styles.subcommitteesTitle}>Subcommittees</Text>
+          </View>
+          {committee.subcommittees.map((sub) => (
+            <View key={sub.id} style={styles.subcommitteeCard}>
+              <View style={styles.subcommitteeHeader}>
+                <View style={styles.subcommitteeInfo}>
+                  <Text style={styles.subcommitteeName}>{sub.name}</Text>
+                  {sub.description && (
+                    <Text style={styles.subcommitteeDescription} numberOfLines={1}>
+                      {sub.description}
+                    </Text>
+                  )}
+                  <Text style={styles.subcommitteeType}>
+                    {sub.type?.charAt(0).toUpperCase() + sub.type?.slice(1)}
+                  </Text>
+                </View>
+                <View style={styles.subcommitteeActions}>
+                  {/* Add Subcommittee Member Button */}
+                  <TouchableOpacity 
+                    onPress={() => {
+                      setSelectedCommitteeForSub(committee);
+                      setSelectedSubcommitteeId(sub.id);
+                      resetSubcommitteeMemberForm();
+                      setSubcommitteeMemberModalVisible(true);
+                    }}
+                    style={styles.committeeActionButton}
+                  >
+                    <MaterialIcons name="person-add" size={18} color="#10b981" />
+                  </TouchableOpacity>
+                  {/* Edit Subcommittee Button */}
+<TouchableOpacity 
+  onPress={() => {
+    console.log('🔵 Edit Subcommittee button clicked:', sub.id);
+    setEditingSubcommittee(sub);
+    setSelectedCommitteeForSub(committee);
+    setSubcommitteeForm({
+      name: sub.name || '',
+      description: sub.description || '',
+      type: sub.type || 'standing',
+      order: sub.order || 0
+    });
+    setSubcommitteeModalVisible(true);
+  }}
+  style={styles.committeeActionButton}
+>
+  <MaterialIcons name="edit" size={18} color="#3b82f6" />
+</TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => handleDeleteSubcommittee(committee.id, sub.id)}
+                    style={styles.committeeActionButton}
+                  >
+                    <MaterialIcons name="delete" size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Subcommittee Members */}
+              {sub.members && sub.members.length > 0 && (
+                <View style={styles.subcommitteeMembers}>
+                  {sub.members.map((member, idx) => (
+                    <View key={member.id || idx} style={styles.subcommitteeMemberItem}>
+                      <View style={styles.committeeMemberInfo}>
+                        {member.photo ? (
+                          <Image 
+                            source={{ uri: member.photo }} 
+                            style={[styles.committeeMemberAvatarImage, { width: 28, height: 28 }]} 
+                          />
+                        ) : (
+                          <View style={[styles.committeeAvatar, { width: 28, height: 28 }]}>
+                            <Text style={[styles.committeeAvatarText, { fontSize: 12 }]}>
+                              {member.name?.charAt(0) || 'M'}
+                            </Text>
+                          </View>
+                        )}
+                        <View style={styles.committeeMemberDetails}>
+                          <Text style={[styles.committeeMemberName, { fontSize: 12 }]}>{member.name}</Text>
+                          <Text style={[styles.committeeMemberRole, { fontSize: 10 }]}>{member.role}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.committeeMemberActions}>
+                        <TouchableOpacity 
+                          onPress={() => {
+                            setSelectedCommitteeForSub(committee);
+                            setSelectedSubcommitteeId(sub.id);
+                            setEditingSubcommitteeMember(member);
+                            setSubcommitteeMemberForm({
+                              name: member.name || '',
+                              role: member.role || '',
+                              position: member.position || '',
+                              phone: member.phone || '',
+                              email: member.email || '',
+                              photo: member.photo || '',
+                              bio: member.bio || '',
+                              order: member.order || 0
+                            });
+                            setSubcommitteeMemberModalVisible(true);
+                          }}
+                          style={styles.committeeActionButton}
+                        >
+                          <MaterialIcons name="edit" size={14} color="#3b82f6" />
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          onPress={() => handleDeleteSubcommitteeMember(committee.id, sub.id, member.id)}
+                          style={styles.committeeActionButton}
+                        >
+                          <MaterialIcons name="delete" size={14} color="#ef4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
               )}
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  ))
+)}
             </View>
 
             
@@ -2922,6 +3545,218 @@ const auth = getAuthInstance(); // ✅ ADD THIS
           </ScrollView>
         </View>
       </Modal>
+{/* Subcommittee Modal */}
+<Modal
+  animationType="slide"
+  transparent={true}
+  visible={subcommitteeModalVisible}
+  onRequestClose={() => {
+    setSubcommitteeModalVisible(false);
+    resetSubcommitteeForm();
+  }}
+>
+  <View style={styles.modalOverlay}>
+    <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+      <Text style={styles.modalTitle}>
+        {editingSubcommittee ? 'Edit Subcommittee' : 'Add Subcommittee'}
+      </Text>
+      
+      <View style={styles.field}>
+        <Text style={styles.label}>Subcommittee Name *</Text>
+        <TextInput
+          style={styles.input}
+          value={subcommitteeForm.name}
+          onChangeText={(text) => setSubcommitteeForm({...subcommitteeForm, name: text})}
+          placeholder="Enter subcommittee name"
+          textAlignVertical="center"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Description</Text>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          value={subcommitteeForm.description}
+          onChangeText={(text) => setSubcommitteeForm({...subcommitteeForm, description: text})}
+          placeholder="Enter description"
+          multiline
+          numberOfLines={3}
+          textAlignVertical="top"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Type</Text>
+        <View style={styles.statusPicker}>
+          {['standing', 'ad-hoc', 'special'].map((type) => (
+            <TouchableOpacity
+              key={type}
+              style={[styles.statusOption, subcommitteeForm.type === type && styles.statusOptionActive]}
+              onPress={() => setSubcommitteeForm({...subcommitteeForm, type})}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.statusOptionText, subcommitteeForm.type === type && styles.statusOptionTextActive]}>
+                {type === 'standing' ? 'Standing' :
+                 type === 'ad-hoc' ? 'Ad-hoc' : 'Special'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Display Order</Text>
+        <TextInput
+          style={styles.input}
+          value={String(subcommitteeForm.order || 0)}
+          onChangeText={(text) => setSubcommitteeForm({...subcommitteeForm, order: parseInt(text) || 0})}
+          placeholder="0"
+          keyboardType="numeric"
+          textAlignVertical="center"
+        />
+      </View>
+
+      <View style={styles.modalButtons}>
+        <TouchableOpacity 
+          style={[styles.modalButton, styles.modalCancelButton]}
+          onPress={() => {
+            setSubcommitteeModalVisible(false);
+            resetSubcommitteeForm();
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.modalCancelText}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+  style={[styles.modalButton, styles.modalConfirmButton]}
+  onPress={() => {
+    if (editingSubcommittee) {
+      handleEditSubcommittee(selectedCommitteeForSub, editingSubcommittee);
+    } else {
+      handleAddSubcommittee(selectedCommitteeForSub);
+    }
+  }}
+  activeOpacity={0.7}
+>
+  <Text style={styles.modalConfirmText}>
+    {editingSubcommittee ? 'Update' : 'Add'}
+  </Text>
+</TouchableOpacity>
+      </View>
+    </ScrollView>
+  </View>
+</Modal>
+
+{/* Subcommittee Member Modal */}
+<Modal
+  animationType="slide"
+  transparent={true}
+  visible={subcommitteeMemberModalVisible}
+  onRequestClose={() => {
+    setSubcommitteeMemberModalVisible(false);
+    resetSubcommitteeMemberForm();
+  }}
+>
+  <View style={styles.modalOverlay}>
+    <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
+      <Text style={styles.modalTitle}>
+        {editingSubcommitteeMember ? 'Edit Subcommittee Member' : 'Add Subcommittee Member'}
+      </Text>
+      
+      <View style={styles.field}>
+        <Text style={styles.label}>Member Name *</Text>
+        <TextInput
+          style={styles.input}
+          value={subcommitteeMemberForm.name}
+          onChangeText={(text) => setSubcommitteeMemberForm({...subcommitteeMemberForm, name: text})}
+          placeholder="Enter member name"
+          textAlignVertical="center"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Role *</Text>
+        <TextInput
+          style={styles.input}
+          value={subcommitteeMemberForm.role}
+          onChangeText={(text) => setSubcommitteeMemberForm({...subcommitteeMemberForm, role: text})}
+          placeholder="Enter role (e.g., Chairperson)"
+          textAlignVertical="center"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Position</Text>
+        <TextInput
+          style={styles.input}
+          value={subcommitteeMemberForm.position}
+          onChangeText={(text) => setSubcommitteeMemberForm({...subcommitteeMemberForm, position: text})}
+          placeholder="Enter position"
+          textAlignVertical="center"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Phone</Text>
+        <TextInput
+          style={styles.input}
+          value={subcommitteeMemberForm.phone}
+          onChangeText={(text) => setSubcommitteeMemberForm({...subcommitteeMemberForm, phone: text})}
+          placeholder="Enter phone number"
+          keyboardType="phone-pad"
+          textAlignVertical="center"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          value={subcommitteeMemberForm.email}
+          onChangeText={(text) => setSubcommitteeMemberForm({...subcommitteeMemberForm, email: text})}
+          placeholder="Enter email"
+          keyboardType="email-address"
+          textAlignVertical="center"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Bio</Text>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          value={subcommitteeMemberForm.bio}
+          onChangeText={(text) => setSubcommitteeMemberForm({...subcommitteeMemberForm, bio: text})}
+          placeholder="Enter bio"
+          multiline
+          numberOfLines={3}
+          textAlignVertical="top"
+        />
+      </View>
+
+      <View style={styles.modalButtons}>
+        <TouchableOpacity 
+          style={[styles.modalButton, styles.modalCancelButton]}
+          onPress={() => {
+            setSubcommitteeMemberModalVisible(false);
+            resetSubcommitteeMemberForm();
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.modalCancelText}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.modalButton, styles.modalConfirmButton]}
+          onPress={editingSubcommitteeMember ? handleEditSubcommitteeMember : handleAddSubcommitteeMember}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.modalConfirmText}>
+            {editingSubcommitteeMember ? 'Update' : 'Add'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  </View>
+</Modal>
 {/* Service Detail Modal */}
 <Modal
   animationType="slide"
@@ -5252,6 +6087,78 @@ committeeMemberAvatarImage: {
     alignItems: 'center',
     marginBottom: 16,
   },
+subcommitteesContainer: {
+  marginTop: 12,
+  paddingTop: 12,
+  borderTopWidth: 1,
+  borderTopColor: '#e5e7eb',
+},
+subcommitteesHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  marginBottom: 8,
+},
+subcommitteesTitle: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 13,
+  color: '#6b7280',
+},
+subcommitteeCard: {
+  backgroundColor: '#f3f4f6',
+  borderRadius: 8,
+  padding: 10,
+  marginBottom: 8,
+  borderWidth: 1,
+  borderColor: '#e5e7eb',
+},
+subcommitteeHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+},
+subcommitteeInfo: {
+  flex: 1,
+},
+subcommitteeName: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 14,
+  color: '#1f2937',
+},
+subcommitteeDescription: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+},
+subcommitteeType: {
+  fontFamily: Fonts.Regular,
+  fontSize: 10,
+  color: '#9ca3af',
+  marginTop: 2,
+},
+subcommitteeActions: {
+  flexDirection: 'row',
+  gap: 2,
+  flexShrink: 0,
+  alignItems: 'center',
+},
+subcommitteeMembers: {
+  marginTop: 8,
+  paddingTop: 8,
+  borderTopWidth: 1,
+  borderTopColor: '#e5e7eb',
+},
+subcommitteeMemberItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  backgroundColor: '#ffffff',
+  borderRadius: 6,
+  padding: 6,
+  marginBottom: 4,
+  borderWidth: 1,
+  borderColor: '#f0f0f0',
+},
   detailStatusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 4,

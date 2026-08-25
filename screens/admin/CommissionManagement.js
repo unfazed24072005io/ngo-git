@@ -48,14 +48,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../context/LanguageContext';
 // Add after the imports, before the LevelEditModal component
-const MEMBER_TYPES = [
-  { id: 'Founder Member', label: 'Founder Member', defaultFee: 5000 },
-  { id: 'Collector Member', label: 'Collector Member', defaultFee: 3500 },
-  { id: 'Distinguished Member', label: 'Distinguished Member', defaultFee: 1500 },
-  { id: 'Lifetime Member', label: 'Lifetime Member', defaultFee: 2500 },
-  { id: 'Honored Member', label: 'Honored Member', defaultFee: 500 },
-  { id: 'General Member', label: 'General Member', defaultFee: 100 }
-];
+
 const { width, height } = Dimensions.get('window');
 const isSmallDevice = width < 375;
 
@@ -408,6 +401,12 @@ const [memberFeeModalVisible, setMemberFeeModalVisible] = useState(false);
 const [memberFees, setMemberFees] = useState({});
   const [commissionData, setCommissionData] = useState(null);
   const [pendingPayouts, setPendingPayouts] = useState([]);
+const [memberTypes, setMemberTypes] = useState([]);
+const [memberTypeModalVisible, setMemberTypeModalVisible] = useState(false);
+const [editingMemberType, setEditingMemberType] = useState(null);
+const [newMemberTypeName, setNewMemberTypeName] = useState('');
+const [newMemberTypeFee, setNewMemberTypeFee] = useState('');
+const [isAddingMemberType, setIsAddingMemberType] = useState(false);
   const [pendingPromotions, setPendingPromotions] = useState([]);
   const [selectedPayout, setSelectedPayout] = useState(null);
   const [payoutModalVisible, setPayoutModalVisible] = useState(false);
@@ -525,14 +524,18 @@ const [memberFees, setMemberFees] = useState({});
     fetchPendingPromotions();
     fetchPayoutLogs();
   }, []);
+// ❌ DELETE this entire useEffect (lines 314-320)
+// OR replace with:
 useEffect(() => {
-  // Initialize member fees from formData or defaults
+  // Initialize member fees from memberTypes
   const fees = {};
-  MEMBER_TYPES.forEach(type => {
+  memberTypes.forEach(type => {
     fees[type.id] = formData.memberFees?.[type.id] || type.defaultFee;
   });
-  setMemberFees(fees);
-}, [formData.memberFees]);
+  if (Object.keys(fees).length > 0) {
+    setMemberFees(fees);
+  }
+}, [memberTypes, formData.memberFees]);
   // ============ useCallback Hooks ============
   const updateLevelField = useCallback((field, value) => {
     if (!selectedLevel) return;
@@ -631,13 +634,35 @@ const saveMemberFee = async (memberTypeId, fee) => {
       const data = docSnap.data();
       setCommissionData(data);
       
+      // ✅ Load member types from Firestore
+      if (data.memberTypes && data.memberTypes.length > 0) {
+        setMemberTypes(data.memberTypes);
+      } else {
+        // ✅ Initialize with default types if none exist
+        const defaultTypes = [
+          { id: 'founder', label: 'Founder Member', defaultFee: 5000 },
+          { id: 'collector', label: 'Collector Member', defaultFee: 3500 },
+          { id: 'distinguished', label: 'Distinguished Member', defaultFee: 1500 },
+          { id: 'lifetime', label: 'Lifetime Member', defaultFee: 2500 },
+          { id: 'honored', label: 'Honored Member', defaultFee: 500 },
+          { id: 'general', label: 'General Member', defaultFee: 100 }
+        ];
+        setMemberTypes(defaultTypes);
+        // Save defaults to Firestore
+        await setDoc(docRef, { 
+          ...data,
+          memberTypes: defaultTypes,
+          memberFees: data.memberFees || {}
+        }, { merge: true });
+      }
+      
       // ✅ Load member fees from Firestore
       if (data.memberFees) {
         setMemberFees(data.memberFees);
       } else {
-        // Initialize with defaults if not exists
+        // Initialize with defaults
         const defaultFees = {};
-        MEMBER_TYPES.forEach(type => {
+        memberTypes.forEach(type => {
           defaultFees[type.id] = type.defaultFee;
         });
         setMemberFees(defaultFees);
@@ -645,7 +670,8 @@ const saveMemberFee = async (memberTypeId, fee) => {
       
       setFormData({
         levels: data.levels || formData.levels,
-        memberFees: data.memberFees || {}, // Add this
+        memberFees: data.memberFees || {},
+        memberTypes: data.memberTypes || memberTypes,
         registrationFee: data.registrationFee || 1000,
         minWithdrawal: data.minWithdrawal || 100,
         maxWithdrawal: data.maxWithdrawal || 100000,
@@ -658,16 +684,28 @@ const saveMemberFee = async (memberTypeId, fee) => {
         lastUpdated: data.lastUpdated || null
       });
     } else {
-      // Initialize with defaults
+      // Initialize with defaults if document doesn't exist
+      const defaultTypes = [
+        { id: 'founder', label: 'Founder Member', defaultFee: 5000 },
+        { id: 'collector', label: 'Collector Member', defaultFee: 3500 },
+        { id: 'distinguished', label: 'Distinguished Member', defaultFee: 1500 },
+        { id: 'lifetime', label: 'Lifetime Member', defaultFee: 2500 },
+        { id: 'honored', label: 'Honored Member', defaultFee: 500 },
+        { id: 'general', label: 'General Member', defaultFee: 100 }
+      ];
+      
       const defaultFees = {};
-      MEMBER_TYPES.forEach(type => {
+      defaultTypes.forEach(type => {
         defaultFees[type.id] = type.defaultFee;
       });
+      
+      setMemberTypes(defaultTypes);
       setMemberFees(defaultFees);
       
       await setDoc(doc(db, 'settings', 'commission'), { 
         ...formData,
-        memberFees: defaultFees
+        memberFees: defaultFees,
+        memberTypes: defaultTypes
       });
     }
   } catch (error) {
@@ -676,6 +714,125 @@ const saveMemberFee = async (memberTypeId, fee) => {
   } finally {
     setLoading(false);
   }
+};
+// Add a new member type
+const addMemberType = async () => {
+  if (!newMemberTypeName.trim()) {
+    Alert.alert('Error', 'Please enter a member type name');
+    return;
+  }
+  
+  if (!newMemberTypeFee || parseFloat(newMemberTypeFee) <= 0) {
+    Alert.alert('Error', 'Please enter a valid fee amount');
+    return;
+  }
+
+  setIsAddingMemberType(true);
+  try {
+    const newId = newMemberTypeName.toLowerCase().replace(/\s+/g, '_');
+    const newType = {
+      id: newId,
+      label: newMemberTypeName.trim(),
+      defaultFee: parseFloat(newMemberTypeFee)
+    };
+    
+    const updatedTypes = [...memberTypes, newType];
+    setMemberTypes(updatedTypes);
+    
+    const updatedFees = { ...memberFees, [newId]: parseFloat(newMemberTypeFee) };
+    setMemberFees(updatedFees);
+    
+    const docRef = doc(db, 'settings', 'commission');
+    await updateDoc(docRef, {
+      memberTypes: updatedTypes,
+      memberFees: updatedFees,
+      lastUpdated: new Date().toISOString()
+    });
+    
+    setNewMemberTypeName('');
+    setNewMemberTypeFee('');
+    setMemberTypeModalVisible(false);
+    Alert.alert('Success', 'Member type added successfully!');
+  } catch (error) {
+    console.error('Error adding member type:', error);
+    Alert.alert('Error', error.message || 'Failed to add member type');
+  } finally {
+    setIsAddingMemberType(false);
+  }
+};
+
+// Edit a member type
+const editMemberType = async (typeId, newLabel, newFee) => {
+  if (!newLabel.trim()) {
+    Alert.alert('Error', 'Please enter a member type name');
+    return;
+  }
+  
+  if (!newFee || parseFloat(newFee) <= 0) {
+    Alert.alert('Error', 'Please enter a valid fee amount');
+    return;
+  }
+
+  try {
+    const updatedTypes = memberTypes.map(type => 
+      type.id === typeId 
+        ? { ...type, label: newLabel.trim(), defaultFee: parseFloat(newFee) }
+        : type
+    );
+    setMemberTypes(updatedTypes);
+    
+    const updatedFees = { ...memberFees, [typeId]: parseFloat(newFee) };
+    setMemberFees(updatedFees);
+    
+    const docRef = doc(db, 'settings', 'commission');
+    await updateDoc(docRef, {
+      memberTypes: updatedTypes,
+      memberFees: updatedFees,
+      lastUpdated: new Date().toISOString()
+    });
+    
+    Alert.alert('Success', 'Member type updated successfully!');
+  } catch (error) {
+    console.error('Error editing member type:', error);
+    Alert.alert('Error', error.message || 'Failed to update member type');
+  }
+};
+
+// Delete a member type
+const deleteMemberType = (typeId) => {
+  Alert.alert(
+    'Delete Member Type',
+    'Are you sure you want to delete this member type? This action cannot be undone.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const updatedTypes = memberTypes.filter(type => type.id !== typeId);
+            setMemberTypes(updatedTypes);
+            
+            const updatedFees = { ...memberFees };
+            delete updatedFees[typeId];
+            setMemberFees(updatedFees);
+            
+            const docRef = doc(db, 'settings', 'commission');
+            await updateDoc(docRef, {
+              memberTypes: updatedTypes,
+              memberFees: updatedFees,
+              lastUpdated: new Date().toISOString()
+            });
+            
+            Alert.alert('Success', 'Member type deleted successfully!');
+          } catch (error) {
+            console.error('Error deleting member type:', error);
+            Alert.alert('Error', error.message || 'Failed to delete member type');
+          }
+        }
+      }
+    ]
+  );
 };
 
   const fetchStats = async () => {
@@ -1832,90 +1989,72 @@ const auth = getAuthInstance(); // ✅ ADD THIS
     <Text style={[styles.sectionTitle, { fontSize: isSmallDevice ? 13 : 15 }]}>
       Member Registration Fees
     </Text>
-    <TouchableOpacity 
-      style={styles.editHintButton}
-      onPress={() => Alert.alert('Info', 'Tap on any member type to edit its registration fee')}
-    >
-      <MaterialIcons name="info-outline" size={isSmallDevice ? 14 : 18} color="#FF7722" />
-    </TouchableOpacity>
+    <View style={styles.headerActions}>
+      <TouchableOpacity 
+        style={styles.addTypeButton}
+        onPress={() => {
+          setNewMemberTypeName('');
+          setNewMemberTypeFee('');
+          setMemberTypeModalVisible(true);
+        }}
+      >
+        <MaterialIcons name="add" size={isSmallDevice ? 18 : 22} color="#FF7722" />
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={styles.editHintButton}
+        onPress={() => Alert.alert('Info', 'Tap on any member type to edit it. Use the + button to add new types.')}
+      >
+        <MaterialIcons name="info-outline" size={isSmallDevice ? 14 : 18} color="#FF7722" />
+      </TouchableOpacity>
+    </View>
   </View>
 
-  {MEMBER_TYPES.map((type) => (
-    <TouchableOpacity 
-      key={type.id}
-      style={[styles.memberFeeRow, { borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }]}
-      onPress={() => {
-        setSelectedMemberType({ ...type, fee: memberFees[type.id] || type.defaultFee });
-        setMemberFeeModalVisible(true);
-      }}
-      activeOpacity={0.7}
-    >
-      <View style={styles.memberFeeLeft}>
-        <View style={[styles.memberFeeIcon, { backgroundColor: '#FF772215' }]}>
-          <MaterialIcons name="person" size={isSmallDevice ? 16 : 20} color="#FF7722" />
-        </View>
-        <Text style={[styles.memberFeeLabel, { fontSize: isSmallDevice ? 12 : 14 }]}>
-          {type.label}
-        </Text>
-      </View>
-      <View style={styles.memberFeeRight}>
-        <Text style={[styles.memberFeeValue, { fontSize: isSmallDevice ? 14 : 16 }]}>
-          ₹{memberFees[type.id]?.toLocaleString() || type.defaultFee.toLocaleString()}
-        </Text>
-        <MaterialIcons name="edit" size={isSmallDevice ? 16 : 20} color="#FF7722" />
-      </View>
-    </TouchableOpacity>
-  ))}
-</View>
-          {/* Quick Settings */}
-          <View style={styles.card}>
-            <View style={styles.sectionHeader}>
-              <MaterialIcons name="settings" size={isSmallDevice ? 16 : 20} color="#6b7280" />
-              <Text style={[styles.sectionTitle, { fontSize: isSmallDevice ? 13 : 15 }]}>
-                {translations.quickSettings}
-              </Text>
-              <TouchableOpacity 
-                style={styles.editButtonSmall}
-                onPress={() => setSettingsModalVisible(true)}
-              >
-                <MaterialIcons name="edit" size={isSmallDevice ? 12 : 16} color="#FF7722" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.settingsGrid}>
-              <View style={styles.settingItem}>
-                <Text style={[styles.settingLabel, { fontSize: isSmallDevice ? 9 : 10 }]}>
-                  {translations.registrationFee}
-                </Text>
-                <Text style={[styles.settingValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                  ₹{formData.registrationFee}
-                </Text>
-              </View>
-              <View style={styles.settingItem}>
-                <Text style={[styles.settingLabel, { fontSize: isSmallDevice ? 9 : 10 }]}>
-                  {translations.minWithdrawal}
-                </Text>
-                <Text style={[styles.settingValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                  ₹{formData.minWithdrawal}
-                </Text>
-              </View>
-              <View style={styles.settingItem}>
-                <Text style={[styles.settingLabel, { fontSize: isSmallDevice ? 9 : 10 }]}>
-                  {translations.autoPromotion}
-                </Text>
-                <Text style={[styles.settingValue, { fontSize: isSmallDevice ? 11 : 13, color: formData.autoPromotionEnabled ? '#10b981' : '#ef4444' }]}>
-                  {formData.autoPromotionEnabled ? translations.enabled : translations.disabled}
-                </Text>
-              </View>
-              <View style={styles.settingItem}>
-                <Text style={[styles.settingLabel, { fontSize: isSmallDevice ? 9 : 10 }]}>
-                  {translations.donationCommission}
-                </Text>
-                <Text style={[styles.settingValue, { fontSize: isSmallDevice ? 11 : 13, color: formData.donationCommissionEnabled ? '#10b981' : '#ef4444' }]}>
-                  {formData.donationCommissionEnabled ? translations.enabled : translations.disabled}
-                </Text>
-              </View>
-            </View>
+  {memberTypes.length > 0 ? (
+    memberTypes.map((type) => (
+      <TouchableOpacity 
+        key={type.id}
+        style={[styles.memberFeeRow, { borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }]}
+        onPress={() => {
+          setSelectedMemberType({ ...type, fee: memberFees[type.id] || type.defaultFee });
+          setMemberFeeModalVisible(true);
+        }}
+        activeOpacity={0.7}
+      >
+        <View style={styles.memberFeeLeft}>
+          <View style={[styles.memberFeeIcon, { backgroundColor: '#FF772215' }]}>
+            <MaterialIcons name="person" size={isSmallDevice ? 16 : 20} color="#FF7722" />
           </View>
+          <Text style={[styles.memberFeeLabel, { fontSize: isSmallDevice ? 12 : 14 }]}>
+            {type.label}
+          </Text>
+        </View>
+        <View style={styles.memberFeeRight}>
+          <Text style={[styles.memberFeeValue, { fontSize: isSmallDevice ? 14 : 16 }]}>
+            ₹{memberFees[type.id]?.toLocaleString() || type.defaultFee.toLocaleString()}
+          </Text>
+          <TouchableOpacity
+            onPress={() => deleteMemberType(type.id)}
+            style={styles.deleteTypeButton}
+          >
+            <MaterialIcons name="close" size={isSmallDevice ? 14 : 18} color="#ef4444" />
+          </TouchableOpacity>
+          <MaterialIcons name="edit" size={isSmallDevice ? 16 : 20} color="#FF7722" />
+        </View>
+      </TouchableOpacity>
+    ))
+  ) : (
+    <View style={styles.emptyState}>
+      <MaterialIcons name="people" size={32} color="#d1d5db" />
+      <Text style={[styles.emptyStateText, { fontSize: isSmallDevice ? 13 : 14 }]}>
+        No member types defined
+      </Text>
+      <Text style={[styles.emptyStateSubtext, { fontSize: isSmallDevice ? 10 : 11 }]}>
+        Tap the + button to add member types
+      </Text>
+    </View>
+  )}
+</View>
+          
 
           {commissionData?.lastUpdated && (
             <View style={styles.updateInfo}>
@@ -2008,7 +2147,72 @@ const auth = getAuthInstance(); // ✅ ADD THIS
             </View>
           </View>
         </Modal>
+{/* Add Member Type Modal */}
+<Modal
+  animationType="slide"
+  transparent={true}
+  visible={memberTypeModalVisible}
+  onRequestClose={() => setMemberTypeModalVisible(false)}
+>
+  <View style={styles.modalOverlay}>
+    <View style={styles.modalContent}>
+      <View style={styles.modalHeader}>
+        <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
+          Add Member Type
+        </Text>
+        <TouchableOpacity onPress={() => setMemberTypeModalVisible(false)}>
+          <MaterialIcons name="close" size={24} color="#6b7280" />
+        </TouchableOpacity>
+      </View>
 
+      <View style={styles.modalBody}>
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+            Member Type Name *
+          </Text>
+          <TextInput
+            style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+            value={newMemberTypeName}
+            onChangeText={setNewMemberTypeName}
+            placeholder="e.g., Premium Member"
+            placeholderTextColor="#9ca3af"
+          />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+            Registration Fee (₹) *
+          </Text>
+          <TextInput
+            style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+            value={newMemberTypeFee}
+            onChangeText={setNewMemberTypeFee}
+            placeholder="Enter fee amount"
+            placeholderTextColor="#9ca3af"
+            keyboardType="numeric"
+          />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.submitButton, isAddingMemberType && styles.submitButtonDisabled]}
+          onPress={addMemberType}
+          disabled={isAddingMemberType}
+        >
+          {isAddingMemberType ? (
+            <ActivityIndicator size="small" color="#ffffff" />
+          ) : (
+            <>
+              <MaterialIcons name="add" size={20} color="#ffffff" />
+              <Text style={[styles.submitButtonText, { fontSize: isSmallDevice ? 14 : 15 }]}>
+                Add Member Type
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+</Modal>
         {/* Promotion Confirmation Modal */}
         <Modal
           animationType="fade"
@@ -2872,6 +3076,23 @@ donationsCol: {
     fontFamily: Fonts.Regular,
     color: '#6b7280',
   },
+headerActions: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 4,
+},
+addTypeButton: {
+  padding: 4,
+  backgroundColor: '#FF772215',
+  borderRadius: 16,
+  width: 28,
+  height: 28,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+deleteTypeButton: {
+  padding: 2,
+},
   payoutSummaryValue: {
     fontFamily: Fonts.Bold,
     color: '#10b981',

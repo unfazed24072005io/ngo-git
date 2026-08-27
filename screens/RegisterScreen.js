@@ -28,6 +28,7 @@ export default function RegisterScreen({ navigation, route }) {
   const [verificationId, setVerificationId] = useState('');
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [otp, setOtp] = useState('');
+const [feesLoading, setFeesLoading] = useState(true);
 // Either remove this line or add the state:
 const [memberTypes, setMemberTypes] = useState([]);
   const [generatedOtp, setGeneratedOtp] = useState('');
@@ -229,9 +230,6 @@ otherNationality: '',
     signature: null,
   });
 
-  // ============ FETCH MEMBER FEES ============
-  // ============ FETCH MEMBER FEES ============
-// ============ FETCH MEMBER FEES ============
 const fetchMemberFees = async () => {
   try {
     const docRef = doc(db, 'settings', 'commission');
@@ -239,17 +237,24 @@ const fetchMemberFees = async () => {
     
     if (docSnap.exists()) {
       const data = docSnap.data();
-      if (data.memberFees) {
+      if (data.memberFees && Object.keys(data.memberFees).length > 0) {
         setMemberFees(data.memberFees);
         console.log('✅ Member fees loaded:', data.memberFees);
+        setFeesLoaded(true); // ✅ Mark as loaded
+      } else {
+        console.warn('⚠️ No memberFees found in document');
+        setFeesLoaded(false);
+        Alert.alert('Configuration Error', 'Member fee structure not configured. Please contact admin.');
       }
-      if (data.memberTypes) {
-        // If you have custom member type names in Firestore
-        setMemberTypes(data.memberTypes);
-      }
+    } else {
+      console.warn('⚠️ Commission document does not exist');
+      setFeesLoaded(false);
+      Alert.alert('Configuration Error', 'Member fee structure not configured. Please contact admin.');
     }
   } catch (error) {
-    console.error('Error fetching member fees:', error);
+    console.error('❌ Error fetching member fees:', error);
+    setFeesLoaded(false);
+    Alert.alert('Error', 'Failed to load member fees. Please check your connection.');
   }
 };
 // ============ REFERRAL CODE VALIDATION ============
@@ -2204,20 +2209,19 @@ const renderPersonalInfo = () => {
     </View>
   );
 
-  // ============ STEP 6: Membership Details with Fee ============
   const renderMembershipDetails = () => {
-    if (isDonationFlow) {
-      setTimeout(() => setStep(9), 100);
-      return null;
-    }
+  if (isDonationFlow) {
+    setTimeout(() => setStep(9), 100);
+    return null;
+  }
 
-    const showFee = !isDonationFlow && role !== 'donor';
-
+  // ✅ Show loading while fees are being fetched
+  if (!feesLoaded) {
     return (
       <View>
         <Text style={styles.stepTitle}>{translations.membershipDetails}</Text>
         <Text style={styles.subStep}>{translations.enterMembershipInfo}</Text>
-
+        
         <View style={styles.fieldContainer}>
           <TextInput
             style={styles.input}
@@ -2240,59 +2244,11 @@ const renderPersonalInfo = () => {
           <View style={styles.bottomLine} />
         </View>
 
-        <View style={styles.fieldContainer}>
-          <View style={styles.pickerWrapper}>
-            <Picker
-              selectedValue={formData.memberType}
-              onValueChange={(itemValue) => {
-                setFormData({...formData, memberType: itemValue});
-              }}
-              style={styles.picker}
-            >
-              <Picker.Item label={translations.selectMemberType} value="" />
-              <Picker.Item 
-  label={`${translations.founderMember} (₹${memberFees['Founder Member']})`} 
-  value="Founder Member" 
-/>
-<Picker.Item 
-  label={`${translations.collectorMember} (₹${memberFees['Collector Member'] || 0})`} 
-  value="Collector Member" 
-/>
-<Picker.Item 
-  label={`${translations.distinguishedMember} (₹${memberFees['Distinguished Member'] || 0})`} 
-  value="Distinguished Member" 
-/>
-<Picker.Item 
-  label={`${translations.lifetimeMember} (₹${memberFees['Lifetime Member'] || 0})`} 
-  value="Lifetime Member" 
-/>
-<Picker.Item 
-  label={`${translations.honoredMember} (₹${memberFees['Honored Member'] || 0})`} 
-  value="Honored Member" 
-/>
-<Picker.Item 
-  label={`${translations.generalMember} (₹${memberFees['General Member'] || 0})`} 
-  value="General Member" 
-/>
-            </Picker>
-            <View style={styles.bottomLine} />
-          </View>
+        {/* ✅ Show loading indicator instead of dropdown */}
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FF7722" />
+          <Text style={styles.loadingText}>Loading member types...</Text>
         </View>
-
-        {showFee && formData.memberType && (
-          <View style={styles.feeContainer}>
-            <View style={styles.feeCard}>
-              <MaterialIcons name="payments" size={24} color="#FF7722" />
-              <View style={styles.feeInfo}>
-                <Text style={styles.feeLabel}>Registration Fee</Text>
-                <Text style={styles.feeAmount}>₹{getMemberTypeFee(formData.memberType)}</Text>
-              </View>
-            </View>
-            <Text style={styles.feeNote}>
-              💳 Registration fee must be paid to complete registration
-            </Text>
-          </View>
-        )}
 
         <View style={styles.stepButtons}>
           <TouchableOpacity style={styles.backButton} onPress={() => setStep(5)}>
@@ -2300,13 +2256,95 @@ const renderPersonalInfo = () => {
             <Text style={styles.buttonText}>{translations.back}</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.nextButton} onPress={() => setStep(7)}>
+          <TouchableOpacity style={[styles.nextButton, styles.disabledButton]} disabled>
             <Text style={styles.buttonText}>{translations.next} →</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
-  };
+  }
+
+  // ✅ Show dropdown only when fees are loaded
+  const showFee = !isDonationFlow && role !== 'donor';
+
+  return (
+    <View>
+      <Text style={styles.stepTitle}>{translations.membershipDetails}</Text>
+      <Text style={styles.subStep}>{translations.enterMembershipInfo}</Text>
+
+      <View style={styles.fieldContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder={translations.membershipDate}
+          placeholderTextColor="#9ca3af"
+          value={formData.membershipDate}
+          onChangeText={(text) => setFormData({...formData, membershipDate: text})}
+        />
+        <View style={styles.bottomLine} />
+      </View>
+
+      <View style={styles.fieldContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder={translations.guruAshram}
+          placeholderTextColor="#9ca3af"
+          value={formData.guruAshram}
+          onChangeText={(text) => setFormData({...formData, guruAshram: text})}
+        />
+        <View style={styles.bottomLine} />
+      </View>
+
+      {/* ✅ Dropdown with real values only */}
+      <View style={styles.fieldContainer}>
+        <View style={styles.pickerWrapper}>
+          <Picker
+            selectedValue={formData.memberType}
+            onValueChange={(itemValue) => {
+              setFormData({...formData, memberType: itemValue});
+            }}
+            style={styles.picker}
+          >
+            <Picker.Item label={translations.selectMemberType} value="" />
+            {Object.keys(memberFees).map((type) => (
+              <Picker.Item 
+                key={type}
+                label={`${type} (₹${memberFees[type]})`} 
+                value={type} 
+              />
+            ))}
+          </Picker>
+          <View style={styles.bottomLine} />
+        </View>
+      </View>
+
+      {showFee && formData.memberType && (
+        <View style={styles.feeContainer}>
+          <View style={styles.feeCard}>
+            <MaterialIcons name="payments" size={24} color="#FF7722" />
+            <View style={styles.feeInfo}>
+              <Text style={styles.feeLabel}>Registration Fee</Text>
+              <Text style={styles.feeAmount}>₹{memberFees[formData.memberType]}</Text>
+            </View>
+          </View>
+          <Text style={styles.feeNote}>
+            💳 Registration fee must be paid to complete registration
+          </Text>
+        </View>
+      )}
+
+      <View style={styles.stepButtons}>
+        <TouchableOpacity style={styles.backButton} onPress={() => setStep(5)}>
+          <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
+          <Text style={styles.buttonText}>{translations.back}</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.nextButton} onPress={() => setStep(7)}>
+          <Text style={styles.buttonText}>{translations.next} →</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
 
   // ============ STEP 7: Password ============
 const renderPassword = () => {
@@ -3675,6 +3713,20 @@ noPaymentTextArea: {
     fontSize: 16,
     color: '#6b7280',
   },
+loadingContainer: {
+  padding: 40,
+  alignItems: 'center',
+  justifyContent: 'center',
+  backgroundColor: '#f9fafb',
+  borderRadius: 12,
+  marginVertical: 16,
+},
+loadingText: {
+  fontFamily: Fonts.Regular,
+  fontSize: 14,
+  color: '#6b7280',
+  marginTop: 12,
+},
   paymentModalCloseButton: {
     paddingVertical: 8,
     paddingHorizontal: 20,

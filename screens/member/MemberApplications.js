@@ -1,5 +1,6 @@
 // screens/member/MemberApplications.js
 import React, { useState, useEffect } from 'react';
+import { initiateRazorpayPayment } from '../../services/paymentService';
 import {
   View,
   Text,
@@ -475,7 +476,13 @@ const auth = getAuthInstance(); // ✅ ADD THIS
 
   const handleRegisterCompetition = async (competition) => {
   const auth = getAuthInstance();
-  const userId = auth.currentUser?.uid;  // ✅ Only ONE declaration
+  const userId = auth.currentUser?.uid;
+  const userEmail = auth.currentUser?.email;
+  const displayName = auth.currentUser?.displayName;
+  
+  console.log('🔵 Competition Registration - User ID:', userId);
+  console.log('🔵 Competition - Title:', competition?.title);
+  console.log('🔵 Registration Fee:', competition?.registrationFee);
   
   if (!userId) {
     Alert.alert(translations.error, translations.pleaseLogin);
@@ -492,24 +499,67 @@ const auth = getAuthInstance(); // ✅ ADD THIS
     return;
   }
 
+  // ✅ Check registration fee
+  const registrationFee = parseFloat(competition.registrationFee) || 0;
+
+  if (registrationFee > 0) {
+    // ✅ Show payment confirmation
+    Alert.alert(
+      'Registration Fee Required',
+      `This competition has a registration fee of ₹${registrationFee}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Pay & Register',
+          onPress: async () => {
+            try {
+              // Get user details for payment
+              const userDoc = await getDoc(doc(db, 'users', userId));
+              const userData = userDoc.exists() ? userDoc.data() : {};
+              
+              const donorName = displayName || userData.fullName || 'Competition Participant';
+              const donorEmail = userEmail || userData.email || 'participant@email.com';
+              const donorPhone = userData.phone || '0000000000';
+              
+              setRegistering(true);
+              
+              // ✅ Initiate Razorpay payment
+              const paymentResult = await initiateRazorpayPayment({
+                amount: registrationFee,
+                name: donorName,
+                email: donorEmail,
+                phone: donorPhone,
+                description: `Competition Registration: ${competition.title}`,
+              });
+              
+              console.log('📥 Payment result:', paymentResult);
+              
+              // ✅ Check if payment was successful
+              if (paymentResult && paymentResult.paymentId) {
+                // ✅ Complete registration
+                await completeCompetitionRegistration(competition, userId, displayName, userEmail);
+                Alert.alert(translations.success, '✅ Registration successful!');
+                setCompetitionDetailModalVisible(false);
+              } else {
+                Alert.alert(translations.error, paymentResult?.error || 'Payment failed. Please try again.');
+              }
+            } catch (error) {
+              console.error('❌ Payment error:', error);
+              Alert.alert(translations.error, error.message || 'Payment failed');
+            } finally {
+              setRegistering(false);
+            }
+          }
+        }
+      ]
+    );
+    return;
+  }
+
+  // ✅ Free registration
   setRegistering(true);
   try {
-    const userName = auth.currentUser?.displayName || 'Member';
-    
-    await addDoc(collection(db, 'competitionRegistrations'), {
-      competitionId: competition.id,
-      userId: userId,
-      userName: userName,
-      userEmail: auth.currentUser?.email,
-      registeredAt: new Date().toISOString(),
-      status: 'registered',
-    });
-
-    const compRef = doc(db, 'competitions', competition.id);
-    const participants = competition.participants || [];
-    participants.push(userId);
-    await updateDoc(compRef, { participants });
-
+    await completeCompetitionRegistration(competition, userId, displayName, userEmail);
     Alert.alert(translations.success, translations.registerSuccess);
     setCompetitionDetailModalVisible(false);
   } catch (error) {
@@ -517,6 +567,33 @@ const auth = getAuthInstance(); // ✅ ADD THIS
   } finally {
     setRegistering(false);
   }
+};
+
+// ✅ Helper function to complete competition registration
+const completeCompetitionRegistration = async (competition, userId, displayName, userEmail) => {
+  // Add registration record
+  await addDoc(collection(db, 'competitionRegistrations'), {
+    competitionId: competition.id,
+    userId: userId,
+    userName: displayName || 'Member',
+    userEmail: userEmail || '',
+    registeredAt: new Date().toISOString(),
+    status: 'registered',
+  });
+
+  // Update competition participants
+  const compRef = doc(db, 'competitions', competition.id);
+  const participants = competition.participants || [];
+  if (!participants.includes(userId)) {
+    participants.push(userId);
+    await updateDoc(compRef, { 
+      participants,
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  // Update local state
+  setMyCompetitions(prev => [...prev, competition.id]);
 };
 
   const onRefresh = async () => {
@@ -566,76 +643,86 @@ const auth = getAuthInstance(); // ✅ ADD THIS
   };
 
   const CompetitionCard = ({ competition }) => {
-    const isRegistered = myCompetitions.includes(competition.id);
-    const isFull = competition.participants?.length >= competition.maxParticipants;
+  const isRegistered = myCompetitions.includes(competition.id);
+  const isFull = competition.participants?.length >= competition.maxParticipants;
+  const registrationFee = parseFloat(competition.registrationFee) || 0;
 
-    return (
-      <TouchableOpacity 
-        style={styles.competitionCard}
-        onPress={() => {
-          setSelectedCompetition(competition);
-          setCompetitionDetailModalVisible(true);
-        }}
-        activeOpacity={0.7}
-      >
-        <View style={styles.competitionHeader}>
-          <Text style={styles.competitionTitle} numberOfLines={1}>
-            {competition.title}
-          </Text>
-          <View style={[styles.competitionStatus, { backgroundColor:
-            competition.status === 'upcoming' ? '#fef3c7' :
-            competition.status === 'live' ? '#dbeafe' : '#d1fae5'
-          }]}>
-            <Text style={[styles.competitionStatusText, { color:
-              competition.status === 'upcoming' ? '#d97706' :
-              competition.status === 'live' ? '#2563eb' : '#059669'
-            }]}>
-              {competition.status?.toUpperCase() || 'UPCOMING'}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.competitionDescription} numberOfLines={2}>
-          {competition.description || translations.nA}
+  return (
+    <TouchableOpacity 
+      style={styles.competitionCard}
+      onPress={() => {
+        setSelectedCompetition(competition);
+        setCompetitionDetailModalVisible(true);
+      }}
+      activeOpacity={0.7}
+    >
+      <View style={styles.competitionHeader}>
+        <Text style={styles.competitionTitle} numberOfLines={1}>
+          {competition.title}
         </Text>
+        <View style={[styles.competitionStatus, { backgroundColor:
+          competition.status === 'upcoming' ? '#fef3c7' :
+          competition.status === 'live' ? '#dbeafe' : '#d1fae5'
+        }]}>
+          <Text style={[styles.competitionStatusText, { color:
+            competition.status === 'upcoming' ? '#d97706' :
+            competition.status === 'live' ? '#2563eb' : '#059669'
+          }]}>
+            {competition.status?.toUpperCase() || 'UPCOMING'}
+          </Text>
+        </View>
+      </View>
 
-        <View style={styles.competitionMeta}>
+      <Text style={styles.competitionDescription} numberOfLines={2}>
+        {competition.description || translations.nA}
+      </Text>
+
+      <View style={styles.competitionMeta}>
+        <View style={styles.competitionMetaItem}>
+          <MaterialIcons name="emoji-events" size={14} color="#6b7280" />
+          <Text style={styles.competitionMetaText}>₹{competition.prize || '0'}</Text>
+        </View>
+        <View style={styles.competitionMetaItem}>
+          <MaterialIcons name="people" size={14} color="#6b7280" />
+          <Text style={styles.competitionMetaText}>
+            {competition.participants?.length || 0}/{competition.maxParticipants || '∞'}
+          </Text>
+        </View>
+        {/* ✅ Show Registration Fee */}
+        {registrationFee > 0 && (
           <View style={styles.competitionMetaItem}>
-            <MaterialIcons name="emoji-events" size={14} color="#6b7280" />
-            <Text style={styles.competitionMetaText}>₹{competition.prize || '0'}</Text>
-          </View>
-          <View style={styles.competitionMetaItem}>
-            <MaterialIcons name="people" size={14} color="#6b7280" />
-            <Text style={styles.competitionMetaText}>
-              {competition.participants?.length || 0}/{competition.maxParticipants || '∞'}
+            <MaterialIcons name="payments" size={14} color="#10b981" />
+            <Text style={[styles.competitionMetaText, { color: '#10b981' }]}>
+              ₹{registrationFee} fee
             </Text>
           </View>
-          {competition.winner && (
-            <View style={styles.competitionMetaItem}>
-              <MaterialIcons name="stars" size={14} color="#f59e0b" />
-              <Text style={[styles.competitionMetaText, { color: '#f59e0b' }]}>
-                {translations.winnerDeclared}
-              </Text>
-            </View>
-          )}
+        )}
+        {competition.winner && (
+          <View style={styles.competitionMetaItem}>
+            <MaterialIcons name="stars" size={14} color="#f59e0b" />
+            <Text style={[styles.competitionMetaText, { color: '#f59e0b' }]}>
+              {translations.winnerDeclared}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {isRegistered && (
+        <View style={styles.registeredBadge}>
+          <MaterialIcons name="check-circle" size={14} color="#10b981" />
+          <Text style={styles.registeredBadgeText}>{translations.registered}</Text>
         </View>
+      )}
 
-        {isRegistered && (
-          <View style={styles.registeredBadge}>
-            <MaterialIcons name="check-circle" size={14} color="#10b981" />
-            <Text style={styles.registeredBadgeText}>{translations.registered}</Text>
-          </View>
-        )}
-
-        {isFull && !isRegistered && (
-          <View style={styles.fullBadge}>
-            <MaterialIcons name="block" size={14} color="#ef4444" />
-            <Text style={styles.fullBadgeText}>{translations.full}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-  };
+      {isFull && !isRegistered && (
+        <View style={styles.fullBadge}>
+          <MaterialIcons name="block" size={14} color="#ef4444" />
+          <Text style={styles.fullBadgeText}>{translations.full}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+};
 
   if (loading) {
     return (
@@ -1046,7 +1133,24 @@ const auth = getAuthInstance(); // ✅ ADD THIS
                     </Text>
                   </View>
                 </View>
-
+{/* Add Registration Fee in Detail Modal */}
+<View style={styles.competitionDetailRow}>
+  <View style={styles.competitionDetailItem}>
+    <Text style={styles.competitionDetailLabel}>Registration Fee</Text>
+    <Text style={[styles.competitionDetailValue, { 
+      color: selectedCompetition.registrationFee > 0 ? '#10b981' : '#6b7280',
+      fontFamily: selectedCompetition.registrationFee > 0 ? Fonts.Bold : Fonts.Regular
+    }]}>
+      {selectedCompetition.registrationFee > 0 ? `₹${selectedCompetition.registrationFee}` : 'Free'}
+    </Text>
+  </View>
+  <View style={styles.competitionDetailItem}>
+    <Text style={styles.competitionDetailLabel}>Status</Text>
+    <Text style={styles.competitionDetailValue}>
+      {selectedCompetition.status?.toUpperCase() || 'UPCOMING'}
+    </Text>
+  </View>
+</View>
                 <View style={styles.competitionDetailRow}>
                   <View style={styles.competitionDetailItem}>
                     <Text style={styles.competitionDetailLabel}>{translations.venue}</Text>

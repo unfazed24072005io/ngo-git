@@ -432,15 +432,27 @@ export default function MemberProfile({ navigation }) {
     <View style={styles.container} key={renderKey}>
       {/* Purple Header */}
       <View style={styles.headerCard}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
-            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>{translations.memberProfile}</Text>
-          <TouchableOpacity onPress={() => setEditing(!editing)} activeOpacity={0.7}>
-            <Text style={styles.editButton}>{editing ? translations.cancel : translations.edit}</Text>
-          </TouchableOpacity>
-        </View>
+        // In the header section
+<View style={styles.headerTop}>
+  <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
+    <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+  </TouchableOpacity>
+  <Text style={styles.headerTitle} numberOfLines={1}>{translations.memberProfile}</Text>
+  
+  {editing ? (
+    <TouchableOpacity onPress={handleSave} disabled={saving} activeOpacity={0.7}>
+      {saving ? (
+        <ActivityIndicator size="small" color="#ffffff" />
+      ) : (
+        <Text style={styles.editButton}>Save</Text>
+      )}
+    </TouchableOpacity>
+  ) : (
+    <TouchableOpacity onPress={() => setEditing(true)} activeOpacity={0.7}>
+      <Text style={styles.editButton}>{translations.edit}</Text>
+    </TouchableOpacity>
+  )}
+</View>
       </View>
 
       <ScrollView 
@@ -533,7 +545,7 @@ export default function MemberProfile({ navigation }) {
                 
                 {/* Footer */}
                 <View style={styles.idCardFooter}>
-                  <Text style={styles.idCardFooterText}>{translations.idCardManager}</Text>
+                  
                   <View style={styles.idCardSignatureContainer}>
                     <View style={styles.idCardSignatureLine} />
                     <Text style={styles.idCardSignatureLabel}>{translations.idCardSignature}</Text>

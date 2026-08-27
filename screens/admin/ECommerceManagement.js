@@ -96,6 +96,7 @@ export default function ECommerceManagement({ navigation }) {
 
   const [activeTab, setActiveTab] = useState('products');
   const [products, setProducts] = useState([]);
+const [orderFilter, setOrderFilter] = useState('All');
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
@@ -137,30 +138,53 @@ export default function ECommerceManagement({ navigation }) {
   }, []);
 
   const setupRealtimeListeners = () => {
-    const unsubscribeProducts = onSnapshot(query(collection(db, 'products'), orderBy('createdAt', 'desc')), (snapshot) => {
-      const productsList = [];
-      snapshot.forEach((doc) => {
-        productsList.push({ id: doc.id, ...doc.data() });
-      });
-      setProducts(productsList);
-      applyFilters(productsList, searchQuery, activeFilter);
-      setLoading(false);
+  const unsubscribeProducts = onSnapshot(query(collection(db, 'products'), orderBy('createdAt', 'desc')), (snapshot) => {
+    const productsList = [];
+    snapshot.forEach((doc) => {
+      productsList.push({ id: doc.id, ...doc.data() });
     });
+    setProducts(productsList);
+    applyFilters(productsList, searchQuery, activeFilter);
+    setLoading(false);
+  });
 
-    const unsubscribeOrders = onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), (snapshot) => {
-      const ordersList = [];
-      snapshot.forEach((doc) => {
-        ordersList.push({ id: doc.id, ...doc.data() });
-      });
-      setOrders(ordersList);
-      applyOrderFilters(ordersList, searchQuery);
+  const unsubscribeOrders = onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), (snapshot) => {
+    const ordersList = [];
+    snapshot.forEach((doc) => {
+      ordersList.push({ id: doc.id, ...doc.data() });
     });
+    setOrders(ordersList);
+    applyOrderFilters(ordersList, searchQuery, orderFilter);
+  });
 
-    return () => {
-      unsubscribeProducts();
-      unsubscribeOrders();
-    };
+  return () => {
+    unsubscribeProducts();
+    unsubscribeOrders();
   };
+};
+const getOrderStatusCount = (status) => {
+  if (status === 'All') return orders.length;
+  return orders.filter(o => o.status === status).length;
+};
+const applyOrderFilters = (data, searchText, filterStatus = orderFilter) => {
+  let filtered = data;
+  if (searchText) {
+    filtered = filtered.filter(order =>
+      order.customerName?.toLowerCase().includes(searchText.toLowerCase()) ||
+      order.customerEmail?.toLowerCase().includes(searchText.toLowerCase()) ||
+      order.id?.toLowerCase().includes(searchText.toLowerCase()) ||
+      order.items?.some(item => item.name?.toLowerCase().includes(searchText.toLowerCase()))
+    );
+  }
+  if (filterStatus !== 'All') {
+    filtered = filtered.filter(order => order.status === filterStatus);
+  }
+  setFilteredOrders(filtered);
+};
+const handleOrderFilterPress = (filter) => {
+  setOrderFilter(filter);
+  applyOrderFilters(orders, searchQuery, filter);
+};
 
   const fetchOrders = async () => {
     try {
@@ -230,7 +254,19 @@ export default function ECommerceManagement({ navigation }) {
     }
     setFilteredOrders(filtered);
   };
-
+const OrderStatCard = ({ label, count, icon, color, active, onPress }) => (
+  <TouchableOpacity 
+    style={[styles.statCard, active && styles.statCardActive]} 
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
+    <View style={[styles.statIconCircle, { backgroundColor: color + '15' }]}>
+      <MaterialIcons name={icon} size={16} color={color} />
+    </View>
+    <Text style={styles.statType} numberOfLines={1}>{label}</Text>
+    <Text style={[styles.statCount, { color }]}>{count}</Text>
+  </TouchableOpacity>
+);
   const applyInventoryFilters = (data, searchText) => {
     let filtered = data;
     if (searchText) {
@@ -244,16 +280,15 @@ export default function ECommerceManagement({ navigation }) {
   };
 
   const handleSearch = (text) => {
-    setSearchQuery(text);
-    if (activeTab === 'products') {
-      applyFilters(products, text, activeFilter);
-    } else if (activeTab === 'orders') {
-      applyOrderFilters(orders, text);
-    } else if (activeTab === 'inventory') {
-      applyInventoryFilters(inventoryItems, text);
-    }
-  };
-
+  setSearchQuery(text);
+  if (activeTab === 'products') {
+    applyFilters(products, text, activeFilter);
+  } else if (activeTab === 'orders') {
+    applyOrderFilters(orders, text, orderFilter);
+  } else if (activeTab === 'inventory') {
+    applyInventoryFilters(inventoryItems, text);
+  }
+};
   const handleFilterPress = (filter) => {
     setActiveFilter(filter);
     applyFilters(products, searchQuery, filter);
@@ -804,6 +839,64 @@ export default function ECommerceManagement({ navigation }) {
             />
           </ScrollView>
         )}
+{/* Orders Tab with Status Filter Cards */}
+{activeTab === 'orders' && (
+  <ScrollView 
+    horizontal 
+    showsHorizontalScrollIndicator={false} 
+    style={styles.statsContainer}
+    contentContainerStyle={styles.statsContent}
+  >
+    <OrderStatCard 
+      label="All" 
+      count={orders.length} 
+      icon="list" 
+      color="#ffffff"
+      active={orderFilter === 'All'}
+      onPress={() => handleOrderFilterPress('All')}
+    />
+    <OrderStatCard 
+      label={translations.pending} 
+      count={getOrderStatusCount('pending')} 
+      icon="hourglass-top" 
+      color="#FF7722"
+      active={orderFilter === 'pending'}
+      onPress={() => handleOrderFilterPress('pending')}
+    />
+    <OrderStatCard 
+      label={translations.processing} 
+      count={getOrderStatusCount('processing')} 
+      icon="settings" 
+      color="#f59e0b"
+      active={orderFilter === 'processing'}
+      onPress={() => handleOrderFilterPress('processing')}
+    />
+    <OrderStatCard 
+      label={translations.shipped} 
+      count={getOrderStatusCount('shipped')} 
+      icon="local-shipping" 
+      color="#3b82f6"
+      active={orderFilter === 'shipped'}
+      onPress={() => handleOrderFilterPress('shipped')}
+    />
+    <OrderStatCard 
+      label={translations.delivered} 
+      count={getOrderStatusCount('delivered')} 
+      icon="check-circle" 
+      color="#10b981"
+      active={orderFilter === 'delivered'}
+      onPress={() => handleOrderFilterPress('delivered')}
+    />
+    <OrderStatCard 
+      label={translations.cancelled} 
+      count={getOrderStatusCount('cancelled')} 
+      icon="cancel" 
+      color="#ef4444"
+      active={orderFilter === 'cancelled'}
+      onPress={() => handleOrderFilterPress('cancelled')}
+    />
+  </ScrollView>
+)}
       </View>
 
       {/* Content */}

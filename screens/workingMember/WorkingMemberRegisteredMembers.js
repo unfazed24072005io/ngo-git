@@ -8,7 +8,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { db, auth } from '../../config/firebase';
+import { db, getAuthInstance } from '../../config/firebase';
 
 import { 
   collection, query, where, onSnapshot, orderBy, doc, getDoc, 

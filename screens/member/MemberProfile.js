@@ -533,7 +533,7 @@ export default function MemberProfile({ navigation }) {
                 
                 {/* Footer */}
                 <View style={styles.idCardFooter}>
-                  <Text style={styles.idCardFooterText}>{translations.idCardManager}</Text>
+                  
                   <View style={styles.idCardSignatureContainer}>
                     <View style={styles.idCardSignatureLine} />
                     <Text style={styles.idCardSignatureLabel}>{translations.idCardSignature}</Text>

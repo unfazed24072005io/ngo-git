@@ -727,43 +727,142 @@ export default function HomeScreen({ navigation }) {
   };
 
   // ========== QUOTE DOWNLOAD FUNCTIONS ==========
-  const downloadQuoteImage = async (imageUrl, quoteText) => {
-    if (!imageUrl) {
-      Alert.alert('Error', 'No image to download');
+  const downloadQuoteImage = async (imageUrl, quoteText, author) => {
+  if (!imageUrl) {
+    Alert.alert('Error', 'No image to download');
+    return;
+  }
+
+  setDownloadingQuote(true);
+  try {
+    const shareText = `"${quoteText}"${author ? ` - ${author}` : ''}`;
+    
+    // For web
+    if (Platform.OS === 'web') {
+      try {
+        // Try to share using Web Share API
+        if (navigator.share) {
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          const file = new File([blob], `quote_${Date.now()}.jpg`, { type: 'image/jpeg' });
+          
+          await navigator.share({
+            title: 'Inspirational Quote',
+            text: shareText,
+            files: [file],
+          });
+          setDownloadingQuote(false);
+          return;
+        }
+      } catch (shareError) {
+        if (shareError.name !== 'AbortError') {
+          console.error('Share error:', shareError);
+        }
+        // Fall through to download
+      }
+      
+      // Fallback: Download the image
+      const link = document.createElement('a');
+      link.href = imageUrl;
+      link.download = `quote_${Date.now()}.jpg`;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      Alert.alert(
+        'Success',
+        `Quote image downloaded!\n\n"${quoteText}"${author ? `\n- ${author}` : ''}`
+      );
+      setDownloadingQuote(false);
       return;
     }
 
-    setDownloadingQuote(true);
+    // For mobile
+    const fileName = `quote_${Date.now()}.jpg`;
+    const fileUri = FileSystem.documentDirectory + fileName;
+    
+    console.log('📥 Downloading quote image from:', imageUrl);
+    console.log('📁 Saving to:', fileUri);
+    
+    // Download the image
+    const downloadResult = await FileSystem.downloadAsync(imageUrl, fileUri);
+    
+    console.log('✅ Download complete:', downloadResult.uri);
+    
+    if (await Sharing.isAvailableAsync()) {
+      // Share the image with quote text as dialog title
+      await Sharing.shareAsync(downloadResult.uri, {
+        mimeType: 'image/jpeg',
+        dialogTitle: shareText,
+        UTI: 'public.jpeg',
+      });
+      
+      // Show the quote text
+      Alert.alert(
+        'Quote Shared',
+        `"${quoteText}"${author ? `\n- ${author}` : ''}`,
+        [
+          { 
+            text: 'Copy Text', 
+            onPress: () => {
+              // Copy to clipboard
+              if (Platform.OS === 'web') {
+                navigator.clipboard.writeText(shareText);
+              } else {
+                // For mobile, show the text
+                Alert.alert('Quote Text', shareText);
+              }
+            }
+          },
+          { text: 'OK', style: 'cancel' }
+        ]
+      );
+    } else {
+      // If sharing not available, save to device
+      Alert.alert(
+        'Download Complete',
+        `Image saved to: ${fileUri}\n\n"${quoteText}"${author ? `\n- ${author}` : ''}`,
+        [{ text: 'OK' }]
+      );
+    }
+  } catch (error) {
+    console.error('❌ Error downloading quote:', error);
+    
+    // Try alternative download method
     try {
-      if (Platform.OS === 'web') {
-        const link = document.createElement('a');
-        link.href = imageUrl;
-        link.download = `quote_${Date.now()}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        Alert.alert('Success', 'Quote image downloaded successfully!');
-        setDownloadingQuote(false);
-        return;
-      }
-
-      const fileUri = FileSystem.documentDirectory + `quote_${Date.now()}.jpg`;
-      const downloadResult = await FileSystem.downloadAsync(imageUrl, fileUri);
-
+      // For mobile, try a different approach
+      const fileName = `quote_${Date.now()}.jpg`;
+      const fileUri = FileSystem.documentDirectory + fileName;
+      
+      // Try with a different encoding
+      const downloadResult = await FileSystem.downloadAsync(imageUrl, fileUri, {
+        headers: {
+          'Accept': 'image/*',
+        },
+      });
+      
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(downloadResult.uri, {
           mimeType: 'image/jpeg',
-          dialogTitle: 'Share Quote Image',
+          dialogTitle: 'Quote Image',
         });
+        Alert.alert('Success', 'Quote image downloaded successfully!');
+      } else {
+        Alert.alert('Success', `Image saved to: ${fileUri}`);
       }
-      Alert.alert('Success', 'Quote image downloaded successfully!');
-    } catch (error) {
-      console.error('Error downloading quote:', error);
-      Alert.alert('Error', 'Failed to download image. Please try again.');
-    } finally {
-      setDownloadingQuote(false);
+    } catch (fallbackError) {
+      console.error('❌ Fallback download error:', fallbackError);
+      Alert.alert(
+        'Error',
+        'Failed to download image. Please try again or take a screenshot.',
+        [{ text: 'OK' }]
+      );
     }
-  };
+  } finally {
+    setDownloadingQuote(false);
+  }
+};
 
   // ========== USE EFFECT ==========
   useEffect(() => {
@@ -1886,94 +1985,127 @@ export default function HomeScreen({ navigation }) {
       </Modal>
 
       {/* ========== QUOTE MODAL ========== */}
-      {quoteModalVisible && selectedQuote && (
-        <Modal
-          animationType="fade"
-          transparent={true}
-          visible={quoteModalVisible}
-          onRequestClose={() => {
-            setQuoteModalVisible(false);
-            setSelectedQuote(null);
-          }}
-        >
-          <View style={styles.quoteModalOverlay}>
+{quoteModalVisible && selectedQuote && (
+  <Modal
+    animationType="fade"
+    transparent={true}
+    visible={quoteModalVisible}
+    onRequestClose={() => {
+      setQuoteModalVisible(false);
+      setSelectedQuote(null);
+    }}
+  >
+    <View style={styles.quoteModalOverlay}>
+      <TouchableOpacity
+        style={styles.quoteModalOverlayTouch}
+        activeOpacity={1}
+        onPress={() => {
+          setQuoteModalVisible(false);
+          setSelectedQuote(null);
+        }}
+      >
+        <View style={styles.quoteModalContainer}>
+          <View style={styles.quoteModalHeader}>
+            <Text style={styles.quoteModalTitle}>Inspirational Quote</Text>
             <TouchableOpacity
-              style={styles.quoteModalOverlayTouch}
-              activeOpacity={1}
               onPress={() => {
                 setQuoteModalVisible(false);
                 setSelectedQuote(null);
               }}
+              style={styles.quoteModalCloseBtn}
             >
-              <View style={styles.quoteModalContainer}>
-                <View style={styles.quoteModalHeader}>
-                  <Text style={styles.quoteModalTitle}>Inspirational Quote</Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setQuoteModalVisible(false);
-                      setSelectedQuote(null);
-                    }}
-                    style={styles.quoteModalCloseBtn}
-                  >
-                    <MaterialIcons name="close" size={28} color="#1f2937" />
-                  </TouchableOpacity>
-                </View>
-
-                {selectedQuote.imageUrl ? (
-                  <Image
-                    source={{ uri: selectedQuote.imageUrl }}
-                    style={styles.quoteModalImage}
-                    resizeMode="contain"
-                    onError={() => {
-                      Alert.alert('Error', 'Failed to load image');
-                    }}
-                  />
-                ) : (
-                  <View style={styles.quoteModalNoImage}>
-                    <MaterialIcons name="image" size={60} color="#d1d5db" />
-                    <Text style={styles.quoteModalNoImageText}>No image available</Text>
-                  </View>
-                )}
-
-                <View style={styles.quoteModalContent}>
-                  <MaterialIcons name="format-quote" size={32} color="#8b5cf6" style={styles.quoteModalIcon} />
-                  <Text style={styles.quoteModalText}>
-                    "{getTranslatedQuoteText(selectedQuote)}"
-                  </Text>
-                  {selectedQuote.author && (
-                    <Text style={styles.quoteModalAuthor}>— {selectedQuote.author}</Text>
-                  )}
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.quoteModalDownloadBtn, downloadingQuote && { opacity: 0.6 }]}
-                  onPress={() => downloadQuoteImage(selectedQuote.imageUrl, selectedQuote.text)}
-                  disabled={downloadingQuote}
-                >
-                  {downloadingQuote ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <>
-                      <MaterialIcons name="download" size={22} color="#ffffff" />
-                      <Text style={styles.quoteModalDownloadBtnText}>Download Image</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.quoteModalCloseBtnBottom}
-                  onPress={() => {
-                    setQuoteModalVisible(false);
-                    setSelectedQuote(null);
-                  }}
-                >
-                  <Text style={styles.quoteModalCloseBtnBottomText}>Close</Text>
-                </TouchableOpacity>
-              </View>
+              <MaterialIcons name="close" size={28} color="#1f2937" />
             </TouchableOpacity>
           </View>
-        </Modal>
-      )}
+
+          {selectedQuote.imageUrl ? (
+            <Image
+              source={{ uri: selectedQuote.imageUrl }}
+              style={styles.quoteModalImage}
+              resizeMode="contain"
+              onError={(e) => {
+                console.error('Image load error:', e);
+                Alert.alert('Error', 'Failed to load image');
+              }}
+            />
+          ) : (
+            <View style={styles.quoteModalNoImage}>
+              <MaterialIcons name="image" size={60} color="#d1d5db" />
+              <Text style={styles.quoteModalNoImageText}>No image available</Text>
+            </View>
+          )}
+
+          <View style={styles.quoteModalContent}>
+            <MaterialIcons name="format-quote" size={32} color="#8b5cf6" style={styles.quoteModalIcon} />
+            <Text style={styles.quoteModalText}>
+              "{getTranslatedQuoteText(selectedQuote)}"
+            </Text>
+            {selectedQuote.author && (
+              <Text style={styles.quoteModalAuthor}>— {selectedQuote.author}</Text>
+            )}
+          </View>
+
+          {/* ✅ Share and Download Buttons */}
+          <View style={styles.quoteModalButtonRow}>
+            <TouchableOpacity
+              style={[styles.quoteModalDownloadBtn, { backgroundColor: '#25D366' }]}
+              onPress={() => {
+                const quoteText = getTranslatedQuoteText(selectedQuote);
+                downloadQuoteImage(
+                  selectedQuote.imageUrl,
+                  quoteText,
+                  selectedQuote.author
+                );
+              }}
+              disabled={downloadingQuote}
+            >
+              {downloadingQuote ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <MaterialIcons name="share" size={22} color="#ffffff" />
+                  <Text style={styles.quoteModalDownloadBtnText}>Share</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.quoteModalDownloadBtn, { backgroundColor: '#8b5cf6' }]}
+              onPress={() => {
+                const quoteText = getTranslatedQuoteText(selectedQuote);
+                downloadQuoteImage(
+                  selectedQuote.imageUrl,
+                  quoteText,
+                  selectedQuote.author
+                );
+              }}
+              disabled={downloadingQuote}
+            >
+              {downloadingQuote ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <MaterialIcons name="download" size={22} color="#ffffff" />
+                  <Text style={styles.quoteModalDownloadBtnText}>Download</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={styles.quoteModalCloseBtnBottom}
+            onPress={() => {
+              setQuoteModalVisible(false);
+              setSelectedQuote(null);
+            }}
+          >
+            <Text style={styles.quoteModalCloseBtnBottomText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </View>
+  </Modal>
+)}
     </View>
   );
 }
@@ -3254,6 +3386,12 @@ subcommitteeMemberPosition: {
     borderBottomColor: '#f0f0f0',
     backgroundColor: '#ffffff',
   },
+quoteModalButtonRow: {
+  flexDirection: 'row',
+  gap: 12,
+  paddingHorizontal: 20,
+  marginBottom: 8,
+},
   modalHeaderTitle: {
     fontFamily: Fonts.SemiBold,
     fontSize: 18,

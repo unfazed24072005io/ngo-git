@@ -481,18 +481,6 @@ const auth = getAuthInstance(); // ✅ ADD THIS
               />
             </View>
 
-            <View style={styles.settingItem}>
-              <View style={styles.settingLeft}>
-                <MaterialIcons name="dark-mode" size={20} color="#6b7280" />
-                <Text style={[styles.settingLabel, { fontSize: isSmallDevice ? 13 : 14 }]}>{translations.darkMode}</Text>
-              </View>
-              <Switch
-                value={darkMode}
-                onValueChange={setDarkMode}
-                trackColor={{ false: '#767577', true: '#FF7722' }}
-                thumbColor={darkMode ? '#ffffff' : '#f4f3f4'}
-              />
-            </View>
           </View>
 
           {/* Action Buttons */}

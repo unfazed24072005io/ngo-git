@@ -978,10 +978,10 @@ const fetchReferredMembers = async () => {
           {/* Quick Actions */}
           <View style={styles.quickActionsRow}>
             <QuickActionButton 
-              title={translations.members} 
-              icon="people" 
-              onPress={() => navigation.navigate('Members')}
-            />
+  title={translations.members} 
+  icon="people" 
+  onPress={() => navigation.navigate('WorkingMemberRegisteredMembers')}
+/>
             <QuickActionButton 
               title={translations.shop} 
               icon="shopping-cart" 

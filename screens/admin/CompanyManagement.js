@@ -336,17 +336,18 @@ const committeeIdRef = useRef(null);
   });
 
   const [competitionForm, setCompetitionForm] = useState({
-    title: '',
-    description: '',
-    category: '',
-    startDate: '',
-    endDate: '',
-    prize: '',
-    venue: '',
-    maxParticipants: '',
-    image: '',
-    status: 'upcoming'
-  });
+  title: '',
+  description: '',
+  category: '',
+  startDate: '',
+  endDate: '',
+  prize: '',
+  venue: '',
+  maxParticipants: '',
+  image: '',
+  status: 'upcoming',
+  registrationFee: '', // ✅ ADD THIS
+});
 
   const [formData, setFormData] = useState({
     organizationName: 'Kabir Ban Bhandari Foundation (Trust)',
@@ -1299,28 +1300,58 @@ const uploadToImgBB = async (base64Data, fileName) => {
   }
 };
   const uploadCompanyImage = async (image, folder) => {
+  if (!image) {
+    Alert.alert('Error', 'No image selected');
+    return;
+  }
+
   setUploading(true);
-  setUploadProgress(50);
+  setUploadProgress(10);
+  
   try {
+    console.log(`🔵 Uploading ${folder} image...`);
+    
+    // Convert to base64
     const base64Data = await convertToBase64(image);
-    if (base64Data) {
-      if (folder === 'logos') {
-        setFormData({ ...formData, logo: base64Data });
-      } else if (folder === 'covers') {
-        setFormData({ ...formData, coverImage: base64Data });
-      }
-      setUploadProgress(100);
-      Alert.alert(translations.success, translations.uploadSuccess);
+    if (!base64Data) {
+      Alert.alert('Error', 'Failed to convert image to base64');
+      setUploading(false);
+      return;
     }
+    
+    setUploadProgress(40);
+    console.log('✅ Image converted to base64');
+    
+    // Upload to ImgBB
+    const fileName = image.name || `${folder}_${Date.now()}.jpg`;
+    console.log(`🔵 Uploading to ImgBB: ${fileName}`);
+    
+    const uploadResult = await uploadToImgBB(base64Data, fileName);
+    
+    setUploadProgress(80);
+    console.log('✅ Uploaded to ImgBB:', uploadResult.url);
+    
+    // Store the ImgBB URL
+    if (folder === 'logos') {
+      setFormData(prev => ({ ...prev, logo: uploadResult.url }));
+      console.log('✅ Logo URL set:', uploadResult.url);
+    } else if (folder === 'covers') {
+      setFormData(prev => ({ ...prev, coverImage: uploadResult.url }));
+      console.log('✅ Cover URL set:', uploadResult.url);
+    }
+    
+    setUploadProgress(100);
+    Alert.alert(translations.success, translations.uploadSuccess);
+    
   } catch (error) {
-    console.error('Upload error:', error);
-    Alert.alert(translations.error, translations.uploadFailed);
+    console.error('❌ Upload error:', error);
+    Alert.alert(translations.error, error.message || translations.uploadFailed);
   } finally {
     setUploading(false);
-    setUploadProgress(0);
+    // Reset progress after a delay
+    setTimeout(() => setUploadProgress(0), 1000);
   }
 };
-
   
   const uploadDocumentFile = async (file) => {
   setUploading(true);
@@ -1623,23 +1654,37 @@ const auth = getAuthInstance(); // ✅ ADD THIS
   };
 
   const saveCompanyData = async () => {
-    setSaving(true);
-    try {
-      const docRef = doc(db, 'company', 'profile');
-      await updateDoc(docRef, {
-        ...formData,
-        updatedAt: new Date().toISOString()
-      });
-      setCompanyData(formData);
-      setEditing(false);
-      Alert.alert(translations.success, translations.saved);
-    } catch (error) {
-      console.error('Error saving company data:', error);
-      Alert.alert(translations.error, 'Failed to save company data');
-    } finally {
-      setSaving(false);
-    }
-  };
+  setSaving(true);
+  try {
+    const docRef = doc(db, 'company', 'profile');
+    
+    // ✅ Ensure logo and coverImage are URLs (not base64)
+    const updateData = {
+      ...formData,
+      // Make sure logo and coverImage are string URLs
+      logo: formData.logo || null,
+      coverImage: formData.coverImage || null,
+      updatedAt: new Date().toISOString()
+    };
+    
+    // Remove any undefined values
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+    
+    await updateDoc(docRef, updateData);
+    setCompanyData(updateData);
+    setEditing(false);
+    Alert.alert(translations.success, translations.saved);
+  } catch (error) {
+    console.error('Error saving company data:', error);
+    Alert.alert(translations.error, error.message || 'Failed to save company data');
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleVerifyApplication = async () => {
 const auth = getAuthInstance(); // ✅ ADD THIS
@@ -1684,40 +1729,46 @@ const auth = getAuthInstance(); // ✅ ADD THIS
   };
 
   const handleCreateCompetition = async () => {
-const auth = getAuthInstance(); // ✅ ADD THIS
-    if (!competitionForm.title) {
-      Alert.alert(translations.error, translations.competitionTitle + ' ' + translations.isRequired);
-      return;
-    }
+  const auth = getAuthInstance();
+  
+  if (!competitionForm.title) {
+    Alert.alert(translations.error, translations.competitionTitle + ' ' + translations.isRequired);
+    return;
+  }
 
-    try {
-      await addDoc(collection(db, 'competitions'), {
-        ...competitionForm,
-        participants: [],
-        winners: [],
-        createdAt: new Date().toISOString(),
-        createdBy: auth.currentUser?.uid,
-        status: competitionForm.status || 'upcoming'
-      });
-      
-      setCreateCompetitionModalVisible(false);
-      setCompetitionForm({
-        title: '',
-        description: '',
-        category: '',
-        startDate: '',
-        endDate: '',
-        prize: '',
-        venue: '',
-        maxParticipants: '',
-        image: '',
-        status: 'upcoming'
-      });
-      Alert.alert(translations.success, translations.created);
-    } catch (error) {
-      Alert.alert(translations.error, error.message);
-    }
-  };
+  try {
+    // Parse registration fee as number, default to 0
+    const registrationFee = parseFloat(competitionForm.registrationFee) || 0;
+
+    await addDoc(collection(db, 'competitions'), {
+      ...competitionForm,
+      registrationFee: registrationFee, // ✅ ADD THIS
+      participants: [],
+      winners: [],
+      createdAt: new Date().toISOString(),
+      createdBy: auth.currentUser?.uid,
+      status: competitionForm.status || 'upcoming'
+    });
+    
+    setCreateCompetitionModalVisible(false);
+    setCompetitionForm({
+      title: '',
+      description: '',
+      category: '',
+      startDate: '',
+      endDate: '',
+      prize: '',
+      venue: '',
+      maxParticipants: '',
+      image: '',
+      status: 'upcoming',
+      registrationFee: '' // ✅ Reset this too
+    });
+    Alert.alert(translations.success, translations.created);
+  } catch (error) {
+    Alert.alert(translations.error, error.message);
+  }
+};
 
   const handleCompetitionAction = async (competitionId, action, data = {}) => {
     try {
@@ -2719,54 +2770,63 @@ const auth = getAuthInstance(); // ✅ ADD THIS
   );
 
   const CompetitionCard = ({ competition }) => (
-    <TouchableOpacity 
-      style={styles.competitionCard}
-      onPress={() => {
-        setSelectedCompetition(competition);
-        setCompetitionDetailModalVisible(true);
-      }}
-      activeOpacity={0.7}
-    >
-      <View style={styles.competitionHeader}>
-        <Text style={styles.competitionTitle} numberOfLines={1}>{competition.title}</Text>
-        <View style={[styles.competitionStatus, { backgroundColor:
-          competition.status === 'upcoming' ? '#fef3c7' :
-          competition.status === 'live' ? '#dbeafe' : '#d1fae5'
+  <TouchableOpacity 
+    style={styles.competitionCard}
+    onPress={() => {
+      setSelectedCompetition(competition);
+      setCompetitionDetailModalVisible(true);
+    }}
+    activeOpacity={0.7}
+  >
+    <View style={styles.competitionHeader}>
+      <Text style={styles.competitionTitle} numberOfLines={1}>{competition.title}</Text>
+      <View style={[styles.competitionStatus, { backgroundColor:
+        competition.status === 'upcoming' ? '#fef3c7' :
+        competition.status === 'live' ? '#dbeafe' : '#d1fae5'
+      }]}>
+        <Text style={[styles.competitionStatusText, { color:
+          competition.status === 'upcoming' ? '#d97706' :
+          competition.status === 'live' ? '#2563eb' : '#059669'
         }]}>
-          <Text style={[styles.competitionStatusText, { color:
-            competition.status === 'upcoming' ? '#d97706' :
-            competition.status === 'live' ? '#2563eb' : '#059669'
-          }]}>
-            {competition.status?.toUpperCase() || translations.upcoming.toUpperCase()}
-          </Text>
-        </View>
+          {competition.status?.toUpperCase() || translations.upcoming.toUpperCase()}
+        </Text>
       </View>
-      
-      <Text style={styles.competitionDescription} numberOfLines={2}>
-        {competition.description || translations.noDescription}
-      </Text>
-      
-      <View style={styles.competitionDetails}>
-        <View style={styles.competitionDetail}>
-          <MaterialIcons name="people" size={16} color="#6b7280" />
-          <Text style={styles.competitionDetailText}>
-            {competition.participants?.length || 0} {translations.participants}
-          </Text>
-        </View>
-        <View style={styles.competitionDetail}>
-          <MaterialIcons name="emoji-events" size={16} color="#6b7280" />
-          <Text style={styles.competitionDetailText}>₹{competition.prize || '0'}</Text>
-        </View>
+    </View>
+    
+    <Text style={styles.competitionDescription} numberOfLines={2}>
+      {competition.description || translations.noDescription}
+    </Text>
+    
+    <View style={styles.competitionDetails}>
+      <View style={styles.competitionDetail}>
+        <MaterialIcons name="people" size={16} color="#6b7280" />
+        <Text style={styles.competitionDetailText}>
+          {competition.participants?.length || 0} {translations.participants}
+        </Text>
       </View>
-      
-      {competition.winner && (
-        <View style={styles.winnerBadge}>
-          <MaterialIcons name="stars" size={14} color="#f59e0b" />
-          <Text style={styles.winnerText}>{translations.winner}: {competition.winnerName}</Text>
+      <View style={styles.competitionDetail}>
+        <MaterialIcons name="emoji-events" size={16} color="#6b7280" />
+        <Text style={styles.competitionDetailText}>₹{competition.prize || '0'}</Text>
+      </View>
+      {/* ✅ ADD REGISTRATION FEE DISPLAY */}
+      {(competition.registrationFee > 0) && (
+        <View style={styles.competitionDetail}>
+          <MaterialIcons name="payments" size={16} color="#6b7280" />
+          <Text style={[styles.competitionDetailText, { color: '#10b981' }]}>
+            ₹{competition.registrationFee} fee
+          </Text>
         </View>
       )}
-    </TouchableOpacity>
-  );
+    </View>
+    
+    {competition.winner && (
+      <View style={styles.winnerBadge}>
+        <MaterialIcons name="stars" size={14} color="#f59e0b" />
+        <Text style={styles.winnerText}>{translations.winner}: {competition.winnerName}</Text>
+      </View>
+    )}
+  </TouchableOpacity>
+);
 
   if (loading) {
     return (
@@ -4669,7 +4729,19 @@ const auth = getAuthInstance(); // ✅ ADD THIS
                 textAlignVertical="center"
               />
             </View>
-
+{/* Registration Fee Field - Add after Prize */}
+<View style={styles.field}>
+  <Text style={styles.label}>Registration Fee (₹)</Text>
+  <TextInput
+    style={styles.input}
+    value={competitionForm.registrationFee}
+    onChangeText={(text) => setCompetitionForm({...competitionForm, registrationFee: text})}
+    placeholder="Enter registration fee"
+    keyboardType="numeric"
+    textAlignVertical="center"
+  />
+  <Text style={styles.helperText}>Leave empty or 0 for free registration</Text>
+</View>
             <View style={styles.field}>
               <Text style={styles.label}>{translations.venue}</Text>
               <TextInput
@@ -4780,7 +4852,13 @@ const auth = getAuthInstance(); // ✅ ADD THIS
                   <Text style={styles.competitionDetailLabel}>{translations.prize}</Text>
                   <Text style={styles.competitionDetailValue}>₹{selectedCompetition.prize || '0'}</Text>
                 </View>
-
+{/* In the Competition Detail Modal section */}
+<View style={styles.competitionDetailSection}>
+  <Text style={styles.competitionDetailLabel}>Registration Fee</Text>
+  <Text style={styles.competitionDetailValue}>
+    {selectedCompetition.registrationFee > 0 ? `₹${selectedCompetition.registrationFee}` : 'Free'}
+  </Text>
+</View>
                 <View style={styles.competitionDetailSection}>
                   <Text style={styles.competitionDetailLabel}>{translations.venue}</Text>
                   <Text style={styles.competitionDetailValue}>{selectedCompetition.venue || translations.nA}</Text>
@@ -5983,6 +6061,14 @@ committeeMemberAvatarImage: {
   modalCancelButton: {
     backgroundColor: '#f3f4f6',
   },
+helperText: {
+  fontFamily: Fonts.Regular,
+  fontSize: 11,
+  color: '#9ca3af',
+  marginTop: 4,
+  includeFontPadding: false,
+  textAlignVertical: 'center',
+},
   modalCancelText: {
     fontFamily: Fonts.SemiBold,
     fontSize: 15,

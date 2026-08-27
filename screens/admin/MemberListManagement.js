@@ -17,9 +17,36 @@ import { useLanguage } from '../../context/LanguageContext';
 import ViewShot from 'react-native-view-shot';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { Svg, Defs, Pattern, Rect, Image as SvgImage } from 'react-native-svg';
 
-const { width } = Dimensions.get('window');
+// ============ RESPONSIVE HELPERS ============
+const { width, height } = Dimensions.get('window');
+const isWeb = Platform.OS === 'web';
+const isTablet = width >= 768;
+const isMobile = width < 768;
+
+// Base design width (iPhone SE = 375)
+const BASE_WIDTH = 375;
+const scale = Math.min(width / BASE_WIDTH, 2);
+
+// Responsive functions
+const responsiveFont = (size) => {
+  let scaledSize = size * scale;
+  if (isTablet) scaledSize = Math.min(scaledSize, size * 1.5);
+  if (isWeb) scaledSize = Math.min(scaledSize, size * 1.8);
+  return Math.round(scaledSize);
+};
+
+const responsiveWidth = (size) => {
+  return (size / BASE_WIDTH) * width;
+};
+
+const responsiveHeight = (size) => {
+  const baseHeight = 812;
+  return (size / baseHeight) * height;
+};
+
+// ============ END RESPONSIVE HELPERS ============
+
 const FILTERS = ['All', 'Admin', 'Working Member', 'Member'];
 
 export default function MemberListManagement({ navigation }) {
@@ -110,8 +137,9 @@ export default function MemberListManagement({ navigation }) {
   });
 
   const translations = getTranslations();
-// Add this with other state declarations
-const [registrationFeeDetails, setRegistrationFeeDetails] = useState(null);
+  
+  // State declarations
+  const [registrationFeeDetails, setRegistrationFeeDetails] = useState(null);
   const [members, setMembers] = useState([]);
   const [filteredMembers, setFilteredMembers] = useState([]);
   const [search, setSearch] = useState('');
@@ -186,36 +214,37 @@ const [registrationFeeDetails, setRegistrationFeeDetails] = useState(null);
     setActiveFilter(filter);
     applyFilters(members, search, filter, statusFilter);
   };
-// Add this function with other fetch functions
-const fetchRegistrationFeeDetails = async (memberId) => {
-  try {
-    const q = query(
-      collection(db, 'walletTransactions'),
-      where('userId', '==', memberId),
-      where('type', '==', 'registration_fee'),
-      orderBy('createdAt', 'desc'),
-      limit(1)
-    );
-    const querySnapshot = await getDocs(q);
-    
-    if (!querySnapshot.empty) {
-      const docData = querySnapshot.docs[0].data();
-      setRegistrationFeeDetails({
-        paid: true,
-        amount: docData.amount || 0,
-        method: docData.paymentMethod || 'admin',
-        description: docData.description || 'Registration fee',
-        date: docData.createdAt || new Date().toISOString(),
-        transactionId: docData.transactionId || null
-      });
-    } else {
+
+  const fetchRegistrationFeeDetails = async (memberId) => {
+    try {
+      const q = query(
+        collection(db, 'walletTransactions'),
+        where('userId', '==', memberId),
+        where('type', '==', 'registration_fee'),
+        orderBy('createdAt', 'desc'),
+        limit(1)
+      );
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const docData = querySnapshot.docs[0].data();
+        setRegistrationFeeDetails({
+          paid: true,
+          amount: docData.amount || 0,
+          method: docData.paymentMethod || 'admin',
+          description: docData.description || 'Registration fee',
+          date: docData.createdAt || new Date().toISOString(),
+          transactionId: docData.transactionId || null
+        });
+      } else {
+        setRegistrationFeeDetails(null);
+      }
+    } catch (error) {
+      console.error('Error fetching registration fee details:', error);
       setRegistrationFeeDetails(null);
     }
-  } catch (error) {
-    console.error('Error fetching registration fee details:', error);
-    setRegistrationFeeDetails(null);
-  }
-};
+  };
+
   const handleStatusFilter = (status) => {
     setStatusFilter(status);
     applyFilters(members, search, activeFilter, status);
@@ -241,11 +270,11 @@ const fetchRegistrationFeeDetails = async (memberId) => {
   };
 
   const handleViewMember = async (member) => {
-  setSelectedMember(member);
-  await fetchMemberCertificates(member.id);
-  await fetchRegistrationFeeDetails(member.id); // Add this line
-  setModalVisible(true);
-};
+    setSelectedMember(member);
+    await fetchMemberCertificates(member.id);
+    await fetchRegistrationFeeDetails(member.id);
+    setModalVisible(true);
+  };
 
   const handleDelete = async (id) => {
     Alert.alert(
@@ -308,68 +337,69 @@ const fetchRegistrationFeeDetails = async (memberId) => {
 
   // ============ ADD REGISTRATION FEE FUNCTION ============
   const handleAddRegistrationFee = async () => {
-  console.log('🔵 handleAddRegistrationFee called');
-  console.log('🔵 selectedMemberForFee:', selectedMemberForFee);
-  console.log('🔵 feeAmount:', feeAmount);
-  
-  if (!selectedMemberForFee) {
-    console.log('❌ No member selected');
-    Alert.alert('Error', 'No member selected');
-    return;
-  }
-
-  if (!feeAmount || parseFloat(feeAmount) <= 0) {
-    console.log('❌ Invalid fee amount:', feeAmount);
-    Alert.alert('Error', 'Please enter a valid fee amount');
-    return;
-  }
-
-  const amount = parseFloat(feeAmount);
-  console.log('✅ Amount parsed:', amount);
-  
-  setAddingFee(true);
-  console.log('🔵 addingFee set to true');
-  
-  try {
-    const memberRef = doc(db, 'users', selectedMemberForFee.id);
+    console.log('🔵 handleAddRegistrationFee called');
+    console.log('🔵 selectedMemberForFee:', selectedMemberForFee);
+    console.log('🔵 feeAmount:', feeAmount);
     
-    await updateDoc(memberRef, {
-      registrationFeePaid: true,
-      registrationFeeAmount: amount,
-      registrationFeePaidAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
+    if (!selectedMemberForFee) {
+      console.log('❌ No member selected');
+      Alert.alert('Error', 'No member selected');
+      return;
+    }
 
-    const transactionRef = collection(db, 'walletTransactions');
-    await addDoc(transactionRef, {
-      userId: selectedMemberForFee.id,
-      amount: amount,
-      type: 'registration_fee',
-      status: 'completed',
-      paymentMethod: 'admin',
-      description: feeNote || `Registration fee for ${selectedMemberForFee.fullName} (Added by Admin)`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
+    if (!feeAmount || parseFloat(feeAmount) <= 0) {
+      console.log('❌ Invalid fee amount:', feeAmount);
+      Alert.alert('Error', 'Please enter a valid fee amount');
+      return;
+    }
 
-    Alert.alert(
-      'Success',
-      `Registration fee of ₹${amount} added to ${selectedMemberForFee.fullName}`
-    );
+    const amount = parseFloat(feeAmount);
+    console.log('✅ Amount parsed:', amount);
     
-    setFeeModalVisible(false);
-    setSelectedMemberForFee(null);
-    setFeeAmount('');
-    setFeeNote('');
+    setAddingFee(true);
+    console.log('🔵 addingFee set to true');
     
-  } catch (error) {
-    console.error('❌ Error adding registration fee:', error);
-    Alert.alert('Error', error.message || 'Failed to add registration fee. Please try again.');
-  } finally {
-    setAddingFee(false);
-    console.log('🔵 addingFee set to false');
-  }
-};
+    try {
+      const memberRef = doc(db, 'users', selectedMemberForFee.id);
+      
+      await updateDoc(memberRef, {
+        registrationFeePaid: true,
+        registrationFeeAmount: amount,
+        registrationFeePaidAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      const transactionRef = collection(db, 'walletTransactions');
+      await addDoc(transactionRef, {
+        userId: selectedMemberForFee.id,
+        amount: amount,
+        type: 'registration_fee',
+        status: 'completed',
+        paymentMethod: 'admin',
+        description: feeNote || `Registration fee for ${selectedMemberForFee.fullName} (Added by Admin)`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      Alert.alert(
+        'Success',
+        `Registration fee of ₹${amount} added to ${selectedMemberForFee.fullName}`
+      );
+      
+      setFeeModalVisible(false);
+      setSelectedMemberForFee(null);
+      setFeeAmount('');
+      setFeeNote('');
+      
+    } catch (error) {
+      console.error('❌ Error adding registration fee:', error);
+      Alert.alert('Error', error.message || 'Failed to add registration fee. Please try again.');
+    } finally {
+      setAddingFee(false);
+      console.log('🔵 addingFee set to false');
+    }
+  };
+
   // ============ DOWNLOAD FUNCTIONS ============
   
   const downloadIDCard = async (member) => {
@@ -535,114 +565,90 @@ const fetchRegistrationFeeDetails = async (memberId) => {
     setRefreshing(false);
   };
 
-  // Render ID Card Component
+  // Render ID Card Component - Using PNG Template like MemberProfile
   const renderIDCard = (member) => (
-    <ViewShot ref={idCardRef} options={{ format: 'png', quality: 0.9 }}>
+    <View ref={idCardRef} collapsable={false} style={styles.idCardContainer}>
       <View style={styles.idCard}>
-        {/* Background Watermark */}
-        <View style={styles.watermarkContainer}>
-          <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
-            <Defs>
-              <Pattern id="watermark" patternUnits="userSpaceOnUse" width={100} height={100}>
-                <SvgImage
-                  href={require('../../assets/watermark.png')}
-                  width={100}
-                  height={100}
-                  opacity={0.08}
-                />
-              </Pattern>
-            </Defs>
-            <Rect width="100%" height="100%" fill="url(#watermark)" />
-          </Svg>
-        </View>
-
-        {/* Top Section - Logos and Title */}
-        <View style={styles.idCardTopSection}>
-          <View style={styles.idCardLeftLogo}>
-            <Image 
-              source={{ uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR7cLJLLXgddsZygiRpdvi-NzOpYcooRXCS7kd9BK6Fcg&s=10' }}
-              style={styles.idCardLogoImage}
-              resizeMode="contain"
-            />
-          </View>
-
-          <View style={styles.idCardCenterTitle}>
-            <Text style={styles.idCardMainTitle}>कबीर सत धर्म फाउंडेशन (ट्रस्ट)</Text>
-            <Text style={styles.idCardSubTitle}>भारत सरकार द्वारा मान्यता प्राप्त</Text>
-            <Text style={styles.idCardRegNo}>पंजीकरण संख्या: U8550BR2024NPL067466</Text>
-          </View>
-
-          <View style={styles.idCardRightLogo}>
-            <Image 
-              source={{ uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRkyFSf2hPLbia_p0WxL6wQmoXFPTGlaWahT0DXI8nJjQ&s=10' }}
-              style={styles.idCardLogoImage}
-              resizeMode="contain"
-            />
-          </View>
-        </View>
-
-        <View style={styles.idCardIdentityTitle}>
-          <Text style={styles.idCardIdentityText}>{translations.idCardTitle}</Text>
-        </View>
-
-        <View style={styles.idCardBody}>
-          <View style={styles.idCardLeftFields}>
-            <View style={styles.idCardField}>
-              <Text style={styles.idCardFieldLabel}>{translations.idCardName}</Text>
-              <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.fullName || translations.nA}</Text>
+        {/* Background PNG Template */}
+        <Image 
+          source={require('../../assets/images/id-card-template.png')}
+          style={styles.idCardTemplateImage}
+          resizeMode="stretch"
+        />
+        
+        {/* Overlay Content */}
+        <View style={styles.idCardOverlay}>
+          {/* Personal Details */}
+          <View style={styles.idCardDetailsContainer}>
+            <View style={[styles.idCardFieldRow, { marginTop: responsiveHeight(122) }]}>
+              <Text style={styles.idCardFieldValue} numberOfLines={1}>
+                {member.fullName || translations.nA}
+              </Text>
             </View>
-            <View style={styles.idCardField}>
-              <Text style={styles.idCardFieldLabel}>{translations.idCardFather}</Text>
-              <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.fatherName || translations.nA}</Text>
+            
+            <View style={styles.idCardFieldRow}>
+              <Text style={styles.idCardFieldValue} numberOfLines={1}>
+                {member.fatherName || translations.nA}
+              </Text>
             </View>
-            <View style={styles.idCardField}>
-              <Text style={styles.idCardFieldLabel}>{translations.idCardDob}</Text>
-              <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.dob || translations.nA}</Text>
+            
+            <View style={styles.idCardFieldRow}>
+              <Text style={styles.idCardFieldValue} numberOfLines={1}>
+                {member.dob || translations.nA}
+              </Text>
             </View>
-            <View style={styles.idCardField}>
-              <Text style={styles.idCardFieldLabel}>{translations.idCardAadhar}</Text>
-              <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.aadharNumber || translations.nA}</Text>
+            
+            <View style={styles.idCardFieldRow}>
+              <Text style={styles.idCardFieldValue} numberOfLines={1}>
+                {member.aadharNumber || translations.nA}
+              </Text>
             </View>
-            <View style={styles.idCardField}>
-              <Text style={styles.idCardFieldLabel}>{translations.idCardMembership}</Text>
+            
+            <View style={styles.idCardFieldRow}>
               <Text style={[styles.idCardFieldValue, styles.idCardStatusValue]} numberOfLines={1}>
                 {member.status === 'active' ? 'सक्रिय' : member.status || translations.nA}
               </Text>
             </View>
-            <View style={styles.idCardField}>
-              <Text style={styles.idCardFieldLabel}>{translations.idCardMobile}</Text>
-              <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.phone || translations.nA}</Text>
+            
+            <View style={styles.idCardFieldRow}>
+              <Text style={styles.idCardFieldValue} numberOfLines={1}>
+                {member.phone || translations.nA}
+              </Text>
             </View>
-            <View style={styles.idCardField}>
-              <Text style={styles.idCardFieldLabel}>{translations.idCardAddress}</Text>
-              <Text style={styles.idCardFieldValue} numberOfLines={2}>{member.address || translations.nA}</Text>
+            
+            <View style={styles.idCardFieldRow}>
+              <Text style={styles.idCardFieldValue} numberOfLines={2}>
+                {member.address || translations.nA}
+              </Text>
             </View>
           </View>
-
-          <View style={styles.idCardRightPhoto}>
+          
+          {/* Photo - Right Side */}
+          <View style={styles.idCardPhotoContainer}>
             <View style={styles.idCardPhotoWrapper}>
               {member.profilePhoto ? (
                 <Image source={{ uri: member.profilePhoto }} style={styles.idCardPhoto} />
               ) : (
                 <View style={styles.idCardPhotoPlaceholder}>
-                  <MaterialIcons name="person" size={60} color="#8b5cf6" />
+                  <MaterialIcons name="person" size={responsiveFont(40)} color="#8b5cf6" />
                 </View>
               )}
             </View>
             <Text style={styles.idCardPhotoLabel}>{translations.idCardPhoto}</Text>
           </View>
-        </View>
-
-        <View style={styles.idCardFooter}>
-          <Text style={styles.idCardFooterText}>{translations.idCardManager}</Text>
-          <View style={styles.idCardFooterCenter}>
-            <View style={styles.idCardSignatureLine} />
-            <Text style={styles.idCardSignatureLabel}>{translations.idCardSignature}</Text>
+          
+          {/* Footer */}
+          <View style={styles.idCardFooter}>
+            <Text style={styles.idCardFooterText}>{translations.idCardManager}</Text>
+            <View style={styles.idCardSignatureContainer}>
+              <View style={styles.idCardSignatureLine} />
+              <Text style={styles.idCardSignatureLabel}>{translations.idCardSignature}</Text>
+            </View>
+            <Text style={styles.idCardFooterText}>{translations.idCardSecretary}</Text>
           </View>
-          <Text style={styles.idCardFooterText}>{translations.idCardSecretary}</Text>
         </View>
       </View>
-    </ViewShot>
+    </View>
   );
 
   // Render Certificate Item with ViewShot
@@ -772,74 +778,74 @@ const fetchRegistrationFeeDetails = async (memberId) => {
       </View>
 
       <View style={styles.actionButtons}>
-  <TouchableOpacity 
-    style={[styles.actionButton, styles.viewButton]}
-    onPress={() => handleViewMember(member)}
-    activeOpacity={0.7}
-  >
-    <MaterialIcons name="visibility" size={14} color="#ffffff" />
-    <Text style={styles.actionButtonText}>{translations.view}</Text>
-  </TouchableOpacity>
-  
-  {member.role !== 'admin' && (
-    <TouchableOpacity 
-      style={[styles.actionButton, styles.feeButton]}
-      onPress={() => {
-        setSelectedMemberForFee(member);
-        setFeeAmount('');
-        setFeeNote('');
-        setFeeModalVisible(true);
-      }}
-      activeOpacity={0.7}
-    >
-      <MaterialIcons name="payments" size={14} color="#ffffff" />
-      <Text style={styles.actionButtonText}>{translations.addFee}</Text>
-    </TouchableOpacity>
-  )}
-  
-  {member.status !== 'active' && member.role !== 'admin' && (
-    <TouchableOpacity 
-      style={[styles.actionButton, styles.approveButton]}
-      onPress={() => handleStatusUpdate(member.id, 'active')}
-      activeOpacity={0.7}
-    >
-      <MaterialIcons name="check-circle" size={14} color="#ffffff" />
-      <Text style={styles.actionButtonText}>{translations.approve}</Text>
-    </TouchableOpacity>
-  )}
-  
-  {member.status !== 'suspended' && member.status !== 'active' && member.role !== 'admin' && (
-    <TouchableOpacity 
-      style={[styles.actionButton, styles.suspendButton]}
-      onPress={() => handleStatusUpdate(member.id, 'suspended')}
-      activeOpacity={0.7}
-    >
-      <MaterialIcons name="block" size={14} color="#ffffff" />
-      <Text style={styles.actionButtonText}>{translations.suspend}</Text>
-    </TouchableOpacity>
-  )}
-  
-  {member.status === 'suspended' && member.role !== 'admin' && (
-    <TouchableOpacity 
-      style={[styles.actionButton, styles.reactivateButton]}
-      onPress={() => handleStatusUpdate(member.id, 'active')}
-      activeOpacity={0.7}
-    >
-      <MaterialIcons name="refresh" size={14} color="#ffffff" />
-      <Text style={styles.actionButtonText}>{translations.reactivate}</Text>
-    </TouchableOpacity>
-  )}
-  
-  {member.role !== 'admin' && (
-    <TouchableOpacity 
-      style={[styles.actionButton, styles.deleteButton]}
-      onPress={() => handleDelete(member.id)}
-      activeOpacity={0.7}
-    >
-      <MaterialIcons name="delete" size={14} color="#ffffff" />
-    </TouchableOpacity>
-  )}
-</View>
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.viewButton]}
+          onPress={() => handleViewMember(member)}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons name="visibility" size={14} color="#ffffff" />
+          <Text style={styles.actionButtonText}>{translations.view}</Text>
+        </TouchableOpacity>
+        
+        {member.role !== 'admin' && (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.feeButton]}
+            onPress={() => {
+              setSelectedMemberForFee(member);
+              setFeeAmount('');
+              setFeeNote('');
+              setFeeModalVisible(true);
+            }}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="payments" size={14} color="#ffffff" />
+            <Text style={styles.actionButtonText}>{translations.addFee}</Text>
+          </TouchableOpacity>
+        )}
+        
+        {member.status !== 'active' && member.role !== 'admin' && (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.approveButton]}
+            onPress={() => handleStatusUpdate(member.id, 'active')}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="check-circle" size={14} color="#ffffff" />
+            <Text style={styles.actionButtonText}>{translations.approve}</Text>
+          </TouchableOpacity>
+        )}
+        
+        {member.status !== 'suspended' && member.status !== 'active' && member.role !== 'admin' && (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.suspendButton]}
+            onPress={() => handleStatusUpdate(member.id, 'suspended')}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="block" size={14} color="#ffffff" />
+            <Text style={styles.actionButtonText}>{translations.suspend}</Text>
+          </TouchableOpacity>
+        )}
+        
+        {member.status === 'suspended' && member.role !== 'admin' && (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.reactivateButton]}
+            onPress={() => handleStatusUpdate(member.id, 'active')}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="refresh" size={14} color="#ffffff" />
+            <Text style={styles.actionButtonText}>{translations.reactivate}</Text>
+          </TouchableOpacity>
+        )}
+        
+        {member.role !== 'admin' && (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.deleteButton]}
+            onPress={() => handleDelete(member.id)}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="delete" size={14} color="#ffffff" />
+          </TouchableOpacity>
+        )}
+      </View>
     </TouchableOpacity>
   );
 
@@ -1035,73 +1041,73 @@ const fetchRegistrationFeeDetails = async (memberId) => {
 
                 {/* Member Info Section */}
                 <View style={styles.modalInfoSection}>
-  <View style={styles.modalInfoItem}>
-    <Text style={styles.modalInfoLabel}>{translations.email}</Text>
-    <Text style={styles.modalInfoValue}>{selectedMember.email}</Text>
-  </View>
-  <View style={styles.modalInfoItem}>
-    <Text style={styles.modalInfoLabel}>{translations.phone}</Text>
-    <Text style={styles.modalInfoValue}>{selectedMember.phone || translations.nA}</Text>
-  </View>
-  <View style={styles.modalInfoItem}>
-    <Text style={styles.modalInfoLabel}>{translations.address}</Text>
-    <Text style={styles.modalInfoValue}>{selectedMember.address || translations.nA}</Text>
-  </View>
-  <View style={styles.modalInfoItem}>
-    <Text style={styles.modalInfoLabel}>{translations.role}</Text>
-    <View style={[styles.modalRoleBadge, { backgroundColor: getRoleColor(selectedMember.role) + '15' }]}>
-      <Text style={[styles.modalRoleText, { color: getRoleColor(selectedMember.role) }]}>
-        {getRoleLabel(selectedMember.role)}
-      </Text>
-    </View>
-  </View>
-  <View style={styles.modalInfoItem}>
-    <Text style={styles.modalInfoLabel}>{translations.joined}</Text>
-    <Text style={styles.modalInfoValue}>
-      {selectedMember.createdAt ? new Date(selectedMember.createdAt?.seconds * 1000 || selectedMember.createdAt).toLocaleDateString() : translations.nA}
-    </Text>
-  </View>
-  {/* Registration Fee Status */}
-  <View style={styles.modalInfoItem}>
-    <Text style={styles.modalInfoLabel}>Registration Fee</Text>
-    {selectedMember.registrationFeePaid ? (
-      <View style={styles.feeStatusContainer}>
-        <View style={styles.feePaidBadge}>
-          <MaterialIcons name="check-circle" size={16} color="#10b981" />
-          <Text style={styles.feePaidText}>Paid</Text>
-        </View>
-        <Text style={styles.feeAmountText}>₹{selectedMember.registrationFeeAmount || 0}</Text>
-        {registrationFeeDetails && (
-          <View style={styles.feeMethodContainer}>
-            <MaterialIcons 
-              name={registrationFeeDetails.paymentMethod === 'razorpay' ? 'payment' : 'admin-panel-settings'} 
-              size={14} 
-              color={registrationFeeDetails.paymentMethod === 'razorpay' ? '#FF7722' : '#8b5cf6'} 
-            />
-            <Text style={styles.feeMethodText}>
-              Via: {registrationFeeDetails.paymentMethod === 'razorpay' ? 'Razorpay (Online)' : 'Admin (Manual)'}
-            </Text>
-          </View>
-        )}
-        {registrationFeeDetails?.transactionId && (
-          <Text style={styles.feeTransactionId}>
-            TXN: {registrationFeeDetails.transactionId}
-          </Text>
-        )}
-        {registrationFeeDetails?.date && (
-          <Text style={styles.feeDateText}>
-            Paid on: {new Date(registrationFeeDetails.date).toLocaleDateString()}
-          </Text>
-        )}
-      </View>
-    ) : (
-      <View style={styles.feeNotPaidBadge}>
-        <MaterialIcons name="cancel" size={16} color="#ef4444" />
-        <Text style={styles.feeNotPaidText}>Not Paid</Text>
-      </View>
-    )}
-  </View>
-</View>
+                  <View style={styles.modalInfoItem}>
+                    <Text style={styles.modalInfoLabel}>{translations.email}</Text>
+                    <Text style={styles.modalInfoValue}>{selectedMember.email}</Text>
+                  </View>
+                  <View style={styles.modalInfoItem}>
+                    <Text style={styles.modalInfoLabel}>{translations.phone}</Text>
+                    <Text style={styles.modalInfoValue}>{selectedMember.phone || translations.nA}</Text>
+                  </View>
+                  <View style={styles.modalInfoItem}>
+                    <Text style={styles.modalInfoLabel}>{translations.address}</Text>
+                    <Text style={styles.modalInfoValue}>{selectedMember.address || translations.nA}</Text>
+                  </View>
+                  <View style={styles.modalInfoItem}>
+                    <Text style={styles.modalInfoLabel}>{translations.role}</Text>
+                    <View style={[styles.modalRoleBadge, { backgroundColor: getRoleColor(selectedMember.role) + '15' }]}>
+                      <Text style={[styles.modalRoleText, { color: getRoleColor(selectedMember.role) }]}>
+                        {getRoleLabel(selectedMember.role)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.modalInfoItem}>
+                    <Text style={styles.modalInfoLabel}>{translations.joined}</Text>
+                    <Text style={styles.modalInfoValue}>
+                      {selectedMember.createdAt ? new Date(selectedMember.createdAt?.seconds * 1000 || selectedMember.createdAt).toLocaleDateString() : translations.nA}
+                    </Text>
+                  </View>
+                  {/* Registration Fee Status */}
+                  <View style={styles.modalInfoItem}>
+                    <Text style={styles.modalInfoLabel}>Registration Fee</Text>
+                    {selectedMember.registrationFeePaid ? (
+                      <View style={styles.feeStatusContainer}>
+                        <View style={styles.feePaidBadge}>
+                          <MaterialIcons name="check-circle" size={16} color="#10b981" />
+                          <Text style={styles.feePaidText}>Paid</Text>
+                        </View>
+                        <Text style={styles.feeAmountText}>₹{selectedMember.registrationFeeAmount || 0}</Text>
+                        {registrationFeeDetails && (
+                          <View style={styles.feeMethodContainer}>
+                            <MaterialIcons 
+                              name={registrationFeeDetails.paymentMethod === 'razorpay' ? 'payment' : 'admin-panel-settings'} 
+                              size={14} 
+                              color={registrationFeeDetails.paymentMethod === 'razorpay' ? '#FF7722' : '#8b5cf6'} 
+                            />
+                            <Text style={styles.feeMethodText}>
+                              Via: {registrationFeeDetails.paymentMethod === 'razorpay' ? 'Razorpay (Online)' : 'Admin (Manual)'}
+                            </Text>
+                          </View>
+                        )}
+                        {registrationFeeDetails?.transactionId && (
+                          <Text style={styles.feeTransactionId}>
+                            TXN: {registrationFeeDetails.transactionId}
+                          </Text>
+                        )}
+                        {registrationFeeDetails?.date && (
+                          <Text style={styles.feeDateText}>
+                            Paid on: {new Date(registrationFeeDetails.date).toLocaleDateString()}
+                          </Text>
+                        )}
+                      </View>
+                    ) : (
+                      <View style={styles.feeNotPaidBadge}>
+                        <MaterialIcons name="cancel" size={16} color="#ef4444" />
+                        <Text style={styles.feeNotPaidText}>Not Paid</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
 
                 {/* Action Buttons */}
                 <View style={styles.modalActions}>
@@ -1236,27 +1242,27 @@ const fetchRegistrationFeeDetails = async (memberId) => {
                     <Text style={styles.modalCancelText}>{translations.cancel}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-  style={[styles.modalActionButton, styles.modalConfirmButton, { flex: 1 }, addingFee && { opacity: 0.6 }]}
-  onPress={() => {
-    console.log('🔵 Add Fee button pressed');
-    console.log('🔵 selectedMemberForFee:', selectedMemberForFee);
-    console.log('🔵 feeAmount:', feeAmount);
-    console.log('🔵 feeNote:', feeNote);
-    console.log('🔵 addingFee:', addingFee);
-    handleAddRegistrationFee();
-  }}
-  disabled={addingFee}
-  activeOpacity={0.7}
->
-  {addingFee ? (
-    <ActivityIndicator size="small" color="#ffffff" />
-  ) : (
-    <>
-      <MaterialIcons name="payment" size={16} color="#ffffff" />
-      <Text style={styles.modalActionText}>{translations.addFee || 'Add Fee'}</Text>
-    </>
-  )}
-</TouchableOpacity>
+                    style={[styles.modalActionButton, styles.modalConfirmButton, { flex: 1 }, addingFee && { opacity: 0.6 }]}
+                    onPress={() => {
+                      console.log('🔵 Add Fee button pressed');
+                      console.log('🔵 selectedMemberForFee:', selectedMemberForFee);
+                      console.log('🔵 feeAmount:', feeAmount);
+                      console.log('🔵 feeNote:', feeNote);
+                      console.log('🔵 addingFee:', addingFee);
+                      handleAddRegistrationFee();
+                    }}
+                    disabled={addingFee}
+                    activeOpacity={0.7}
+                  >
+                    {addingFee ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <>
+                        <MaterialIcons name="payment" size={16} color="#ffffff" />
+                        <Text style={styles.modalActionText}>{translations.addFee || 'Add Fee'}</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
                 </View>
               </>
             )}
@@ -1515,23 +1521,23 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   actionButtons: {
-  flexDirection: 'row',
-  flexWrap: 'wrap', // Add this to allow wrapping
-  marginTop: 8,
-  justifyContent: 'flex-end',
-  gap: 4,
-},
-actionButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingHorizontal: 8,
-  paddingVertical: 5,
-  borderRadius: 4,
-  gap: 4,
-  minWidth: 30, // Add minimum width
-  marginBottom: 4, // Add margin bottom for wrapped items
-},
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+    justifyContent: 'flex-end',
+    gap: 4,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 4,
+    gap: 4,
+    minWidth: 30,
+    marginBottom: 4,
+  },
   viewButton: {
     backgroundColor: '#FF7722',
   },
@@ -1683,169 +1689,120 @@ actionButton: {
     color: '#8b5cf6',
   },
 
-  // ID Card Styles
+  // ============ ID CARD STYLES ============
+  idCardContainer: {
+    width: '100%',
+    borderRadius: responsiveWidth(12),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   idCard: {
     width: '100%',
+    aspectRatio: 1.6,
     backgroundColor: '#ffffff',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
     position: 'relative',
     overflow: 'hidden',
   },
-  watermarkContainer: {
+  idCardTemplateImage: {
+    width: '100%',
+    height: '100%',
     position: 'absolute',
     top: 0,
     left: 0,
-    right: 0,
-    bottom: 0,
-    opacity: 0.1,
   },
-  idCardTopSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-    paddingHorizontal: 2,
-  },
-  idCardLeftLogo: {
-    width: 50,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  idCardRightLogo: {
-    width: 50,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  idCardLogoImage: {
-    width: 40,
-    height: 40,
-  },
-  idCardCenterTitle: {
+  idCardOverlay: {
     flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 4,
+    padding: responsiveWidth(16),
+    position: 'relative',
+    zIndex: 1,
   },
-  idCardMainTitle: {
-    fontFamily: Fonts.Bold,
-    fontSize: 12,
-    color: '#1f2937',
-    textAlign: 'center',
-  },
-  idCardSubTitle: {
-    fontFamily: Fonts.Regular,
-    fontSize: 8,
-    color: '#4b5563',
-    textAlign: 'center',
-    marginTop: 1,
-  },
-  idCardRegNo: {
-    fontFamily: Fonts.Regular,
-    fontSize: 7,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginTop: 1,
-  },
-  idCardIdentityTitle: {
-    alignItems: 'center',
-    marginVertical: 4,
-    paddingVertical: 2,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  idCardIdentityText: {
-    fontFamily: Fonts.Bold,
-    fontSize: 14,
-    color: '#1f2937',
-    letterSpacing: 1,
-  },
-  idCardBody: {
-    flexDirection: 'row',
-    marginTop: 4,
-    paddingVertical: 2,
-  },
-  idCardLeftFields: {
+  idCardDetailsContainer: {
     flex: 1,
-    paddingRight: 6,
+    justifyContent: 'center',
+    paddingRight: responsiveWidth(100),
+    paddingLeft: responsiveWidth(8),
+    paddingTop: responsiveHeight(4),
+    paddingBottom: responsiveHeight(4),
   },
-  idCardField: {
-    marginBottom: 2,
-  },
-  idCardFieldLabel: {
-    fontFamily: Fonts.SemiBold,
-    fontSize: 8,
-    color: '#4b5563',
+  idCardFieldRow: {
+    flexDirection: 'row',
+    marginBottom: responsiveHeight(2),
+    alignItems: 'center',
   },
   idCardFieldValue: {
     fontFamily: Fonts.Regular,
-    fontSize: 9,
+    fontSize: responsiveFont(10),
+    marginLeft: responsiveWidth(100),
     color: '#1f2937',
-    marginLeft: 2,
+    flex: 1,
   },
   idCardStatusValue: {
     color: '#10b981',
     fontFamily: Fonts.SemiBold,
   },
-  idCardRightPhoto: {
-    width: 70,
+  idCardPhotoContainer: {
+    position: 'absolute',
+    right: responsiveWidth(16),
+    top: '35%',
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingLeft: 4,
   },
-  idCardPhoto: {
-    width: 60,
-    height: 70,
-    borderRadius: 3,
+  idCardPhotoWrapper: {
+    width: responsiveWidth(75),
+    height: responsiveHeight(95),
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: '#d1d5db',
-  },
-  idCardPhotoPlaceholder: {
-    width: 60,
-    height: 70,
-    borderRadius: 3,
+    overflow: 'hidden',
     backgroundColor: '#f3f4f6',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
+  },
+  idCardPhoto: {
+    width: '100%',
+    height: '100%',
+  },
+  idCardPhotoPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   idCardPhotoLabel: {
     fontFamily: Fonts.Regular,
-    fontSize: 7,
+    fontSize: responsiveFont(8),
     color: '#6b7280',
-    marginTop: 2,
+    marginTop: responsiveHeight(2),
   },
   idCardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 6,
-    paddingTop: 6,
+    marginTop: 'auto',
+    paddingTop: responsiveHeight(6),
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
   },
   idCardFooterText: {
     fontFamily: Fonts.SemiBold,
-    fontSize: 9,
+    fontSize: responsiveFont(10),
     color: '#4b5563',
   },
-  idCardFooterCenter: {
+  idCardSignatureContainer: {
     alignItems: 'center',
   },
   idCardSignatureLine: {
-    width: 60,
+    width: responsiveWidth(55),
     height: 1,
     backgroundColor: '#9ca3af',
-    marginBottom: 1,
+    marginBottom: responsiveHeight(2),
   },
   idCardSignatureLabel: {
     fontFamily: Fonts.Regular,
-    fontSize: 7,
+    fontSize: responsiveFont(8),
     color: '#6b7280',
   },
 
@@ -1922,69 +1879,69 @@ actionButton: {
     paddingVertical: 16,
     gap: 4,
   },
-feeStatusContainer: {
-  flex: 1,
-  marginTop: 2,
-},
-feePaidBadge: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: '#f0fdf4',
-  paddingHorizontal: 10,
-  paddingVertical: 4,
-  borderRadius: 12,
-  gap: 4,
-  alignSelf: 'flex-start',
-},
-feePaidText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 12,
-  color: '#10b981',
-},
-feeAmountText: {
-  fontFamily: Fonts.Bold,
-  fontSize: 14,
-  color: '#1f2937',
-  marginTop: 4,
-},
-feeMethodContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 4,
-  marginTop: 2,
-},
-feeMethodText: {
-  fontFamily: Fonts.Regular,
-  fontSize: 11,
-  color: '#6b7280',
-},
-feeTransactionId: {
-  fontFamily: Fonts.Regular,
-  fontSize: 10,
-  color: '#9ca3af',
-  marginTop: 2,
-},
-feeDateText: {
-  fontFamily: Fonts.Regular,
-  fontSize: 10,
-  color: '#9ca3af',
-  marginTop: 1,
-},
-feeNotPaidBadge: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: '#fef2f2',
-  paddingHorizontal: 10,
-  paddingVertical: 4,
-  borderRadius: 12,
-  gap: 4,
-  alignSelf: 'flex-start',
-},
-feeNotPaidText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 12,
-  color: '#ef4444',
-},
+  feeStatusContainer: {
+    flex: 1,
+    marginTop: 2,
+  },
+  feePaidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    alignSelf: 'flex-start',
+  },
+  feePaidText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+    color: '#10b981',
+  },
+  feeAmountText: {
+    fontFamily: Fonts.Bold,
+    fontSize: 14,
+    color: '#1f2937',
+    marginTop: 4,
+  },
+  feeMethodContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  feeMethodText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  feeTransactionId: {
+    fontFamily: Fonts.Regular,
+    fontSize: 10,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  feeDateText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 10,
+    color: '#9ca3af',
+    marginTop: 1,
+  },
+  feeNotPaidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    alignSelf: 'flex-start',
+  },
+  feeNotPaidText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+    color: '#ef4444',
+  },
   noCertText: {
     fontFamily: Fonts.Regular,
     fontSize: 13,
@@ -2101,21 +2058,6 @@ feeNotPaidText: {
     fontSize: 12,
     color: '#6b7280',
     marginTop: 2,
-  },
-  feePaidBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0fdf4',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 6,
-    gap: 4,
-  },
-  feePaidText: {
-    fontFamily: Fonts.SemiBold,
-    fontSize: 12,
-    color: '#10b981',
   },
   modalInput: {
     borderWidth: 1,

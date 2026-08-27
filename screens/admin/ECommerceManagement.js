@@ -242,18 +242,7 @@ const handleOrderFilterPress = (filter) => {
     setFilteredProducts(filtered);
   };
 
-  const applyOrderFilters = (data, searchText) => {
-    let filtered = data;
-    if (searchText) {
-      filtered = filtered.filter(order =>
-        order.customerName?.toLowerCase().includes(searchText.toLowerCase()) ||
-        order.customerEmail?.toLowerCase().includes(searchText.toLowerCase()) ||
-        order.id?.toLowerCase().includes(searchText.toLowerCase()) ||
-        order.items?.some(item => item.name?.toLowerCase().includes(searchText.toLowerCase()))
-      );
-    }
-    setFilteredOrders(filtered);
-  };
+  
 const OrderStatCard = ({ label, count, icon, color, active, onPress }) => (
   <TouchableOpacity 
     style={[styles.statCard, active && styles.statCardActive]} 

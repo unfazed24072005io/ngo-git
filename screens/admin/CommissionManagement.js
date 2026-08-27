@@ -16,7 +16,7 @@ import {
   Platform
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { db, auth } from '../../config/firebase';
+import { db, auth, getAuthInstance } from '../../config/firebase';
 import { 
   doc, 
   getDoc, 
@@ -32,7 +32,8 @@ import {
   addDoc,
   runTransaction,
   Timestamp,
-  increment
+  increment,
+  deleteDoc
 } from 'firebase/firestore';
 import { Fonts } from '../../config/fonts';
 import { CommissionService } from '../../services/CommissionService';
@@ -47,7 +48,7 @@ import {
 } from '../../config/commissionLevels';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../context/LanguageContext';
-// Add after the imports, before the LevelEditModal component
+
 
 const { width, height } = Dimensions.get('window');
 const isSmallDevice = width < 375;
@@ -59,6 +60,7 @@ const LevelEditModal = memo(({
   onClose, 
   onUpdateField, 
   onSave,
+  onDelete,
   saving,
   isSmallDevice,
   formDataLevels,
@@ -190,19 +192,55 @@ const LevelEditModal = memo(({
                 )}
               </View>
 
-              <TouchableOpacity
-                style={styles.updateLevelButton}
-                onPress={onSave}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text style={[styles.updateLevelButtonText, { fontSize: isSmallDevice ? 14 : 16 }]}>
-                    {t('common.updateLevel') || 'Update Level'}
-                  </Text>
+              <View style={styles.sectionDivider}>
+                <Text style={[styles.sectionDividerText, { fontSize: isSmallDevice ? 13 : 14 }]}>
+                  🏆 {t('commission.levelPrize') || 'Level Prize'}
+                </Text>
+              </View>
+
+              <View style={styles.field}>
+                <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                  {t('commission.prizeAmount') || 'Prize Amount (₹)'}
+                </Text>
+                <TextInput
+                  style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                  value={getDisplayValue(selectedLevel.prizeAmount)}
+                  onChangeText={(text) => onUpdateField('prizeAmount', text)}
+                  keyboardType="numeric"
+                  placeholder={t('commission.enterPrizeAmount') || 'Enter prize amount for completing this level'}
+                  placeholderTextColor="#9ca3af"
+                />
+                <Text style={[styles.helperText, { fontSize: isSmallDevice ? 10 : 11 }]}>
+                  {t('commission.prizeDescription') || 'This prize will be awarded when a member reaches this level'}
+                </Text>
+              </View>
+
+              <View style={styles.modalButtonRow}>
+                {formDataLevels.length > 1 && (
+                  <TouchableOpacity
+                    style={[styles.deleteLevelButton, { flex: 1 }]}
+                    onPress={onDelete}
+                  >
+                    <MaterialIcons name="delete" size={20} color="#ef4444" />
+                    <Text style={[styles.deleteLevelButtonText, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                      {t('common.delete') || 'Delete'}
+                    </Text>
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.updateLevelButton, { flex: 1 }]}
+                  onPress={onSave}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={[styles.updateLevelButtonText, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                      {t('common.updateLevel') || 'Update Level'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </ScrollView>
         </View>
@@ -210,12 +248,12 @@ const LevelEditModal = memo(({
     </Modal>
   );
 });
+
 // ============ MemberFeeEditModal Component ============
 const MemberFeeEditModal = memo(({ 
   visible, 
   selectedMemberType, 
   onClose, 
-  onUpdateFee, 
   onSave,
   saving,
   isSmallDevice,
@@ -286,14 +324,155 @@ const MemberFeeEditModal = memo(({
     </Modal>
   );
 });
+
 // ============ Main Component ============
 export default function CommissionManagement({ navigation }) {
   const { t, counter } = useLanguage();
   
-  // Force re-render when language changes
   const renderKey = `commission-${counter}`;
 
-  // ============ Get Translations ============
+  // ============ State Declarations ============
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [selectedMemberType, setSelectedMemberType] = useState(null);
+  const [memberFeeModalVisible, setMemberFeeModalVisible] = useState(false);
+  const [memberFees, setMemberFees] = useState({});
+  const [commissionData, setCommissionData] = useState(null);
+  const [pendingPayouts, setPendingPayouts] = useState([]);
+  const [memberTypes, setMemberTypes] = useState([]);
+  const [memberTypeModalVisible, setMemberTypeModalVisible] = useState(false);
+  const [editingMemberType, setEditingMemberType] = useState(null);
+  const [newMemberTypeName, setNewMemberTypeName] = useState('');
+  const [newMemberTypeFee, setNewMemberTypeFee] = useState('');
+  const [isAddingMemberType, setIsAddingMemberType] = useState(false);
+  const [pendingPromotions, setPendingPromotions] = useState([]);
+  const [selectedPayout, setSelectedPayout] = useState(null);
+  const [payoutModalVisible, setPayoutModalVisible] = useState(false);
+  const [payoutAmount, setPayoutAmount] = useState('');
+  const [payoutNote, setPayoutNote] = useState('');
+  const [stats, setStats] = useState({
+    totalWorkingMembers: 0,
+    totalCommissionPaid: 0,
+    pendingCommission: 0,
+    totalPayoutsThisMonth: 0,
+    topEarners: [],
+    totalDonationCommission: 0
+  });
+  const [selectedLevel, setSelectedLevel] = useState(null);
+  const [levelModalVisible, setLevelModalVisible] = useState(false);
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [selectedWorkingMember, setSelectedWorkingMember] = useState(null);
+  const [memberPayoutModalVisible, setMemberPayoutModalVisible] = useState(false);
+  const [promotionConfirmVisible, setPromotionConfirmVisible] = useState(false);
+  const [pendingApproveData, setPendingApproveData] = useState(null);
+  const [memberPayoutAmount, setMemberPayoutAmount] = useState('');
+  const [editingLevelIndex, setEditingLevelIndex] = useState(null);
+  const [donationStats, setDonationStats] = useState({
+    totalDonationCommission: 0,
+    totalDonations: 0,
+    totalTransactions: 0
+  });
+  const [payoutLogs, setPayoutLogs] = useState([]);
+  const [showPayoutLogs, setShowPayoutLogs] = useState(false);
+  const [addLevelModalVisible, setAddLevelModalVisible] = useState(false);
+  const [newLevelData, setNewLevelData] = useState({
+    id: '',
+    name: '',
+    directCommission: '',
+    secondaryCommission: '',
+    minDonations: '',
+    maxDonations: '',
+    donationsRequiredForPromotion: '',
+    prizeAmount: ''
+  });
+
+  const [formData, setFormData] = useState({
+    levels: [
+      { 
+        id: 'I', 
+        name: 'Customer', 
+        directCommission: 25, 
+        secondaryCommission: 10, 
+        minDonations: 0,
+        maxDonations: 9999,
+        donationsRequiredForPromotion: 10000,
+        prizeAmount: 0
+      },
+      { 
+        id: 'II', 
+        name: 'Executive', 
+        directCommission: 35, 
+        secondaryCommission: 5, 
+        minDonations: 10000,
+        maxDonations: 24999,
+        donationsRequiredForPromotion: 25000,
+        prizeAmount: 1000
+      },
+      { 
+        id: 'III', 
+        name: 'Manager', 
+        directCommission: 40, 
+        secondaryCommission: 2.5, 
+        minDonations: 25000,
+        maxDonations: 49999,
+        donationsRequiredForPromotion: 50000,
+        prizeAmount: 2500
+      },
+      { 
+        id: 'IV', 
+        name: 'Coordinator', 
+        directCommission: 42.5, 
+        secondaryCommission: 1.25, 
+        minDonations: 50000,
+        maxDonations: 99999,
+        donationsRequiredForPromotion: 100000,
+        prizeAmount: 5000
+      },
+      { 
+        id: 'V', 
+        name: 'Guide', 
+        directCommission: 43.75, 
+        secondaryCommission: 1.25, 
+        minDonations: 100000,
+        maxDonations: 249999,
+        donationsRequiredForPromotion: 250000,
+        prizeAmount: 10000
+      },
+      { 
+        id: 'VI', 
+        name: 'Leader', 
+        directCommission: 44.5, 
+        secondaryCommission: 0.75, 
+        minDonations: 250000,
+        maxDonations: 499999,
+        donationsRequiredForPromotion: 500000,
+        prizeAmount: 25000
+      },
+      { 
+        id: 'VII', 
+        name: 'Crown', 
+        directCommission: 45, 
+        secondaryCommission: 0.50, 
+        minDonations: 500000,
+        maxDonations: Infinity,
+        donationsRequiredForPromotion: Infinity,
+        prizeAmount: 50000
+      }
+    ],
+    registrationFee: 1000,
+    minWithdrawal: 100,
+    maxWithdrawal: 100000,
+    autoPromotionEnabled: true,
+    promotionNotificationEnabled: true,
+    autoPayoutEnabled: false,
+    payoutThreshold: 500,
+    donationCommissionEnabled: true,
+    donationCommissionRate: 25,
+    lastUpdated: null
+  });
+
+  // ============ Translations ============
   const getTranslations = () => ({
     commissionManagement: t('commission.management') || 'Commission Management',
     workingMembers: t('commission.workingMembers') || 'Working Members',
@@ -385,135 +564,31 @@ export default function CommissionManagement({ navigation }) {
     noPendingPayoutsToProcess: t('commission.noPendingPayoutsToProcess') || 'No pending payouts to process',
     info: t('common.info') || 'Info',
     missingMember: t('commission.missingMember') || 'Missing member ID or level',
-    reject: t('common.reject') || 'Reject',
-    approve: t('common.approve') || 'Approve',
+    addLevel: t('commission.addLevel') || 'Add Level',
+    levelId: t('commission.levelId') || 'Level ID',
+    enterLevelId: t('commission.enterLevelId') || 'Enter level ID (e.g., VIII)',
+    prizeAmount: t('commission.prizeAmount') || 'Prize Amount (₹)',
+    enterPrizeAmount: t('commission.enterPrizeAmount') || 'Enter prize amount',
+    prizeDescription: t('commission.prizeDescription') || 'This prize will be awarded when a member reaches this level',
+    levelPrize: t('commission.levelPrize') || 'Level Prize',
+    prize: t('commission.prize') || 'Prize',
+    dragToReorder: t('commission.dragToReorder') || 'Drag to reorder',
+    addLevelDescription: t('commission.addLevelDescription') || 'Add a new level to the commission structure',
+    deleteLevelConfirm: t('commission.deleteLevelConfirm') || 'Are you sure you want to delete this level? This action cannot be undone.',
+    levelDeleted: t('commission.levelDeleted') || 'Level deleted successfully',
+    levelAdded: t('commission.levelAdded') || 'Level added successfully',
+    memberTypes: t('commission.memberTypes') || 'Member Types',
+    addMemberType: t('commission.addMemberType') || 'Add Member Type',
+    memberTypeName: t('commission.memberTypeName') || 'Member Type Name',
+    enterMemberTypeName: t('commission.enterMemberTypeName') || 'Enter member type name',
+    deleteMemberTypeConfirm: t('commission.deleteMemberTypeConfirm') || 'Are you sure you want to delete this member type?',
+    memberTypeDeleted: t('commission.memberTypeDeleted') || 'Member type deleted successfully',
+    memberTypeAdded: t('commission.memberTypeAdded') || 'Member type added successfully',
+    memberTypeUpdated: t('commission.memberTypeUpdated') || 'Member type updated successfully',
+    reorderHint: t('commission.reorderHint') || 'Press and hold the drag icon to reorder member types',
   });
 
   const translations = getTranslations();
-
-  // ============ ALL HOOKS AT THE TOP ============
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-const [selectedMemberType, setSelectedMemberType] = useState(null);
-const [memberFeeModalVisible, setMemberFeeModalVisible] = useState(false);
-const [memberFees, setMemberFees] = useState({});
-  const [commissionData, setCommissionData] = useState(null);
-  const [pendingPayouts, setPendingPayouts] = useState([]);
-const [memberTypes, setMemberTypes] = useState([]);
-const [memberTypeModalVisible, setMemberTypeModalVisible] = useState(false);
-const [editingMemberType, setEditingMemberType] = useState(null);
-const [newMemberTypeName, setNewMemberTypeName] = useState('');
-const [newMemberTypeFee, setNewMemberTypeFee] = useState('');
-const [isAddingMemberType, setIsAddingMemberType] = useState(false);
-  const [pendingPromotions, setPendingPromotions] = useState([]);
-  const [selectedPayout, setSelectedPayout] = useState(null);
-  const [payoutModalVisible, setPayoutModalVisible] = useState(false);
-  const [payoutAmount, setPayoutAmount] = useState('');
-  const [payoutNote, setPayoutNote] = useState('');
-  const [stats, setStats] = useState({
-    totalWorkingMembers: 0,
-    totalCommissionPaid: 0,
-    pendingCommission: 0,
-    totalPayoutsThisMonth: 0,
-    topEarners: [],
-    totalDonationCommission: 0
-  });
-  const [selectedLevel, setSelectedLevel] = useState(null);
-  const [levelModalVisible, setLevelModalVisible] = useState(false);
-  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
-  const [selectedWorkingMember, setSelectedWorkingMember] = useState(null);
-  const [memberPayoutModalVisible, setMemberPayoutModalVisible] = useState(false);
-  const [promotionConfirmVisible, setPromotionConfirmVisible] = useState(false);
-  const [pendingApproveData, setPendingApproveData] = useState(null);
-  const [memberPayoutAmount, setMemberPayoutAmount] = useState('');
-  const [editingLevelIndex, setEditingLevelIndex] = useState(null);
-  const [donationStats, setDonationStats] = useState({
-    totalDonationCommission: 0,
-    totalDonations: 0,
-    totalTransactions: 0
-  });
-  const [payoutLogs, setPayoutLogs] = useState([]);
-  const [showPayoutLogs, setShowPayoutLogs] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    levels: [
-      { 
-        id: 'I', 
-        name: 'Customer', 
-        directCommission: 25, 
-        secondaryCommission: 10, 
-        minDonations: 0,
-        maxDonations: 9999,
-        donationsRequiredForPromotion: 10000
-      },
-      { 
-        id: 'II', 
-        name: 'Executive', 
-        directCommission: 35, 
-        secondaryCommission: 5, 
-        minDonations: 10000,
-        maxDonations: 24999,
-        donationsRequiredForPromotion: 25000
-      },
-      { 
-        id: 'III', 
-        name: 'Manager', 
-        directCommission: 40, 
-        secondaryCommission: 2.5, 
-        minDonations: 25000,
-        maxDonations: 49999,
-        donationsRequiredForPromotion: 50000
-      },
-      { 
-        id: 'IV', 
-        name: 'Coordinator', 
-        directCommission: 42.5, 
-        secondaryCommission: 1.25, 
-        minDonations: 50000,
-        maxDonations: 99999,
-        donationsRequiredForPromotion: 100000
-      },
-      { 
-        id: 'V', 
-        name: 'Guide', 
-        directCommission: 43.75, 
-        secondaryCommission: 1.25, 
-        minDonations: 100000,
-        maxDonations: 249999,
-        donationsRequiredForPromotion: 250000
-      },
-      { 
-        id: 'VI', 
-        name: 'Leader', 
-        directCommission: 44.5, 
-        secondaryCommission: 0.75, 
-        minDonations: 250000,
-        maxDonations: 499999,
-        donationsRequiredForPromotion: 500000
-      },
-      { 
-        id: 'VII', 
-        name: 'Crown', 
-        directCommission: 45, 
-        secondaryCommission: 0.50, 
-        minDonations: 500000,
-        maxDonations: Infinity,
-        donationsRequiredForPromotion: Infinity
-      }
-    ],
-    registrationFee: 1000,
-    minWithdrawal: 100,
-    maxWithdrawal: 100000,
-    autoPromotionEnabled: true,
-    promotionNotificationEnabled: true,
-    autoPayoutEnabled: false,
-    payoutThreshold: 500,
-    donationCommissionEnabled: true,
-    donationCommissionRate: 25,
-    lastUpdated: null
-  });
 
   // ============ useEffect Hooks ============
   useEffect(() => {
@@ -524,18 +599,17 @@ const [isAddingMemberType, setIsAddingMemberType] = useState(false);
     fetchPendingPromotions();
     fetchPayoutLogs();
   }, []);
-// ❌ DELETE this entire useEffect (lines 314-320)
-// OR replace with:
-useEffect(() => {
-  // Initialize member fees from memberTypes
-  const fees = {};
-  memberTypes.forEach(type => {
-    fees[type.id] = formData.memberFees?.[type.id] || type.defaultFee;
-  });
-  if (Object.keys(fees).length > 0) {
-    setMemberFees(fees);
-  }
-}, [memberTypes, formData.memberFees]);
+
+  useEffect(() => {
+    const fees = {};
+    memberTypes.forEach(type => {
+      fees[type.id] = formData.memberFees?.[type.id] || type.defaultFee;
+    });
+    if (Object.keys(fees).length > 0) {
+      setMemberFees(fees);
+    }
+  }, [memberTypes, formData.memberFees]);
+
   // ============ useCallback Hooks ============
   const updateLevelField = useCallback((field, value) => {
     if (!selectedLevel) return;
@@ -574,36 +648,94 @@ useEffect(() => {
     if (value === '' || value === null || value === undefined) return '';
     return String(value);
   }, []);
-const saveMemberFee = async (memberTypeId, fee) => {
-  setSaving(true);
-  try {
-    const updatedFees = { ...memberFees, [memberTypeId]: fee };
-    setMemberFees(updatedFees);
-    
-    // Update formData
-    setFormData(prev => ({
-      ...prev,
-      memberFees: updatedFees
-    }));
-    
-    // Save to Firestore
-    const docRef = doc(db, 'settings', 'commission');
-    await updateDoc(docRef, {
-      memberFees: updatedFees,
-      lastUpdated: new Date().toISOString()
-    });
-    
-    setMemberFeeModalVisible(false);
-    setSelectedMemberType(null);
-    Alert.alert('Success', 'Registration fee updated successfully!');
-  } catch (error) {
-    console.error('Error saving member fee:', error);
-    Alert.alert('Error', error.message || 'Failed to save fee');
-  } finally {
-    setSaving(false);
-  }
-};
-  // ============ Functions ============
+
+  // ============ Fetch Functions ============
+  const fetchCommissionData = async () => {
+    setLoading(true);
+    try {
+      const docRef = doc(db, 'settings', 'commission');
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setCommissionData(data);
+        
+        if (data.memberTypes && data.memberTypes.length > 0) {
+          setMemberTypes(data.memberTypes);
+        } else {
+          const defaultTypes = [
+            { id: 'founder', label: 'Founder Member', defaultFee: 5000 },
+            { id: 'collector', label: 'Collector Member', defaultFee: 3500 },
+            { id: 'distinguished', label: 'Distinguished Member', defaultFee: 1500 },
+            { id: 'lifetime', label: 'Lifetime Member', defaultFee: 2500 },
+            { id: 'honored', label: 'Honored Member', defaultFee: 500 },
+            { id: 'general', label: 'General Member', defaultFee: 100 }
+          ];
+          setMemberTypes(defaultTypes);
+          await setDoc(docRef, { 
+            ...data,
+            memberTypes: defaultTypes,
+            memberFees: data.memberFees || {}
+          }, { merge: true });
+        }
+        
+        if (data.memberFees) {
+          setMemberFees(data.memberFees);
+        } else {
+          const defaultFees = {};
+          memberTypes.forEach(type => {
+            defaultFees[type.id] = type.defaultFee;
+          });
+          setMemberFees(defaultFees);
+        }
+        
+        setFormData({
+          levels: data.levels || formData.levels,
+          memberFees: data.memberFees || {},
+          memberTypes: data.memberTypes || memberTypes,
+          registrationFee: data.registrationFee || 1000,
+          minWithdrawal: data.minWithdrawal || 100,
+          maxWithdrawal: data.maxWithdrawal || 100000,
+          autoPromotionEnabled: data.autoPromotionEnabled !== undefined ? data.autoPromotionEnabled : true,
+          promotionNotificationEnabled: data.promotionNotificationEnabled !== undefined ? data.promotionNotificationEnabled : true,
+          autoPayoutEnabled: data.autoPayoutEnabled !== undefined ? data.autoPayoutEnabled : false,
+          payoutThreshold: data.payoutThreshold || 500,
+          donationCommissionEnabled: data.donationCommissionEnabled !== undefined ? data.donationCommissionEnabled : true,
+          donationCommissionRate: data.donationCommissionRate || 25,
+          lastUpdated: data.lastUpdated || null
+        });
+      } else {
+        const defaultTypes = [
+          { id: 'founder', label: 'Founder Member', defaultFee: 5000 },
+          { id: 'collector', label: 'Collector Member', defaultFee: 3500 },
+          { id: 'distinguished', label: 'Distinguished Member', defaultFee: 1500 },
+          { id: 'lifetime', label: 'Lifetime Member', defaultFee: 2500 },
+          { id: 'honored', label: 'Honored Member', defaultFee: 500 },
+          { id: 'general', label: 'General Member', defaultFee: 100 }
+        ];
+        
+        const defaultFees = {};
+        defaultTypes.forEach(type => {
+          defaultFees[type.id] = type.defaultFee;
+        });
+        
+        setMemberTypes(defaultTypes);
+        setMemberFees(defaultFees);
+        
+        await setDoc(doc(db, 'settings', 'commission'), { 
+          ...formData,
+          memberFees: defaultFees,
+          memberTypes: defaultTypes
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching commission data:', error);
+      Alert.alert(translations.error, translations.failedToLoad);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const setupPendingPayoutsListener = () => {
     const q = query(
       collection(db, 'walletTransactions'),
@@ -623,217 +755,6 @@ const saveMemberFee = async (memberTypeId, fee) => {
 
     return () => unsubscribe();
   };
-
-  const fetchCommissionData = async () => {
-  setLoading(true);
-  try {
-    const docRef = doc(db, 'settings', 'commission');
-    const docSnap = await getDoc(docRef);
-    
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      setCommissionData(data);
-      
-      // ✅ Load member types from Firestore
-      if (data.memberTypes && data.memberTypes.length > 0) {
-        setMemberTypes(data.memberTypes);
-      } else {
-        // ✅ Initialize with default types if none exist
-        const defaultTypes = [
-          { id: 'founder', label: 'Founder Member', defaultFee: 5000 },
-          { id: 'collector', label: 'Collector Member', defaultFee: 3500 },
-          { id: 'distinguished', label: 'Distinguished Member', defaultFee: 1500 },
-          { id: 'lifetime', label: 'Lifetime Member', defaultFee: 2500 },
-          { id: 'honored', label: 'Honored Member', defaultFee: 500 },
-          { id: 'general', label: 'General Member', defaultFee: 100 }
-        ];
-        setMemberTypes(defaultTypes);
-        // Save defaults to Firestore
-        await setDoc(docRef, { 
-          ...data,
-          memberTypes: defaultTypes,
-          memberFees: data.memberFees || {}
-        }, { merge: true });
-      }
-      
-      // ✅ Load member fees from Firestore
-      if (data.memberFees) {
-        setMemberFees(data.memberFees);
-      } else {
-        // Initialize with defaults
-        const defaultFees = {};
-        memberTypes.forEach(type => {
-          defaultFees[type.id] = type.defaultFee;
-        });
-        setMemberFees(defaultFees);
-      }
-      
-      setFormData({
-        levels: data.levels || formData.levels,
-        memberFees: data.memberFees || {},
-        memberTypes: data.memberTypes || memberTypes,
-        registrationFee: data.registrationFee || 1000,
-        minWithdrawal: data.minWithdrawal || 100,
-        maxWithdrawal: data.maxWithdrawal || 100000,
-        autoPromotionEnabled: data.autoPromotionEnabled !== undefined ? data.autoPromotionEnabled : true,
-        promotionNotificationEnabled: data.promotionNotificationEnabled !== undefined ? data.promotionNotificationEnabled : true,
-        autoPayoutEnabled: data.autoPayoutEnabled !== undefined ? data.autoPayoutEnabled : false,
-        payoutThreshold: data.payoutThreshold || 500,
-        donationCommissionEnabled: data.donationCommissionEnabled !== undefined ? data.donationCommissionEnabled : true,
-        donationCommissionRate: data.donationCommissionRate || 25,
-        lastUpdated: data.lastUpdated || null
-      });
-    } else {
-      // Initialize with defaults if document doesn't exist
-      const defaultTypes = [
-        { id: 'founder', label: 'Founder Member', defaultFee: 5000 },
-        { id: 'collector', label: 'Collector Member', defaultFee: 3500 },
-        { id: 'distinguished', label: 'Distinguished Member', defaultFee: 1500 },
-        { id: 'lifetime', label: 'Lifetime Member', defaultFee: 2500 },
-        { id: 'honored', label: 'Honored Member', defaultFee: 500 },
-        { id: 'general', label: 'General Member', defaultFee: 100 }
-      ];
-      
-      const defaultFees = {};
-      defaultTypes.forEach(type => {
-        defaultFees[type.id] = type.defaultFee;
-      });
-      
-      setMemberTypes(defaultTypes);
-      setMemberFees(defaultFees);
-      
-      await setDoc(doc(db, 'settings', 'commission'), { 
-        ...formData,
-        memberFees: defaultFees,
-        memberTypes: defaultTypes
-      });
-    }
-  } catch (error) {
-    console.error('Error fetching commission data:', error);
-    Alert.alert(translations.error, translations.failedToLoad);
-  } finally {
-    setLoading(false);
-  }
-};
-// Add a new member type
-const addMemberType = async () => {
-  if (!newMemberTypeName.trim()) {
-    Alert.alert('Error', 'Please enter a member type name');
-    return;
-  }
-  
-  if (!newMemberTypeFee || parseFloat(newMemberTypeFee) <= 0) {
-    Alert.alert('Error', 'Please enter a valid fee amount');
-    return;
-  }
-
-  setIsAddingMemberType(true);
-  try {
-    const newId = newMemberTypeName.toLowerCase().replace(/\s+/g, '_');
-    const newType = {
-      id: newId,
-      label: newMemberTypeName.trim(),
-      defaultFee: parseFloat(newMemberTypeFee)
-    };
-    
-    const updatedTypes = [...memberTypes, newType];
-    setMemberTypes(updatedTypes);
-    
-    const updatedFees = { ...memberFees, [newId]: parseFloat(newMemberTypeFee) };
-    setMemberFees(updatedFees);
-    
-    const docRef = doc(db, 'settings', 'commission');
-    await updateDoc(docRef, {
-      memberTypes: updatedTypes,
-      memberFees: updatedFees,
-      lastUpdated: new Date().toISOString()
-    });
-    
-    setNewMemberTypeName('');
-    setNewMemberTypeFee('');
-    setMemberTypeModalVisible(false);
-    Alert.alert('Success', 'Member type added successfully!');
-  } catch (error) {
-    console.error('Error adding member type:', error);
-    Alert.alert('Error', error.message || 'Failed to add member type');
-  } finally {
-    setIsAddingMemberType(false);
-  }
-};
-
-// Edit a member type
-const editMemberType = async (typeId, newLabel, newFee) => {
-  if (!newLabel.trim()) {
-    Alert.alert('Error', 'Please enter a member type name');
-    return;
-  }
-  
-  if (!newFee || parseFloat(newFee) <= 0) {
-    Alert.alert('Error', 'Please enter a valid fee amount');
-    return;
-  }
-
-  try {
-    const updatedTypes = memberTypes.map(type => 
-      type.id === typeId 
-        ? { ...type, label: newLabel.trim(), defaultFee: parseFloat(newFee) }
-        : type
-    );
-    setMemberTypes(updatedTypes);
-    
-    const updatedFees = { ...memberFees, [typeId]: parseFloat(newFee) };
-    setMemberFees(updatedFees);
-    
-    const docRef = doc(db, 'settings', 'commission');
-    await updateDoc(docRef, {
-      memberTypes: updatedTypes,
-      memberFees: updatedFees,
-      lastUpdated: new Date().toISOString()
-    });
-    
-    Alert.alert('Success', 'Member type updated successfully!');
-  } catch (error) {
-    console.error('Error editing member type:', error);
-    Alert.alert('Error', error.message || 'Failed to update member type');
-  }
-};
-
-// Delete a member type
-const deleteMemberType = (typeId) => {
-  Alert.alert(
-    'Delete Member Type',
-    'Are you sure you want to delete this member type? This action cannot be undone.',
-    [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const updatedTypes = memberTypes.filter(type => type.id !== typeId);
-            setMemberTypes(updatedTypes);
-            
-            const updatedFees = { ...memberFees };
-            delete updatedFees[typeId];
-            setMemberFees(updatedFees);
-            
-            const docRef = doc(db, 'settings', 'commission');
-            await updateDoc(docRef, {
-              memberTypes: updatedTypes,
-              memberFees: updatedFees,
-              lastUpdated: new Date().toISOString()
-            });
-            
-            Alert.alert('Success', 'Member type deleted successfully!');
-          } catch (error) {
-            console.error('Error deleting member type:', error);
-            Alert.alert('Error', error.message || 'Failed to delete member type');
-          }
-        }
-      }
-    ]
-  );
-};
 
   const fetchStats = async () => {
     try {
@@ -892,8 +813,6 @@ const deleteMemberType = (typeId) => {
 
   const fetchDonationCommissionStats = async () => {
     try {
-      console.log('📊 Fetching donation commission stats...');
-      
       const q = query(
         collection(db, 'commissionLogs'),
         where('type', '==', 'donation_commission')
@@ -930,8 +849,6 @@ const deleteMemberType = (typeId) => {
 
   const fetchPendingPromotions = async () => {
     try {
-      console.log('📊 Fetching pending promotions...');
-      
       const settingsRef = doc(db, 'settings', 'commission');
       const settingsSnap = await getDoc(settingsRef);
       let dynamicLevels = null;
@@ -944,7 +861,6 @@ const deleteMemberType = (typeId) => {
       }
       
       const levelsToUse = dynamicLevels || formData.levels;
-      console.log('📊 Levels to use:', levelsToUse);
       
       const usersQuery = query(
         collection(db, 'users'),
@@ -965,7 +881,6 @@ const deleteMemberType = (typeId) => {
         const currentLevelData = currentLevelIndex !== -1 ? levelsToUse[currentLevelIndex] : null;
         
         if (!currentLevelData) {
-          console.log(`⚠️ Level ${currentLevel} not found in levels data`);
           continue;
         }
         
@@ -973,14 +888,11 @@ const deleteMemberType = (typeId) => {
         const nextLevel = nextLevelIndex < levelsToUse.length ? levelsToUse[nextLevelIndex] : null;
         
         if (!nextLevel) {
-          console.log(`⚠️ No next level for ${currentLevel}`);
           continue;
         }
         
         const donationsRequired = currentLevelData.donationsRequiredForPromotion || 0;
         const isEligible = donations >= donationsRequired;
-        
-        console.log(`📊 ${userData.fullName}: Level ${currentLevel}, Donations: ₹${donations}, Required: ₹${donationsRequired}, Eligible: ${isEligible}`);
         
         if (isEligible) {
           promotions.push({
@@ -1000,9 +912,7 @@ const deleteMemberType = (typeId) => {
       }
       
       promotions.sort((a, b) => b.progress - a.progress);
-      
       setPendingPromotions(promotions);
-      console.log(`✅ Found ${promotions.length} pending promotions`);
       
     } catch (error) {
       console.error('Error fetching pending promotions:', error);
@@ -1018,97 +928,211 @@ const deleteMemberType = (typeId) => {
     }
   };
 
-  const approvePromotion = (memberId, nextLevel) => {
-    console.log('🔍 approvePromotion called with:', { memberId, nextLevel });
+  // ============ Member Type Functions ============
+  const addMemberType = async () => {
+    if (!newMemberTypeName.trim()) {
+      Alert.alert('Error', 'Please enter a member type name');
+      return;
+    }
     
-    if (!memberId || !nextLevel) {
-      Alert.alert(translations.error, translations.missingMember);
+    if (!newMemberTypeFee || parseFloat(newMemberTypeFee) <= 0) {
+      Alert.alert('Error', 'Please enter a valid fee amount');
       return;
     }
 
-    setPendingApproveData({ memberId, nextLevel });
-    setPromotionConfirmVisible(true);
-  };
-
-  const confirmApprovePromotion = async () => {
-const auth = getAuthInstance(); // ✅ ADD THIS
-    if (!pendingApproveData) return;
-    
-    const { memberId, nextLevel } = pendingApproveData;
-    console.log('✅ Confirming promotion for:', memberId, 'to:', nextLevel);
-    
-    setSaving(true);
-    setPromotionConfirmVisible(false);
-    
+    setIsAddingMemberType(true);
     try {
-      console.log('📝 Updating user level...');
-      const userRef = doc(db, 'users', memberId);
-      await updateDoc(userRef, {
-        level: nextLevel,
-        promotedAt: new Date().toISOString(),
-        promotionApprovedBy: auth.currentUser?.uid || 'admin',
-        updatedAt: new Date().toISOString()
-      });
-      console.log('✅ User level updated');
-
-      console.log('📝 Creating promotion log...');
-      const promotionLogRef = collection(db, 'promotionLogs');
-      await addDoc(promotionLogRef, {
-        userId: memberId,
-        newLevel: nextLevel,
-        approvedBy: auth.currentUser?.uid || 'admin',
-        approvedAt: new Date().toISOString(),
-        timestamp: new Date().toISOString(),
-        status: 'approved'
-      });
-      console.log('✅ Promotion log created');
-
-      Alert.alert(
-        translations.success, 
-        translations.memberPromoted.replace('{level}', nextLevel)
-      );
-      await fetchPendingPromotions();
-      await fetchStats();
+      const newId = newMemberTypeName.toLowerCase().replace(/\s+/g, '_');
+      const newType = {
+        id: newId,
+        label: newMemberTypeName.trim(),
+        defaultFee: parseFloat(newMemberTypeFee)
+      };
       
+      const updatedTypes = [...memberTypes, newType];
+      setMemberTypes(updatedTypes);
+      
+      const updatedFees = { ...memberFees, [newId]: parseFloat(newMemberTypeFee) };
+      setMemberFees(updatedFees);
+      
+      const docRef = doc(db, 'settings', 'commission');
+      await updateDoc(docRef, {
+        memberTypes: updatedTypes,
+        memberFees: updatedFees,
+        lastUpdated: new Date().toISOString()
+      });
+      
+      setNewMemberTypeName('');
+      setNewMemberTypeFee('');
+      setMemberTypeModalVisible(false);
+      Alert.alert('Success', translations.memberTypeAdded);
     } catch (error) {
-      console.error('❌ Error approving promotion:', error);
-      Alert.alert(translations.error, error.message || 'Failed to approve promotion');
+      console.error('Error adding member type:', error);
+      Alert.alert('Error', error.message || 'Failed to add member type');
     } finally {
-      setSaving(false);
-      setPendingApproveData(null);
+      setIsAddingMemberType(false);
     }
   };
 
-  const rejectPromotion = async (memberId) => {
+  const saveMemberFee = async (memberTypeId, fee) => {
+    setSaving(true);
+    try {
+      const updatedFees = { ...memberFees, [memberTypeId]: fee };
+      setMemberFees(updatedFees);
+      
+      setFormData(prev => ({
+        ...prev,
+        memberFees: updatedFees
+      }));
+      
+      const docRef = doc(db, 'settings', 'commission');
+      await updateDoc(docRef, {
+        memberFees: updatedFees,
+        lastUpdated: new Date().toISOString()
+      });
+      
+      setMemberFeeModalVisible(false);
+      setSelectedMemberType(null);
+      Alert.alert('Success', translations.memberTypeUpdated);
+    } catch (error) {
+      console.error('Error saving member fee:', error);
+      Alert.alert('Error', error.message || 'Failed to save fee');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteMemberType = (typeId) => {
     Alert.alert(
-      translations.rejectPromotion,
-      translations.confirmReject,
+      'Delete Member Type',
+      translations.deleteMemberTypeConfirm,
       [
-        { text: translations.cancel || 'Cancel', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: translations.reject,
+          text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-const auth = getAuthInstance(); // ✅ ADD THIS
-            setSaving(true);
             try {
-              console.log('📝 Rejecting promotion for:', memberId);
+              const updatedTypes = memberTypes.filter(type => type.id !== typeId);
+              setMemberTypes(updatedTypes);
               
-              const rejectionRef = collection(db, 'promotionLogs');
-              await addDoc(rejectionRef, {
-                userId: memberId,
-                status: 'rejected',
-                rejectedBy: auth.currentUser?.uid || 'admin',
-                rejectedAt: new Date().toISOString(),
-                timestamp: new Date().toISOString()
+              const updatedFees = { ...memberFees };
+              delete updatedFees[typeId];
+              setMemberFees(updatedFees);
+              
+              const docRef = doc(db, 'settings', 'commission');
+              await updateDoc(docRef, {
+                memberTypes: updatedTypes,
+                memberFees: updatedFees,
+                lastUpdated: new Date().toISOString()
               });
               
-              Alert.alert(translations.success, translations.promotionRejected);
-              await fetchPendingPromotions();
-              
+              Alert.alert('Success', translations.memberTypeDeleted);
             } catch (error) {
-              console.error('Error rejecting promotion:', error);
-              Alert.alert(translations.error, error.message || 'Failed to reject promotion');
+              console.error('Error deleting member type:', error);
+              Alert.alert('Error', error.message || 'Failed to delete member type');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // ============ Level Functions ============
+  const openLevelEditor = (index) => {
+    setEditingLevelIndex(index);
+    setSelectedLevel({ ...formData.levels[index] });
+    setLevelModalVisible(true);
+  };
+
+  const saveLevelChanges = async () => {
+    if (!selectedLevel || editingLevelIndex === null) return;
+    
+    setSaving(true);
+    try {
+      const level = { ...selectedLevel };
+      const numericFields = ['directCommission', 'secondaryCommission', 'minDonations', 'maxDonations', 'donationsRequiredForPromotion', 'prizeAmount'];
+      
+      for (const field of numericFields) {
+        if (level[field] === '' || level[field] === null || level[field] === undefined) {
+          level[field] = 0;
+        }
+        if (typeof level[field] === 'string' && level[field] !== '∞') {
+          level[field] = parseFloat(level[field]) || 0;
+        }
+      }
+      
+      const newLevels = [...formData.levels];
+      newLevels[editingLevelIndex] = level;
+      
+      setFormData(prev => ({
+        ...prev,
+        levels: newLevels
+      }));
+      
+      setCommissionData(prev => ({
+        ...prev,
+        levels: newLevels,
+        lastUpdated: new Date().toISOString()
+      }));
+      
+      const docRef = doc(db, 'settings', 'commission');
+      await updateDoc(docRef, {
+        levels: newLevels,
+        lastUpdated: new Date().toISOString()
+      });
+      
+      setLevelModalVisible(false);
+      setEditingLevelIndex(null);
+      setSelectedLevel(null);
+      
+      Alert.alert(translations.success, translations.levelUpdated);
+      await fetchCommissionData();
+      
+    } catch (error) {
+      console.error('Error saving level:', error);
+      Alert.alert(translations.error, error.message || 'Failed to save level');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteLevel = async () => {
+    if (!selectedLevel || editingLevelIndex === null) return;
+    
+    Alert.alert(
+      'Delete Level',
+      translations.deleteLevelConfirm,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setSaving(true);
+            try {
+              const newLevels = formData.levels.filter((_, index) => index !== editingLevelIndex);
+              
+              setFormData(prev => ({
+                ...prev,
+                levels: newLevels
+              }));
+              
+              const docRef = doc(db, 'settings', 'commission');
+              await updateDoc(docRef, {
+                levels: newLevels,
+                lastUpdated: new Date().toISOString()
+              });
+              
+              setLevelModalVisible(false);
+              setEditingLevelIndex(null);
+              setSelectedLevel(null);
+              
+              Alert.alert(translations.success, translations.levelDeleted);
+              await fetchCommissionData();
+            } catch (error) {
+              console.error('Error deleting level:', error);
+              Alert.alert(translations.error, error.message || 'Failed to delete level');
             } finally {
               setSaving(false);
             }
@@ -1118,40 +1142,80 @@ const auth = getAuthInstance(); // ✅ ADD THIS
     );
   };
 
-  const handleSave = async () => {
-const auth = getAuthInstance(); // ✅ ADD THIS
+  const addLevel = async () => {
+    if (!newLevelData.id.trim()) {
+      Alert.alert('Error', 'Please enter a level ID');
+      return;
+    }
+    if (!newLevelData.name.trim()) {
+      Alert.alert('Error', 'Please enter a level name');
+      return;
+    }
+    
+    const levelId = newLevelData.id.trim().toUpperCase();
+    
+    // Check if level already exists
+    if (formData.levels.some(l => l.id === levelId)) {
+      Alert.alert('Error', `Level ${levelId} already exists`);
+      return;
+    }
+    
     setSaving(true);
     try {
-      const data = {
-        levels: formData.levels,
-        registrationFee: formData.registrationFee,
-        minWithdrawal: formData.minWithdrawal,
-        maxWithdrawal: formData.maxWithdrawal,
-        autoPromotionEnabled: formData.autoPromotionEnabled,
-        promotionNotificationEnabled: formData.promotionNotificationEnabled,
-        autoPayoutEnabled: formData.autoPayoutEnabled,
-        payoutThreshold: formData.payoutThreshold,
-        donationCommissionEnabled: formData.donationCommissionEnabled,
-        donationCommissionRate: formData.donationCommissionRate,
-        lastUpdated: new Date().toISOString(),
-        updatedBy: auth.currentUser?.uid || 'admin'
+      const newLevel = {
+        id: levelId,
+        name: newLevelData.name.trim(),
+        directCommission: parseFloat(newLevelData.directCommission) || 0,
+        secondaryCommission: parseFloat(newLevelData.secondaryCommission) || 0,
+        minDonations: parseFloat(newLevelData.minDonations) || 0,
+        maxDonations: parseFloat(newLevelData.maxDonations) || Infinity,
+        donationsRequiredForPromotion: parseFloat(newLevelData.donationsRequiredForPromotion) || Infinity,
+        prizeAmount: parseFloat(newLevelData.prizeAmount) || 0
       };
-
-      await setDoc(doc(db, 'settings', 'commission'), data);
-      Alert.alert(translations.success, translations.settingsUpdated);
-      setEditing(false);
-      setSettingsModalVisible(false);
-      setLevelModalVisible(false);
-      fetchCommissionData();
+      
+      const newLevels = [...formData.levels, newLevel];
+      newLevels.sort((a, b) => {
+        // Sort by minDonations
+        return (a.minDonations || 0) - (b.minDonations || 0);
+      });
+      
+      setFormData(prev => ({
+        ...prev,
+        levels: newLevels
+      }));
+      
+      const docRef = doc(db, 'settings', 'commission');
+      await updateDoc(docRef, {
+        levels: newLevels,
+        lastUpdated: new Date().toISOString()
+      });
+      
+      setAddLevelModalVisible(false);
+      setNewLevelData({
+        id: '',
+        name: '',
+        directCommission: '',
+        secondaryCommission: '',
+        minDonations: '',
+        maxDonations: '',
+        donationsRequiredForPromotion: '',
+        prizeAmount: ''
+      });
+      
+      Alert.alert(translations.success, translations.levelAdded);
+      await fetchCommissionData();
+      
     } catch (error) {
-      Alert.alert(translations.error, error.message);
+      console.error('Error adding level:', error);
+      Alert.alert(translations.error, error.message || 'Failed to add level');
     } finally {
       setSaving(false);
     }
   };
 
-  // ============ PAYOUT FUNCTIONS USING PayoutService ============
+  // ============ Drag and Drop Functions ============
   
+  // ============ Payout Functions ============
   const processPayout = async () => {
     if (!selectedPayout) return;
     
@@ -1314,7 +1378,128 @@ const auth = getAuthInstance(); // ✅ ADD THIS
     );
   };
 
-  // ============ END OF PAYOUT FUNCTIONS ============
+  // ============ Promotion Functions ============
+  const approvePromotion = (memberId, nextLevel) => {
+    if (!memberId || !nextLevel) {
+      Alert.alert(translations.error, translations.missingMember);
+      return;
+    }
+
+    setPendingApproveData({ memberId, nextLevel });
+    setPromotionConfirmVisible(true);
+  };
+
+  const confirmApprovePromotion = async () => {
+    const auth = getAuthInstance();
+    if (!pendingApproveData) return;
+    
+    const { memberId, nextLevel } = pendingApproveData;
+    
+    setSaving(true);
+    setPromotionConfirmVisible(false);
+    
+    try {
+      const userRef = doc(db, 'users', memberId);
+      await updateDoc(userRef, {
+        level: nextLevel,
+        promotedAt: new Date().toISOString(),
+        promotionApprovedBy: auth.currentUser?.uid || 'admin',
+        updatedAt: new Date().toISOString()
+      });
+
+      const promotionLogRef = collection(db, 'promotionLogs');
+      await addDoc(promotionLogRef, {
+        userId: memberId,
+        newLevel: nextLevel,
+        approvedBy: auth.currentUser?.uid || 'admin',
+        approvedAt: new Date().toISOString(),
+        timestamp: new Date().toISOString(),
+        status: 'approved'
+      });
+
+      Alert.alert(
+        translations.success, 
+        translations.memberPromoted.replace('{level}', nextLevel)
+      );
+      await fetchPendingPromotions();
+      await fetchStats();
+      
+    } catch (error) {
+      console.error('Error approving promotion:', error);
+      Alert.alert(translations.error, error.message || 'Failed to approve promotion');
+    } finally {
+      setSaving(false);
+      setPendingApproveData(null);
+    }
+  };
+
+  const rejectPromotion = async (memberId) => {
+    Alert.alert(
+      translations.rejectPromotion,
+      translations.confirmReject,
+      [
+        { text: translations.cancel || 'Cancel', style: 'cancel' },
+        {
+          text: translations.reject,
+          style: 'destructive',
+          onPress: async () => {
+            const auth = getAuthInstance();
+            setSaving(true);
+            try {
+              const rejectionRef = collection(db, 'promotionLogs');
+              await addDoc(rejectionRef, {
+                userId: memberId,
+                status: 'rejected',
+                rejectedBy: auth.currentUser?.uid || 'admin',
+                rejectedAt: new Date().toISOString(),
+                timestamp: new Date().toISOString()
+              });
+              
+              Alert.alert(translations.success, translations.promotionRejected);
+              await fetchPendingPromotions();
+              
+            } catch (error) {
+              console.error('Error rejecting promotion:', error);
+              Alert.alert(translations.error, error.message || 'Failed to reject promotion');
+            } finally {
+              setSaving(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // ============ Settings Save ============
+  const handleSaveSettings = async () => {
+    const auth = getAuthInstance();
+    setSaving(true);
+    try {
+      const data = {
+        levels: formData.levels,
+        registrationFee: formData.registrationFee,
+        minWithdrawal: formData.minWithdrawal,
+        maxWithdrawal: formData.maxWithdrawal,
+        autoPromotionEnabled: formData.autoPromotionEnabled,
+        promotionNotificationEnabled: formData.promotionNotificationEnabled,
+        autoPayoutEnabled: formData.autoPayoutEnabled,
+        payoutThreshold: formData.payoutThreshold,
+        donationCommissionEnabled: formData.donationCommissionEnabled,
+        donationCommissionRate: formData.donationCommissionRate,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: auth.currentUser?.uid || 'admin'
+      };
+
+      await setDoc(doc(db, 'settings', 'commission'), data, { merge: true });
+      Alert.alert(translations.success, translations.settingsUpdated);
+      setSettingsModalVisible(false);
+      fetchCommissionData();
+    } catch (error) {
+      Alert.alert(translations.error, error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -1326,83 +1511,7 @@ const auth = getAuthInstance(); // ✅ ADD THIS
     setRefreshing(false);
   };
 
-  const openLevelEditor = (index) => {
-    setEditingLevelIndex(index);
-    setSelectedLevel({ ...formData.levels[index] });
-    setLevelModalVisible(true);
-  };
-
-  const saveLevelChanges = async () => {
-    if (!selectedLevel || editingLevelIndex === null) return;
-    
-    setSaving(true);
-    try {
-      const level = { ...selectedLevel };
-      const numericFields = ['directCommission', 'secondaryCommission', 'minDonations', 'maxDonations', 'donationsRequiredForPromotion'];
-      
-      for (const field of numericFields) {
-        if (level[field] === '' || level[field] === null || level[field] === undefined) {
-          level[field] = 0;
-        }
-        if (typeof level[field] === 'string' && level[field] !== '∞') {
-          level[field] = parseFloat(level[field]) || 0;
-        }
-      }
-      
-      const newLevels = [...formData.levels];
-      newLevels[editingLevelIndex] = level;
-      
-      setFormData(prev => ({
-        ...prev,
-        levels: newLevels
-      }));
-      
-      setCommissionData(prev => ({
-        ...prev,
-        levels: newLevels,
-        lastUpdated: new Date().toISOString()
-      }));
-      
-      const docRef = doc(db, 'settings', 'commission');
-      await updateDoc(docRef, {
-        levels: newLevels,
-        lastUpdated: new Date().toISOString()
-      });
-      
-      setLevelModalVisible(false);
-      setEditingLevelIndex(null);
-      setSelectedLevel(null);
-      
-      Alert.alert(translations.success, translations.levelUpdated);
-      await fetchCommissionData();
-      
-    } catch (error) {
-      console.error('Error saving level:', error);
-      Alert.alert(translations.error, error.message || 'Failed to save level');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const levelEditModal = useMemo(() => (
-    <LevelEditModal
-      visible={levelModalVisible}
-      selectedLevel={selectedLevel}
-      onClose={() => {
-        setLevelModalVisible(false);
-        setEditingLevelIndex(null);
-        setSelectedLevel(null);
-      }}
-      onUpdateField={updateLevelField}
-      onSave={saveLevelChanges}
-      saving={saving}
-      isSmallDevice={isSmallDevice}
-      formDataLevels={formData.levels}
-      t={t}
-    />
-  ), [levelModalVisible, selectedLevel, updateLevelField, saveLevelChanges, saving, formData.levels, t]);
-
-  // ============ Components ============
+  // ============ Render Components ============
   const StatCard = ({ label, value, icon, color }) => (
     <View style={styles.statCard}>
       <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
@@ -1564,6 +1673,29 @@ const auth = getAuthInstance(); // ✅ ADD THIS
     </TouchableOpacity>
   );
 
+  
+
+  // ============ Level Edit Modal ============
+  const levelEditModal = useMemo(() => (
+    <LevelEditModal
+      visible={levelModalVisible}
+      selectedLevel={selectedLevel}
+      onClose={() => {
+        setLevelModalVisible(false);
+        setEditingLevelIndex(null);
+        setSelectedLevel(null);
+      }}
+      onUpdateField={updateLevelField}
+      onSave={saveLevelChanges}
+      onDelete={deleteLevel}
+      saving={saving}
+      isSmallDevice={isSmallDevice}
+      formDataLevels={formData.levels}
+      t={t}
+    />
+  ), [levelModalVisible, selectedLevel, updateLevelField, saveLevelChanges, deleteLevel, saving, formData.levels, t]);
+
+  // ============ Settings Edit Modal ============
   const SettingsEditModal = () => {
     return (
       <Modal
@@ -1697,7 +1829,7 @@ const auth = getAuthInstance(); // ✅ ADD THIS
 
                 <TouchableOpacity
                   style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-                  onPress={handleSave}
+                  onPress={handleSaveSettings}
                   disabled={saving}
                 >
                   {saving ? (
@@ -1928,12 +2060,20 @@ const auth = getAuthInstance(); // ✅ ADD THIS
               <Text style={[styles.sectionTitle, { fontSize: isSmallDevice ? 13 : 15 }]}>
                 {translations.levelsAndCommission}
               </Text>
-              <TouchableOpacity 
-                style={styles.editHintButton}
-                onPress={() => Alert.alert(translations.editLevel, translations.editLevelsHint)}
-              >
-                <MaterialIcons name="info-outline" size={isSmallDevice ? 14 : 18} color="#FF7722" />
-              </TouchableOpacity>
+              <View style={styles.headerActions}>
+                <TouchableOpacity 
+                  style={styles.addTypeButton}
+                  onPress={() => setAddLevelModalVisible(true)}
+                >
+                  <MaterialIcons name="add" size={isSmallDevice ? 18 : 22} color="#FF7722" />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.editHintButton}
+                  onPress={() => Alert.alert(translations.editLevel, translations.editLevelsHint)}
+                >
+                  <MaterialIcons name="info-outline" size={isSmallDevice ? 14 : 18} color="#FF7722" />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={styles.tableHeader}>
@@ -1950,7 +2090,7 @@ const auth = getAuthInstance(); // ✅ ADD THIS
                 {translations.secondary}
               </Text>
               <Text style={[styles.tableHeaderText, { fontSize: isSmallDevice ? 9 : 10 }]}>
-                {translations.donationsReq}
+                {translations.prize}
               </Text>
             </View>
 
@@ -1974,7 +2114,7 @@ const auth = getAuthInstance(); // ✅ ADD THIS
                   {level.secondaryCommission}%
                 </Text>
                 <Text style={[styles.tableCell, styles.donationsCol, styles.donationText, { fontSize: isSmallDevice ? 10 : 11 }]}>
-                  {level.donationsRequiredForPromotion === Infinity ? '∞' : `₹${(level.donationsRequiredForPromotion || 0).toLocaleString()}`}
+                  ₹{(level.prizeAmount || 0).toLocaleString()}
                 </Text>
                 <View style={styles.editIconContainer}>
                   <MaterialIcons name="edit" size={isSmallDevice ? 12 : 16} color="#FF7722" />
@@ -1982,40 +2122,42 @@ const auth = getAuthInstance(); // ✅ ADD THIS
               </TouchableOpacity>
             ))}
           </View>
-{/* Member Registration Fees Section */}
-<View style={styles.card}>
-  <View style={styles.sectionHeader}>
-    <MaterialIcons name="payments" size={isSmallDevice ? 16 : 20} color="#FF7722" />
-    <Text style={[styles.sectionTitle, { fontSize: isSmallDevice ? 13 : 15 }]}>
-      Member Registration Fees
-    </Text>
-    <View style={styles.headerActions}>
-      <TouchableOpacity 
-        style={styles.addTypeButton}
-        onPress={() => {
-          setNewMemberTypeName('');
-          setNewMemberTypeFee('');
-          setMemberTypeModalVisible(true);
-        }}
-      >
-        <MaterialIcons name="add" size={isSmallDevice ? 18 : 22} color="#FF7722" />
-      </TouchableOpacity>
-      <TouchableOpacity 
-        style={styles.editHintButton}
-        onPress={() => Alert.alert('Info', 'Tap on any member type to edit it. Use the + button to add new types.')}
-      >
-        <MaterialIcons name="info-outline" size={isSmallDevice ? 14 : 18} color="#FF7722" />
-      </TouchableOpacity>
-    </View>
-  </View>
 
-  {memberTypes.length > 0 ? (
-    memberTypes.map((type) => (
+          {/* Member Registration Fees Section with Drag and Drop */}
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="payments" size={isSmallDevice ? 16 : 20} color="#FF7722" />
+              <Text style={[styles.sectionTitle, { fontSize: isSmallDevice ? 13 : 15 }]}>
+                {translations.memberTypes}
+              </Text>
+              <View style={styles.headerActions}>
+                <TouchableOpacity 
+                  style={styles.addTypeButton}
+                  onPress={() => {
+                    setNewMemberTypeName('');
+                    setNewMemberTypeFee('');
+                    setMemberTypeModalVisible(true);
+                  }}
+                >
+                  <MaterialIcons name="add" size={isSmallDevice ? 18 : 22} color="#FF7722" />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.editHintButton}
+                  onPress={() => Alert.alert('Info', translations.reorderHint)}
+                >
+                  <MaterialIcons name="info-outline" size={isSmallDevice ? 14 : 18} color="#FF7722" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {memberTypes.length > 0 ? (
+  <FlatList
+    data={memberTypes}
+    renderItem={({ item }) => (
       <TouchableOpacity 
-        key={type.id}
-        style={[styles.memberFeeRow, { borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }]}
+        style={styles.memberFeeRow}
         onPress={() => {
-          setSelectedMemberType({ ...type, fee: memberFees[type.id] || type.defaultFee });
+          setSelectedMemberType({ ...item, fee: memberFees[item.id] || item.defaultFee });
           setMemberFeeModalVisible(true);
         }}
         activeOpacity={0.7}
@@ -2025,15 +2167,15 @@ const auth = getAuthInstance(); // ✅ ADD THIS
             <MaterialIcons name="person" size={isSmallDevice ? 16 : 20} color="#FF7722" />
           </View>
           <Text style={[styles.memberFeeLabel, { fontSize: isSmallDevice ? 12 : 14 }]}>
-            {type.label}
+            {item.label}
           </Text>
         </View>
         <View style={styles.memberFeeRight}>
           <Text style={[styles.memberFeeValue, { fontSize: isSmallDevice ? 14 : 16 }]}>
-            ₹{memberFees[type.id]?.toLocaleString() || type.defaultFee.toLocaleString()}
+            ₹{memberFees[item.id]?.toLocaleString() || item.defaultFee.toLocaleString()}
           </Text>
           <TouchableOpacity
-            onPress={() => deleteMemberType(type.id)}
+            onPress={() => deleteMemberType(item.id)}
             style={styles.deleteTypeButton}
           >
             <MaterialIcons name="close" size={isSmallDevice ? 14 : 18} color="#ef4444" />
@@ -2041,20 +2183,23 @@ const auth = getAuthInstance(); // ✅ ADD THIS
           <MaterialIcons name="edit" size={isSmallDevice ? 16 : 20} color="#FF7722" />
         </View>
       </TouchableOpacity>
-    ))
-  ) : (
-    <View style={styles.emptyState}>
-      <MaterialIcons name="people" size={32} color="#d1d5db" />
-      <Text style={[styles.emptyStateText, { fontSize: isSmallDevice ? 13 : 14 }]}>
-        No member types defined
-      </Text>
-      <Text style={[styles.emptyStateSubtext, { fontSize: isSmallDevice ? 10 : 11 }]}>
-        Tap the + button to add member types
-      </Text>
-    </View>
-  )}
-</View>
-          
+    )}
+    keyExtractor={(item) => item.id}
+    containerStyle={{ flexGrow: 0 }}
+    scrollEnabled={false}
+  />
+            ) : (
+              <View style={styles.emptyState}>
+                <MaterialIcons name="people" size={32} color="#d1d5db" />
+                <Text style={[styles.emptyStateText, { fontSize: isSmallDevice ? 13 : 14 }]}>
+                  No member types defined
+                </Text>
+                <Text style={[styles.emptyStateSubtext, { fontSize: isSmallDevice ? 10 : 11 }]}>
+                  Tap the + button to add member types
+                </Text>
+              </View>
+            )}
+          </View>
 
           {commissionData?.lastUpdated && (
             <View style={styles.updateInfo}>
@@ -2106,7 +2251,7 @@ const auth = getAuthInstance(); // ✅ ADD THIS
                     style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
                     value={payoutAmount}
                     onChangeText={setPayoutAmount}
-                    placeholder={translations.enterAmount || 'Enter amount'}
+                    placeholder={t('commission.enterAmount') || 'Enter amount'}
                     keyboardType="numeric"
                     placeholderTextColor="#9ca3af"
                   />
@@ -2147,72 +2292,234 @@ const auth = getAuthInstance(); // ✅ ADD THIS
             </View>
           </View>
         </Modal>
-{/* Add Member Type Modal */}
-<Modal
-  animationType="slide"
-  transparent={true}
-  visible={memberTypeModalVisible}
-  onRequestClose={() => setMemberTypeModalVisible(false)}
->
-  <View style={styles.modalOverlay}>
-    <View style={styles.modalContent}>
-      <View style={styles.modalHeader}>
-        <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
-          Add Member Type
-        </Text>
-        <TouchableOpacity onPress={() => setMemberTypeModalVisible(false)}>
-          <MaterialIcons name="close" size={24} color="#6b7280" />
-        </TouchableOpacity>
-      </View>
 
-      <View style={styles.modalBody}>
-        <View style={styles.field}>
-          <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
-            Member Type Name *
-          </Text>
-          <TextInput
-            style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-            value={newMemberTypeName}
-            onChangeText={setNewMemberTypeName}
-            placeholder="e.g., Premium Member"
-            placeholderTextColor="#9ca3af"
-          />
-        </View>
-
-        <View style={styles.field}>
-          <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
-            Registration Fee (₹) *
-          </Text>
-          <TextInput
-            style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-            value={newMemberTypeFee}
-            onChangeText={setNewMemberTypeFee}
-            placeholder="Enter fee amount"
-            placeholderTextColor="#9ca3af"
-            keyboardType="numeric"
-          />
-        </View>
-
-        <TouchableOpacity
-          style={[styles.submitButton, isAddingMemberType && styles.submitButtonDisabled]}
-          onPress={addMemberType}
-          disabled={isAddingMemberType}
+        {/* Add Member Type Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={memberTypeModalVisible}
+          onRequestClose={() => setMemberTypeModalVisible(false)}
         >
-          {isAddingMemberType ? (
-            <ActivityIndicator size="small" color="#ffffff" />
-          ) : (
-            <>
-              <MaterialIcons name="add" size={20} color="#ffffff" />
-              <Text style={[styles.submitButtonText, { fontSize: isSmallDevice ? 14 : 15 }]}>
-                Add Member Type
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
-  </View>
-</Modal>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
+                  {translations.addMemberType}
+                </Text>
+                <TouchableOpacity onPress={() => setMemberTypeModalVisible(false)}>
+                  <MaterialIcons name="close" size={24} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalBody}>
+                <View style={styles.field}>
+                  <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                    {translations.memberTypeName} *
+                  </Text>
+                  <TextInput
+                    style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                    value={newMemberTypeName}
+                    onChangeText={setNewMemberTypeName}
+                    placeholder={translations.enterMemberTypeName}
+                    placeholderTextColor="#9ca3af"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                    {translations.registrationFee} (₹) *
+                  </Text>
+                  <TextInput
+                    style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                    value={newMemberTypeFee}
+                    onChangeText={setNewMemberTypeFee}
+                    placeholder={translations.enterFeeAmount}
+                    placeholderTextColor="#9ca3af"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.submitButton, isAddingMemberType && styles.submitButtonDisabled]}
+                  onPress={addMemberType}
+                  disabled={isAddingMemberType}
+                >
+                  {isAddingMemberType ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <>
+                      <MaterialIcons name="add" size={20} color="#ffffff" />
+                      <Text style={[styles.submitButtonText, { fontSize: isSmallDevice ? 14 : 15 }]}>
+                        {translations.addMemberType}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Add Level Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={addLevelModalVisible}
+          onRequestClose={() => setAddLevelModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
+                  {translations.addLevel}
+                </Text>
+                <TouchableOpacity onPress={() => setAddLevelModalVisible(false)}>
+                  <MaterialIcons name="close" size={24} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.modalBody}>
+                  <Text style={[styles.helperText, { fontSize: isSmallDevice ? 11 : 12, marginBottom: 12 }]}>
+                    {translations.addLevelDescription}
+                  </Text>
+
+                  <View style={styles.field}>
+                    <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                      {translations.levelId} *
+                    </Text>
+                    <TextInput
+                      style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                      value={newLevelData.id}
+                      onChangeText={(text) => setNewLevelData({ ...newLevelData, id: text })}
+                      placeholder={translations.enterLevelId}
+                      placeholderTextColor="#9ca3af"
+                      autoCapitalize="characters"
+                    />
+                  </View>
+
+                  <View style={styles.field}>
+                    <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                      {translations.levelName} *
+                    </Text>
+                    <TextInput
+                      style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                      value={newLevelData.name}
+                      onChangeText={(text) => setNewLevelData({ ...newLevelData, name: text })}
+                      placeholder={translations.enterLevelName}
+                      placeholderTextColor="#9ca3af"
+                    />
+                  </View>
+
+                  <View style={styles.field}>
+                    <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                      {translations.directCommission} (%)
+                    </Text>
+                    <TextInput
+                      style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                      value={String(newLevelData.directCommission)}
+                      onChangeText={(text) => setNewLevelData({ ...newLevelData, directCommission: text })}
+                      placeholder={translations.enterDirectCommission}
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.field}>
+                    <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                      {translations.secondaryCommission} (%)
+                    </Text>
+                    <TextInput
+                      style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                      value={String(newLevelData.secondaryCommission)}
+                      onChangeText={(text) => setNewLevelData({ ...newLevelData, secondaryCommission: text })}
+                      placeholder={translations.enterSecondaryCommission}
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.field}>
+                    <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                      {translations.minDonations} (₹)
+                    </Text>
+                    <TextInput
+                      style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                      value={String(newLevelData.minDonations)}
+                      onChangeText={(text) => setNewLevelData({ ...newLevelData, minDonations: text })}
+                      placeholder={translations.enterMinDonations}
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.field}>
+                    <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                      {translations.maxDonations} (₹)
+                    </Text>
+                    <TextInput
+                      style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                      value={String(newLevelData.maxDonations)}
+                      onChangeText={(text) => setNewLevelData({ ...newLevelData, maxDonations: text })}
+                      placeholder={translations.enterMaxDonations}
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.field}>
+                    <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                      {translations.donationsRequiredForPromotion} (₹)
+                    </Text>
+                    <TextInput
+                      style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                      value={String(newLevelData.donationsRequiredForPromotion)}
+                      onChangeText={(text) => setNewLevelData({ ...newLevelData, donationsRequiredForPromotion: text })}
+                      placeholder={translations.enterDonationsRequired}
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.field}>
+                    <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                      {translations.prizeAmount} (₹)
+                    </Text>
+                    <TextInput
+                      style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                      value={String(newLevelData.prizeAmount)}
+                      onChangeText={(text) => setNewLevelData({ ...newLevelData, prizeAmount: text })}
+                      placeholder={translations.enterPrizeAmount}
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="numeric"
+                    />
+                    <Text style={[styles.helperText, { fontSize: isSmallDevice ? 10 : 11 }]}>
+                      {translations.prizeDescription}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.submitButton, saving && styles.submitButtonDisabled]}
+                    onPress={addLevel}
+                    disabled={saving}
+                  >
+                    {saving ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <>
+                        <MaterialIcons name="add" size={20} color="#ffffff" />
+                        <Text style={[styles.submitButtonText, { fontSize: isSmallDevice ? 14 : 15 }]}>
+                          {translations.addLevel}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
         {/* Promotion Confirmation Modal */}
         <Modal
           animationType="fade"
@@ -2327,7 +2634,7 @@ const auth = getAuthInstance(); // ✅ ADD THIS
                     style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
                     value={memberPayoutAmount}
                     onChangeText={setMemberPayoutAmount}
-                    placeholder={translations.enterAmount || 'Enter amount'}
+                    placeholder={t('commission.enterAmount') || 'Enter amount'}
                     keyboardType="numeric"
                     placeholderTextColor="#9ca3af"
                   />
@@ -2356,22 +2663,21 @@ const auth = getAuthInstance(); // ✅ ADD THIS
 
         {/* Level Edit Modal */}
         {levelEditModal}
-{/* Member Fee Edit Modal */}
-<MemberFeeEditModal
-  visible={memberFeeModalVisible}
-  selectedMemberType={selectedMemberType}
-  onClose={() => {
-    setMemberFeeModalVisible(false);
-    setSelectedMemberType(null);
-  }}
-  onUpdateFee={(fee) => {
-    // This is handled internally
-  }}
-  onSave={saveMemberFee}
-  saving={saving}
-  isSmallDevice={isSmallDevice}
-  t={t}
-/>
+
+        {/* Member Fee Edit Modal */}
+        <MemberFeeEditModal
+          visible={memberFeeModalVisible}
+          selectedMemberType={selectedMemberType}
+          onClose={() => {
+            setMemberFeeModalVisible(false);
+            setSelectedMemberType(null);
+          }}
+          onSave={saveMemberFee}
+          saving={saving}
+          isSmallDevice={isSmallDevice}
+          t={t}
+        />
+
         {/* Settings Edit Modal */}
         <SettingsEditModal />
       </View>
@@ -2557,60 +2863,69 @@ const styles = StyleSheet.create({
   editHintButton: {
     padding: 2,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  addTypeButton: {
+    padding: 4,
+    backgroundColor: '#FF772215',
+    borderRadius: 16,
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   tableHeader: {
-  flexDirection: 'row',
-  backgroundColor: '#f3f4f6',
-  paddingVertical: 6,
-  paddingHorizontal: 6,
-  borderRadius: 6,
-  marginBottom: 4,
-},
-tableHeaderText: {
-  fontFamily: Fonts.SemiBold,
-  color: '#4b5563',
-  fontSize: 9,
-  paddingHorizontal: 2,
-},
-// Replace the tableRow and related styles
-tableRow: {
-  flexDirection: 'row',
-  paddingVertical: 10,
-  paddingHorizontal: 6,
-  borderRadius: 4,
-  alignItems: 'center',
-  position: 'relative',
-},
-tableRowEven: {
-  backgroundColor: '#f9fafb',
-},
-tableRowTouchable: {
-  borderWidth: 1,
-  borderColor: 'transparent',
-},
-tableCell: {
-  fontFamily: Fonts.Regular,
-  color: '#1f2937',
-  paddingHorizontal: 2,
-},
-levelCol: {
-  width: '11%',
-  minWidth: 28,
-},
-nameCol: {
-  width: '26%',
-  minWidth: 60,
-},
-percentageCol: {
-  width: '17%',
-  minWidth: 40,
-  alignItems: 'flex-end',
-},
-donationsCol: {
-  width: '28%',
-  minWidth: 65,
-  alignItems: 'flex-end',
-},
-
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  tableHeaderText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#4b5563',
+    paddingHorizontal: 2,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  tableRowEven: {
+    backgroundColor: '#f9fafb',
+  },
+  tableRowTouchable: {
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  tableCell: {
+    fontFamily: Fonts.Regular,
+    color: '#1f2937',
+    paddingHorizontal: 2,
+  },
+  levelCol: {
+    width: '11%',
+    minWidth: 28,
+  },
+  nameCol: {
+    width: '22%',
+    minWidth: 55,
+  },
+  percentageCol: {
+    width: '17%',
+    minWidth: 40,
+  },
+  donationsCol: {
+    width: '24%',
+    minWidth: 55,
+  },
   levelBadge: {
     fontFamily: Fonts.Bold,
     color: '#FF7722',
@@ -2628,12 +2943,11 @@ donationsCol: {
     color: '#f59e0b',
   },
   editIconContainer: {
-  width: '8%',
-  minWidth: 24,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-
+    width: '8%',
+    minWidth: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   editHint: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3076,23 +3390,6 @@ donationsCol: {
     fontFamily: Fonts.Regular,
     color: '#6b7280',
   },
-headerActions: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 4,
-},
-addTypeButton: {
-  padding: 4,
-  backgroundColor: '#FF772215',
-  borderRadius: 16,
-  width: 28,
-  height: 28,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-deleteTypeButton: {
-  padding: 2,
-},
   payoutSummaryValue: {
     fontFamily: Fonts.Bold,
     color: '#10b981',
@@ -3139,6 +3436,26 @@ deleteTypeButton: {
   updateLevelButtonText: {
     fontFamily: Fonts.SemiBold,
     color: '#ffffff',
+  },
+  deleteLevelButton: {
+    backgroundColor: '#fef2f2',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  deleteLevelButtonText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#ef4444',
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
   switchRow: {
     flexDirection: 'row',
@@ -3189,40 +3506,48 @@ deleteTypeButton: {
   saveButtonDisabled: {
     opacity: 0.6,
   },
-memberFeeRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingVertical: 12,
-  paddingHorizontal: 4,
-},
-memberFeeLeft: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 10,
-},
-memberFeeIcon: {
-  width: 32,
-  height: 32,
-  borderRadius: 16,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-memberFeeLabel: {
-  fontFamily: Fonts.Regular,
-  color: '#1f2937',
-},
-memberFeeRight: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-},
-memberFeeValue: {
-  fontFamily: Fonts.Bold,
-  color: '#FF7722',
-},
   saveButtonText: {
     fontFamily: Fonts.SemiBold,
     color: '#ffffff',
   },
+  memberFeeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  memberFeeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  memberFeeIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  memberFeeLabel: {
+    fontFamily: Fonts.Regular,
+    color: '#1f2937',
+    flex: 1,
+  },
+  memberFeeRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  memberFeeValue: {
+    fontFamily: Fonts.Bold,
+    color: '#FF7722',
+  },
+  deleteTypeButton: {
+    padding: 2,
+  },
+  
 });

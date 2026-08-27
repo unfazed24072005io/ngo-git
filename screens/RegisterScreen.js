@@ -28,7 +28,7 @@ export default function RegisterScreen({ navigation, route }) {
   const [verificationId, setVerificationId] = useState('');
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [otp, setOtp] = useState('');
-const [feesLoading, setFeesLoading] = useState(true);
+const [feesLoaded, setFeesLoaded] = useState(false);
 // Either remove this line or add the state:
 const [memberTypes, setMemberTypes] = useState([]);
   const [generatedOtp, setGeneratedOtp] = useState('');

@@ -28,19 +28,17 @@ export default function RegisterScreen({ navigation, route }) {
   const [verificationId, setVerificationId] = useState('');
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [otp, setOtp] = useState('');
-const [feesLoaded, setFeesLoaded] = useState(false);
-// Either remove this line or add the state:
-const [memberTypes, setMemberTypes] = useState([]);
+  const [feesLoaded, setFeesLoaded] = useState(false);
+  const [memberTypes, setMemberTypes] = useState([]);
   const [generatedOtp, setGeneratedOtp] = useState('');
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [memberFees, setMemberFees] = useState({});
   const [referralCode, setReferralCode] = useState('');
-const [referralValid, setReferralValid] = useState(false);
-const [referrerData, setReferrerData] = useState(null);
-const [checkingReferral, setCheckingReferral] = useState(false);
-  // OTP States
-const [showNoPaymentOption, setShowNoPaymentOption] = useState(false);
-const [noPaymentReason, setNoPaymentReason] = useState('');
+  const [referralValid, setReferralValid] = useState(false);
+  const [referrerData, setReferrerData] = useState(null);
+  const [checkingReferral, setCheckingReferral] = useState(false);
+  const [showNoPaymentOption, setShowNoPaymentOption] = useState(false);
+  const [noPaymentReason, setNoPaymentReason] = useState('');
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [otpTimer, setOtpTimer] = useState(0);
@@ -53,7 +51,7 @@ const [noPaymentReason, setNoPaymentReason] = useState('');
   const [feeAmount, setFeeAmount] = useState('');
   
   const isDonationFlow = route?.params?.donationFlow || false;
-const isDonorFlow = route?.params?.isDonorRegistration || false;
+  const isDonorFlow = route?.params?.isDonorRegistration || false;
   
   // Force re-render when language changes
   const renderKey = `register-${counter}`;
@@ -173,7 +171,6 @@ const isDonorFlow = route?.params?.isDonorRegistration || false;
     fillAllFields: t('auth.fillAllFields') || 'Please fill all fields',
     fullNameRequired: t('auth.fullNameRequired') || 'Please enter your full name',
     phoneRequired: t('auth.phoneRequired') || 'Please enter your phone number',
-    // Payment translations
     registrationFee: 'Registration Fee',
     payRegistrationFee: 'Pay Registration Fee',
     paymentRequired: 'Please complete the payment to register',
@@ -203,7 +200,7 @@ const isDonorFlow = route?.params?.isDonorRegistration || false;
     education: '',
     caste: '',
     spouseName: '',
-otherNationality: '',
+    otherNationality: '',
     aadharNumber: '',
     phone: '',
     email: '',
@@ -230,86 +227,83 @@ otherNationality: '',
     signature: null,
   });
 
-const fetchMemberFees = async () => {
-  try {
-    const docRef = doc(db, 'settings', 'commission');
-    const docSnap = await getDoc(docRef);
-    
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      if (data.memberFees && Object.keys(data.memberFees).length > 0) {
-        setMemberFees(data.memberFees);
-        console.log('✅ Member fees loaded:', data.memberFees);
-        setFeesLoaded(true); // ✅ Mark as loaded
+  const fetchMemberFees = async () => {
+    try {
+      const docRef = doc(db, 'settings', 'commission');
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.memberFees && Object.keys(data.memberFees).length > 0) {
+          setMemberFees(data.memberFees);
+          console.log('✅ Member fees loaded:', data.memberFees);
+          setFeesLoaded(true);
+        } else {
+          console.warn('⚠️ No memberFees found in document');
+          setFeesLoaded(false);
+          Alert.alert('Configuration Error', 'Member fee structure not configured. Please contact admin.');
+        }
       } else {
-        console.warn('⚠️ No memberFees found in document');
+        console.warn('⚠️ Commission document does not exist');
         setFeesLoaded(false);
         Alert.alert('Configuration Error', 'Member fee structure not configured. Please contact admin.');
       }
-    } else {
-      console.warn('⚠️ Commission document does not exist');
+    } catch (error) {
+      console.error('❌ Error fetching member fees:', error);
       setFeesLoaded(false);
-      Alert.alert('Configuration Error', 'Member fee structure not configured. Please contact admin.');
+      Alert.alert('Error', 'Failed to load member fees. Please check your connection.');
     }
-  } catch (error) {
-    console.error('❌ Error fetching member fees:', error);
-    setFeesLoaded(false);
-    Alert.alert('Error', 'Failed to load member fees. Please check your connection.');
-  }
-};
-// ============ REFERRAL CODE VALIDATION ============
-const validateReferralCode = async (code) => {
-  if (!code || code.length < 6) {
-    setReferralValid(false);
-    setReferrerData(null);
-    return;
-  }
+  };
 
-  setCheckingReferral(true);
-  try {
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('referralCode', '==', code.toUpperCase()));
-    const querySnapshot = await getDocs(q);
-    
-    if (!querySnapshot.empty) {
-      const userDoc = querySnapshot.docs[0];
-      const userData = userDoc.data();
-      // Only working members can have referral codes
-      if (userData.role === 'working' || userData.role === 'workingMember') {
-        setReferralValid(true);
-        setReferrerData({
-          id: userDoc.id,
-          name: userData.fullName || 'Working Member',
-          level: userData.level || 'I'
-        });
-        Alert.alert('✅ Valid Referral Code', `You are being referred by ${userData.fullName}`);
+  const validateReferralCode = async (code) => {
+    if (!code || code.length < 6) {
+      setReferralValid(false);
+      setReferrerData(null);
+      return;
+    }
+
+    setCheckingReferral(true);
+    try {
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('referralCode', '==', code.toUpperCase()));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0];
+        const userData = userDoc.data();
+        if (userData.role === 'working' || userData.role === 'workingMember') {
+          setReferralValid(true);
+          setReferrerData({
+            id: userDoc.id,
+            name: userData.fullName || 'Working Member',
+            level: userData.level || 'I'
+          });
+          Alert.alert('✅ Valid Referral Code', `You are being referred by ${userData.fullName}`);
+        } else {
+          setReferralValid(false);
+          setReferrerData(null);
+          Alert.alert('Invalid Code', 'This referral code belongs to a non-working member');
+        }
       } else {
         setReferralValid(false);
         setReferrerData(null);
-        Alert.alert('Invalid Code', 'This referral code belongs to a non-working member');
+        if (code.length >= 6) {
+          Alert.alert('Invalid Code', 'Please enter a valid referral code');
+        }
       }
-    } else {
+    } catch (error) {
+      console.error('Error validating referral code:', error);
       setReferralValid(false);
       setReferrerData(null);
-      // Don't show error for empty or typing
-      if (code.length >= 6) {
-        Alert.alert('Invalid Code', 'Please enter a valid referral code');
-      }
+    } finally {
+      setCheckingReferral(false);
     }
-  } catch (error) {
-    console.error('Error validating referral code:', error);
-    setReferralValid(false);
-    setReferrerData(null);
-  } finally {
-    setCheckingReferral(false);
-  }
-};
-  // ============ GET MEMBER TYPE FEE ============
-  // ============ GET MEMBER TYPE FEE ============
-const getMemberTypeFee = (memberType) => {
-  if (!memberType) return 0;
-  return memberFees[memberType];
-};
+  };
+
+  const getMemberTypeFee = (memberType) => {
+    if (!memberType) return 0;
+    return memberFees[memberType];
+  };
 
   // ============ USE EFFECTS ============
   useEffect(() => {
@@ -532,144 +526,133 @@ const getMemberTypeFee = (memberType) => {
     await sendOTP(to, 'SMS');
   };
 
-// In RegisterScreen.js
-
-// In RegisterScreen.js - REPLACE the entire handleRegistrationFeePayment function
-
-const handleRegistrationFeePayment = async () => {
-  console.log('🔵 [PAYMENT] Starting payment flow');
-  console.log('🔵 [PAYMENT] Member Type:', formData.memberType);
-  console.log('🔵 [PAYMENT] Fee Amount:', feeAmount);
-  
-  if (!formData.memberType) {
-    console.log('❌ [PAYMENT] No member type selected');
-    Alert.alert('Error', translations.memberTypeRequired);
-    return;
-  }
-
-  const amount = parseFloat(feeAmount);
-  console.log('🔵 [PAYMENT] Parsed amount:', amount);
-  
-  if (amount <= 0) {
-    console.log('❌ [PAYMENT] Invalid amount:', amount);
-    Alert.alert('Error', translations.invalidFeeAmount);
-    return;
-  }
-
-  console.log('✅ [PAYMENT] Payment validation passed');
-  setPaymentLoading(true);
-  console.log('🔄 [PAYMENT] Payment loading set to true');
-
-  try {
-    const donorName = formData.fullName || 'Member';
-    const donorEmail = formData.email || 'member@email.com';
-    const donorPhone = formData.phone || '0000000000';
-
-    console.log('🔵 [PAYMENT] Initiating Razorpay payment');
-    console.log('🔵 [PAYMENT] Donor details:', { donorName, donorEmail, donorPhone });
-    console.log('🔵 [PAYMENT] Amount:', amount);
-    console.log('🔵 [PAYMENT] Description:', `Registration Fee - ${formData.memberType}`);
-
-    const paymentResult = await initiateRazorpayPayment({
-      amount: amount,
-      name: donorName,
-      email: donorEmail,
-      phone: donorPhone,
-      description: `Registration Fee - ${formData.memberType}`,
-    });
-
-    console.log('📥 [PAYMENT] Razorpay payment result:', JSON.stringify(paymentResult, null, 2));
-
-    // Check for cancellation
-    if (paymentResult && paymentResult.code === 'PAYMENT_CANCELLED') {
-      console.log('⚠️ [PAYMENT] User cancelled payment');
-      setPaymentLoading(false);
-      Alert.alert('Payment Cancelled', 'You cancelled the payment process.');
+  const handleRegistrationFeePayment = async () => {
+    console.log('🔵 [PAYMENT] Starting payment flow');
+    console.log('🔵 [PAYMENT] Member Type:', formData.memberType);
+    console.log('🔵 [PAYMENT] Fee Amount:', feeAmount);
+    
+    if (!formData.memberType) {
+      console.log('❌ [PAYMENT] No member type selected');
+      Alert.alert('Error', translations.memberTypeRequired);
       return;
     }
 
-    // ✅ FIX: Check for paymentId instead of success flag
-    const isPaymentSuccessful = 
-      paymentResult && 
-      paymentResult.paymentId && 
-      paymentResult.orderId && 
-      paymentResult.signature;
+    const amount = parseFloat(feeAmount);
+    console.log('🔵 [PAYMENT] Parsed amount:', amount);
+    
+    if (amount <= 0) {
+      console.log('❌ [PAYMENT] Invalid amount:', amount);
+      Alert.alert('Error', translations.invalidFeeAmount);
+      return;
+    }
 
-    if (isPaymentSuccessful) {
-      console.log('✅ [PAYMENT] Payment successful!');
-      console.log('✅ [PAYMENT] Payment ID:', paymentResult.paymentId);
-      console.log('✅ [PAYMENT] Order ID:', paymentResult.orderId);
-      console.log('✅ [PAYMENT] Signature:', paymentResult.signature);
+    console.log('✅ [PAYMENT] Payment validation passed');
+    setPaymentLoading(true);
+    console.log('🔄 [PAYMENT] Payment loading set to true');
 
-      // ✅ Try to verify, but DON'T fail if verification fails
-      if (paymentResult.paymentId && paymentResult.orderId && paymentResult.signature) {
-        console.log('🔵 [PAYMENT] Verifying payment with Razorpay...');
-        try {
-          const verificationResult = await verifyRazorpayPayment({
-            paymentId: paymentResult.paymentId,
-            orderId: paymentResult.orderId,
-            signature: paymentResult.signature,
-          });
-          console.log('📥 [PAYMENT] Verification result:', JSON.stringify(verificationResult, null, 2));
-        } catch (verifyError) {
-          console.log('⚠️ [PAYMENT] Verification error (will proceed):', verifyError);
-        }
+    try {
+      const donorName = formData.fullName || 'Member';
+      const donorEmail = formData.email || 'member@email.com';
+      const donorPhone = formData.phone || '0000000000';
+
+      console.log('🔵 [PAYMENT] Initiating Razorpay payment');
+      console.log('🔵 [PAYMENT] Donor details:', { donorName, donorEmail, donorPhone });
+      console.log('🔵 [PAYMENT] Amount:', amount);
+      console.log('🔵 [PAYMENT] Description:', `Registration Fee - ${formData.memberType}`);
+
+      const paymentResult = await initiateRazorpayPayment({
+        amount: amount,
+        name: donorName,
+        email: donorEmail,
+        phone: donorPhone,
+        description: `Registration Fee - ${formData.memberType}`,
+      });
+
+      console.log('📥 [PAYMENT] Razorpay payment result:', JSON.stringify(paymentResult, null, 2));
+
+      if (paymentResult && paymentResult.code === 'PAYMENT_CANCELLED') {
+        console.log('⚠️ [PAYMENT] User cancelled payment');
+        setPaymentLoading(false);
+        Alert.alert('Payment Cancelled', 'You cancelled the payment process.');
+        return;
       }
 
-      // ✅ PROCEED WITH REGISTRATION - The payment was successful
-      console.log('✅ [PAYMENT] PAYMENT SUCCESSFUL! Proceeding with registration...');
-      
-      // Close modal
-      setShowPaymentModal(false);
-      console.log('✅ [PAYMENT] Payment modal closed');
-      
+      const isPaymentSuccessful = 
+        paymentResult && 
+        paymentResult.paymentId && 
+        paymentResult.orderId && 
+        paymentResult.signature;
+
+      if (isPaymentSuccessful) {
+        console.log('✅ [PAYMENT] Payment successful!');
+        console.log('✅ [PAYMENT] Payment ID:', paymentResult.paymentId);
+        console.log('✅ [PAYMENT] Order ID:', paymentResult.orderId);
+        console.log('✅ [PAYMENT] Signature:', paymentResult.signature);
+
+        if (paymentResult.paymentId && paymentResult.orderId && paymentResult.signature) {
+          console.log('🔵 [PAYMENT] Verifying payment with Razorpay...');
+          try {
+            const verificationResult = await verifyRazorpayPayment({
+              paymentId: paymentResult.paymentId,
+              orderId: paymentResult.orderId,
+              signature: paymentResult.signature,
+            });
+            console.log('📥 [PAYMENT] Verification result:', JSON.stringify(verificationResult, null, 2));
+          } catch (verifyError) {
+            console.log('⚠️ [PAYMENT] Verification error (will proceed):', verifyError);
+          }
+        }
+
+        console.log('✅ [PAYMENT] PAYMENT SUCCESSFUL! Proceeding with registration...');
+        
+        setShowPaymentModal(false);
+        console.log('✅ [PAYMENT] Payment modal closed');
+        
+        setPaymentLoading(false);
+        console.log('✅ [PAYMENT] Payment loading set to false');
+        
+        await completeRegistrationWithoutAlert();
+        console.log('✅ [PAYMENT] Registration completed successfully');
+        
+      } else {
+        console.log('❌ [PAYMENT] Payment initiation FAILED');
+        console.log('❌ [PAYMENT] Payment result:', paymentResult);
+        console.log('❌ [PAYMENT] Payment error:', paymentResult?.error || 'Unknown error');
+        setPaymentLoading(false);
+        
+        Alert.alert(
+          translations.paymentFailed || 'Payment Failed',
+          paymentResult?.error || 'Something went wrong. Please try again.'
+        );
+      }
+    } catch (error) {
+      console.log('❌ [PAYMENT] EXCEPTION OCCURRED');
+      console.log('❌ [PAYMENT] Error object:', error);
+      console.log('❌ [PAYMENT] Error message:', error.message);
+      console.log('❌ [PAYMENT] Error stack:', error.stack);
       setPaymentLoading(false);
-      console.log('✅ [PAYMENT] Payment loading set to false');
-      
-      // ✅ Complete registration - NO ALERT!
-      await completeRegistrationWithoutAlert();
-      console.log('✅ [PAYMENT] Registration completed successfully');
-      
-    } else {
-      // ❌ Only show error if payment completely failed
-      console.log('❌ [PAYMENT] Payment initiation FAILED');
-      console.log('❌ [PAYMENT] Payment result:', paymentResult);
-      console.log('❌ [PAYMENT] Payment error:', paymentResult?.error || 'Unknown error');
-      setPaymentLoading(false);
-      
       Alert.alert(
-        translations.paymentFailed || 'Payment Failed',
-        paymentResult?.error || 'Something went wrong. Please try again.'
+        translations.error || 'Error',
+        translations.failedToProcess || 'Failed to process payment. Please try again.'
       );
     }
-  } catch (error) {
-    console.log('❌ [PAYMENT] EXCEPTION OCCURRED');
-    console.log('❌ [PAYMENT] Error object:', error);
-    console.log('❌ [PAYMENT] Error message:', error.message);
-    console.log('❌ [PAYMENT] Error stack:', error.stack);
-    setPaymentLoading(false);
-    Alert.alert(
-      translations.error || 'Error',
-      translations.failedToProcess || 'Failed to process payment. Please try again.'
-    );
-  }
-};
-// Add this new function - it's like completeRegistration but without Alerts
-const completeRegistrationWithoutAlert = async () => {
-  console.log('🔵 [REGISTRATION] Starting completeRegistrationWithoutAlert');
-  console.log('🔵 [REGISTRATION] Registration method:', registrationMethod);
-  
-  if (registrationMethod === 'phone') {
-    console.log('🔵 [REGISTRATION] Using phone registration flow');
-    await handlePhoneRegisterWithoutAlert();
-  } else {
-    console.log('🔵 [REGISTRATION] Using email registration flow');
-    await handleEmailRegisterWithoutAlert();
-  }
-  
-  console.log('✅ [REGISTRATION] Registration completed without alert');
-};
-  // ============ COMPLETE REGISTRATION ============
+  };
+
+  const completeRegistrationWithoutAlert = async () => {
+    console.log('🔵 [REGISTRATION] Starting completeRegistrationWithoutAlert');
+    console.log('🔵 [REGISTRATION] Registration method:', registrationMethod);
+    
+    if (registrationMethod === 'phone') {
+      console.log('🔵 [REGISTRATION] Using phone registration flow');
+      await handlePhoneRegisterWithoutAlert();
+    } else {
+      console.log('🔵 [REGISTRATION] Using email registration flow');
+      await handleEmailRegisterWithoutAlert();
+    }
+    
+    console.log('✅ [REGISTRATION] Registration completed without alert');
+  };
+
   const completeRegistration = async () => {
     if (registrationMethod === 'phone') {
       await handlePhoneRegister();
@@ -679,311 +662,71 @@ const completeRegistrationWithoutAlert = async () => {
   };
 
   const handlePhoneRegister = async () => {
-  // ✅ Donors don't need phone verification
-  if (!isDonorFlow && !isPhoneVerified) {
-    Alert.alert(translations.error, 'Please verify your phone number first');
-    return;
-  }
-
-  if (!formData.fullName.trim()) {
-    Alert.alert(translations.error, translations.fullNameRequired);
-    return;
-  }
-
-  // ✅ Donors skip payment
-  if (!isDonorFlow && !isDonationFlow && role !== 'donor') {
-    const fee = parseFloat(feeAmount);
-    if (fee > 0 && formData.memberType) {
-      setShowPaymentModal(true);
+    if (!isDonorFlow && !isPhoneVerified) {
+      Alert.alert(translations.error, 'Please verify your phone number first');
       return;
     }
-  }
 
-  await completePhoneRegistration({
-    uid: `phone_${Date.now()}`,
-    phoneNumber: formData.phone
-  });
-};
-// Add this after completeRegistrationWithoutAlert function
-
-const handleRegistrationWithoutPayment = async () => {
-  console.log('🔵 [NO_PAYMENT] Starting registration without payment');
-  console.log('🔵 [NO_PAYMENT] Reason:', noPaymentReason || 'Not provided');
-  
-  setLoading(true);
-  
-  try {
-    if (registrationMethod === 'phone') {
-      await completePhoneRegistrationWithoutPayment({
-        uid: `phone_${Date.now()}`,
-        phoneNumber: formData.phone
-      });
-    } else {
-      await handleEmailRegisterWithoutPayment();
+    if (!formData.fullName.trim()) {
+      Alert.alert(translations.error, translations.fullNameRequired);
+      return;
     }
-    
-    setShowNoPaymentOption(false);
-    setNoPaymentReason('');
-    
-    // ✅ SILENT NAVIGATION - NO ALERT! Just like Razorpay flow
-    console.log('🔵 [NO_PAYMENT] Navigating to Login silently...');
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
+
+    if (!isDonorFlow && !isDonationFlow && role !== 'donor') {
+      const fee = parseFloat(feeAmount);
+      if (fee > 0 && formData.memberType) {
+        setShowPaymentModal(true);
+        return;
+      }
+    }
+
+    await completePhoneRegistration({
+      uid: `phone_${Date.now()}`,
+      phoneNumber: formData.phone
     });
-    console.log('✅ [NO_PAYMENT] Navigation complete');
-    
-  } catch (error) {
-    console.error('❌ [NO_PAYMENT] Registration error:', error);
-    Alert.alert('Error', 'Failed to complete registration. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
-
-// Phone registration without payment
-const completePhoneRegistrationWithoutPayment = async (user) => {
-  console.log('🔵 [NO_PAYMENT] Starting silent phone registration');
-  
-  const userId = user.uid;
-  const finalRole = isDonationFlow ? 'donor' : role;
-
-  const userData = {
-    fullName: formData.fullName.trim(),
-    fatherName: formData.fatherName.trim(),
-    dob: formData.dob,
-    gender: formData.gender,
-    education: formData.education,
-    caste: formData.caste,
-    spouseName: formData.spouseName,
-    aadharNumber: formData.aadharNumber,
-    phone: formData.phone.trim(),
-    email: formData.email.trim().toLowerCase() || '',
-    address: formData.address.trim(),
-    village: formData.village,
-    postOffice: formData.postOffice,
-    thana: formData.thana,
-    district: formData.district,
-    state: formData.state,
-    pinCode: formData.pinCode,
-    nationality: formData.nationality,
-    otherNationality: formData.otherNationality || '',
-    profession: formData.profession,
-    membershipNumber: formData.membershipNumber,
-    membershipDate: formData.membershipDate,
-    guruAshram: formData.guruAshram,
-    memberType: formData.memberType,
-    contributionAmount: formData.contributionAmount,
-    role: finalRole,
-    // ✅ Set status to 'pending' for admin approval
-    status: 'pending',
-    profilePhoto: formData.profilePhoto || null,
-    aadharFront: formData.aadharFront || null,
-    aadharBack: formData.aadharBack || null,
-    panCard: formData.panCard || null,
-    signature: formData.signature || null,
-    // ✅ Payment fields - not paid
-    registrationFeePaid: false,
-    registrationFeeAmount: parseFloat(feeAmount) || 0,
-    registrationFeePaidAt: null,
-    // ✅ No-payment fields
-    paymentSkipped: true,
-    paymentSkippedReason: noPaymentReason || 'Payment skipped by user',
-    paymentSkippedAt: new Date().toISOString(),
-    requiresAdminApproval: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    uid: userId,
-    phoneNumber: formData.phone.trim(),
-    phoneVerified: true,
-    registrationMethod: 'phone',
-    referredBy: referrerData ? referrerData.id : null,
-    referredByName: referrerData ? referrerData.name : null,
-    referralCodeUsed: referralCode || null,
-    referralDate: referrerData ? new Date().toISOString() : null,
   };
 
-  // Save user data
-  try {
-    if (finalRole === 'donor') {
-      await setDoc(doc(db, 'donors', userId), {
-        ...userData,
-        totalDonations: 0,
-        donationCount: 0,
-        lastDonation: null,
+  const handleRegistrationWithoutPayment = async () => {
+    console.log('🔵 [NO_PAYMENT] Starting registration without payment');
+    console.log('🔵 [NO_PAYMENT] Reason:', noPaymentReason || 'Not provided');
+    
+    setLoading(true);
+    
+    try {
+      if (registrationMethod === 'phone') {
+        await completePhoneRegistrationWithoutPayment({
+          uid: `phone_${Date.now()}`,
+          phoneNumber: formData.phone
+        });
+      } else {
+        await handleEmailRegisterWithoutPayment();
+      }
+      
+      setShowNoPaymentOption(false);
+      setNoPaymentReason('');
+      
+      console.log('🔵 [NO_PAYMENT] Navigating to Login silently...');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
       });
-    } else {
-      await setDoc(doc(db, 'users', userId), userData);
+      console.log('✅ [NO_PAYMENT] Navigation complete');
+      
+    } catch (error) {
+      console.error('❌ [NO_PAYMENT] Registration error:', error);
+      Alert.alert('Error', 'Failed to complete registration. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    console.log('✅ [NO_PAYMENT] User saved with pending status');
-  } catch (error) {
-    console.log('❌ [NO_PAYMENT] Error saving user data:', error);
-    throw error;
-  }
+  };
 
-  // Save phone mapping
-  try {
-    await setDoc(doc(db, 'phoneUsers', userData.phone), {
-      userId: userId,
-      phone: userData.phone,
-      role: finalRole,
-      status: 'pending',
-      referredBy: referrerData ? referrerData.id : null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('❌ [NO_PAYMENT] Error saving phone mapping:', error);
-  }
-
-  // Sign out
-  try {
-    await auth.signOut();
-  } catch (error) {
-    console.log('❌ [NO_PAYMENT] Error signing out:', error);
-  }
-  
-  setVerificationId('');
-  setShowOtpInput(false);
-  setOtp('');
-};
-
-// Email registration without payment
-const handleEmailRegisterWithoutPayment = async () => {
-  console.log('🔵 [NO_PAYMENT] Starting email registration without payment');
-  
-  if (!formData.fullName.trim() || !formData.email.trim() || !formData.password) {
-    Alert.alert('Error', 'Please fill all required fields');
-    return;
-  }
-
-  try {
-    // ✅ Get auth instance lazily (FIXED)
-    const auth = getAuthInstance();
+  const completePhoneRegistrationWithoutPayment = async (user) => {
+    console.log('🔵 [NO_PAYMENT] Starting silent phone registration');
     
-    const userCredential = await createUserWithEmailAndPassword(
-      auth, 
-      formData.email.trim(), 
-      formData.password
-    );
-    
-    const userId = userCredential.user.uid;
+    const userId = user.uid;
     const finalRole = isDonationFlow ? 'donor' : role;
 
     const userData = {
-      fullName: formData.fullName.trim(),
-      fatherName: formData.fatherName.trim(),
-      dob: formData.dob,
-      gender: formData.gender,
-      education: formData.education,
-      caste: formData.caste,
-      spouseName: formData.spouseName,
-      aadharNumber: formData.aadharNumber,
-      phone: formData.phone.trim() || '',
-      email: formData.email.trim().toLowerCase(),
-      address: formData.address.trim(),
-      village: formData.village,
-      postOffice: formData.postOffice,
-      thana: formData.thana,
-      district: formData.district,
-      state: formData.state,
-      pinCode: formData.pinCode,
-      nationality: formData.nationality,
-      profession: formData.profession,
-      membershipNumber: formData.membershipNumber,
-      membershipDate: formData.membershipDate,
-      guruAshram: formData.guruAshram,
-      memberType: formData.memberType,
-      contributionAmount: formData.contributionAmount,
-      role: finalRole,
-      status: 'pending',
-      profilePhoto: formData.profilePhoto || null,
-      aadharFront: formData.aadharFront || null,
-      aadharBack: formData.aadharBack || null,
-      panCard: formData.panCard || null,
-      signature: formData.signature || null,
-      registrationFeePaid: false,
-      registrationFeeAmount: parseFloat(feeAmount) || 0,
-      registrationFeePaidAt: null,
-      paymentSkipped: true,
-      paymentSkippedReason: noPaymentReason || 'Payment skipped by user',
-      paymentSkippedAt: new Date().toISOString(),
-      requiresAdminApproval: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      referredBy: referrerData ? referrerData.id : null,
-      referredByName: referrerData ? referrerData.name : null,
-      referralCodeUsed: referralCode || null,
-      referralDate: referrerData ? new Date().toISOString() : null,
-    };
-
-    if (finalRole === 'donor') {
-      await setDoc(doc(db, 'donors', userId), {
-        ...userData,
-        totalDonations: 0,
-        donationCount: 0,
-        lastDonation: null,
-      });
-    } else {
-      await setDoc(doc(db, 'users', userId), userData);
-    }
-
-    console.log('✅ [NO_PAYMENT] User saved with pending status');
-    await auth.signOut();
-    
-  } catch (error) {
-    console.log('❌ [NO_PAYMENT] Registration error:', error);
-    throw error;
-  }
-};
-  // Keep your existing completePhoneRegistration for manual registration
-// Add this new silent version for payment flow:
-
-const completePhoneRegistrationSilent = async (user) => {
-  console.log('🔵 [SILENT] Starting silent phone registration');
-  console.log('🔵 [SILENT] User UID:', user.uid);
-  console.log('🔵 [SILENT] Phone number:', user.phoneNumber);
-  console.log('🔵 [SILENT] Is Donor Flow:', isDonorFlow);
-  
-  const userId = user.uid;
-  // ✅ For donor flow, always set role to 'donor'
-  const finalRole = isDonorFlow ? 'donor' : (isDonationFlow ? 'donor' : role);
-  
-  console.log('🔵 [SILENT] Final role:', finalRole);
-
-  // ✅ Build user data based on donor flow
-  let userData;
-  
-  if (isDonorFlow) {
-    // ✅ DONOR FLOW - Only these fields
-    userData = {
-      fullName: formData.fullName.trim(),
-      phone: formData.phone.trim(),
-      email: formData.email.trim().toLowerCase() || '',
-      address: formData.address.trim() || '',
-      role: 'donor',
-      status: 'active', // Donors are active immediately
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      uid: userId,
-      phoneNumber: formData.phone.trim(),
-      phoneVerified: registrationMethod === 'phone' ? true : false,
-      registrationMethod: registrationMethod,
-      // Donor specific fields
-      totalDonations: 0,
-      donationCount: 0,
-      lastDonation: null,
-      // Optional fields with defaults
-      profilePhoto: null,
-      // Referral fields (if any)
-      referredBy: referrerData ? referrerData.id : null,
-      referredByName: referrerData ? referrerData.name : null,
-      referralCodeUsed: referralCode || null,
-      referralDate: referrerData ? new Date().toISOString() : null,
-    };
-  } else {
-    // ✅ REGULAR FLOW - All fields
-    userData = {
       fullName: formData.fullName.trim(),
       fatherName: formData.fatherName.trim(),
       dob: formData.dob,
@@ -1010,15 +753,19 @@ const completePhoneRegistrationSilent = async (user) => {
       memberType: formData.memberType,
       contributionAmount: formData.contributionAmount,
       role: finalRole,
-      status: 'active',
+      status: 'pending',
       profilePhoto: formData.profilePhoto || null,
       aadharFront: formData.aadharFront || null,
       aadharBack: formData.aadharBack || null,
       panCard: formData.panCard || null,
       signature: formData.signature || null,
-      registrationFeePaid: parseFloat(feeAmount) > 0 ? true : false,
+      registrationFeePaid: false,
       registrationFeeAmount: parseFloat(feeAmount) || 0,
-      registrationFeePaidAt: parseFloat(feeAmount) > 0 ? new Date().toISOString() : null,
+      registrationFeePaidAt: null,
+      paymentSkipped: true,
+      paymentSkippedReason: noPaymentReason || 'Payment skipped by user',
+      paymentSkippedAt: new Date().toISOString(),
+      requiresAdminApproval: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       uid: userId,
@@ -1030,259 +777,245 @@ const completePhoneRegistrationSilent = async (user) => {
       referralCodeUsed: referralCode || null,
       referralDate: referrerData ? new Date().toISOString() : null,
     };
-  }
 
-  console.log('🔵 [SILENT] User data prepared:', JSON.stringify(userData, null, 2));
-  console.log('🔵 [SILENT] Saving user data to Firestore...');
-
-  // Save user data
-  try {
-    if (finalRole === 'donor') {
-      console.log('🔵 [SILENT] Saving as donor');
-      await setDoc(doc(db, 'donors', userId), userData);
-      console.log('✅ [SILENT] Donor saved successfully');
-    } else {
-      console.log('🔵 [SILENT] Saving as user (role:', finalRole + ')');
-      await setDoc(doc(db, 'users', userId), userData);
-      console.log('✅ [SILENT] User saved successfully');
-    }
-  } catch (error) {
-    console.log('❌ [SILENT] Error saving user data:', error);
-    throw error;
-  }
-
-  // ✅ Skip referrer update for donors (optional)
-  if (!isDonorFlow && referrerData && referrerData.id) {
-    console.log('🔵 [SILENT] Updating referrer:', referrerData.id);
-    console.log('🔵 [SILENT] Referrer name:', referrerData.name);
-    
     try {
-      const referrerRef = doc(db, 'users', referrerData.id);
-      const referrerDoc = await getDoc(referrerRef);
-      
-      if (referrerDoc.exists()) {
-        const referrer = referrerDoc.data();
-        const currentReferrals = referrer.directReferrals || [];
-        console.log('🔵 [SILENT] Current referrals count:', currentReferrals.length);
-        
-        await updateDoc(referrerRef, {
-          directReferrals: [...currentReferrals, userId],
-          updatedAt: new Date().toISOString()
+      if (finalRole === 'donor') {
+        await setDoc(doc(db, 'donors', userId), {
+          ...userData,
+          totalDonations: 0,
+          donationCount: 0,
+          lastDonation: null,
         });
-        console.log('✅ [SILENT] Referrer updated successfully');
       } else {
-        console.log('⚠️ [SILENT] Referrer document not found');
+        await setDoc(doc(db, 'users', userId), userData);
       }
+      console.log('✅ [NO_PAYMENT] User saved with pending status');
     } catch (error) {
-      console.log('❌ [SILENT] Error updating referrer:', error);
+      console.log('❌ [NO_PAYMENT] Error saving user data:', error);
+      throw error;
     }
-  } else {
-    console.log('🔵 [SILENT] No referrer to update (donor flow or no referrer)');
-  }
 
-  // ✅ Skip phone mapping for donors (optional - but keep for consistency)
-  try {
-    console.log('🔵 [SILENT] Saving phone mapping for:', userData.phone);
-    await setDoc(doc(db, 'phoneUsers', userData.phone), {
-      userId: userId,
-      phone: userData.phone,
-      role: finalRole,
-      referredBy: referrerData ? referrerData.id : null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-    console.log('✅ [SILENT] Phone mapping saved successfully');
-  } catch (error) {
-    console.log('❌ [SILENT] Error saving phone mapping:', error);
-  }
-
-  // ✅ Skip wallet creation for donors
-  if (!isDonorFlow && finalRole === 'working') {
-    console.log('🔵 [SILENT] Creating wallet for working member');
     try {
-      await setDoc(doc(db, 'wallets', userId), {
-        balance: 0,
-        totalEarned: 0,
-        pendingCommission: 0,
-        totalWithdrawn: 0,
-        pendingWithdrawals: 0,
+      await setDoc(doc(db, 'phoneUsers', userData.phone), {
+        userId: userId,
+        phone: userData.phone,
+        role: finalRole,
+        status: 'pending',
+        referredBy: referrerData ? referrerData.id : null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      console.log('✅ [SILENT] Wallet created successfully');
     } catch (error) {
-      console.log('❌ [SILENT] Error creating wallet:', error);
+      console.error('❌ [NO_PAYMENT] Error saving phone mapping:', error);
     }
-  }
 
-  // Sign out
-  try {
-    console.log('🔵 [SILENT] Signing out user...');
-    await auth.signOut();
-    console.log('✅ [SILENT] User signed out');
-  } catch (error) {
-    console.log('❌ [SILENT] Error signing out:', error);
-  }
-
-  // ✅ SILENT NAVIGATION - Always go to DonationTabs for donors
-  const navigateTo = (isDonorFlow || finalRole === 'donor') ? 'DonationTabs' : 'Login';
-  console.log('🔵 [SILENT] Navigating to:', navigateTo);
-  
-  // Reset states
-  setVerificationId('');
-  setShowOtpInput(false);
-  setOtp('');
-  console.log('🔵 [SILENT] States reset');
-  
-  // Navigate directly
-  console.log('✅ [SILENT] Navigation starting...');
-  if (isDonorFlow || finalRole === 'donor') {
-    console.log('✅ [SILENT] Resetting to DonationTabs');
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'DonationTabs' }],
-    });
-  } else {
-    console.log('✅ [SILENT] Navigating to', navigateTo);
-    navigation.navigate(navigateTo);
-  }
-  console.log('✅ [SILENT] Navigation complete');
-};
-const handlePhoneRegisterWithoutAlert = async () => {
-  console.log('🔵 [PHONE_SILENT] Starting phone registration without alert');
-  console.log('🔵 [PHONE_SILENT] isPhoneVerified:', isPhoneVerified);
-  console.log('🔵 [PHONE_SILENT] Full name:', formData.fullName);
-  
-  if (!isPhoneVerified) {
-    console.log('❌ [PHONE_SILENT] Phone not verified, going back');
-    navigation.goBack();
-    return;
-  }
-
-  if (!formData.fullName.trim()) {
-    console.log('❌ [PHONE_SILENT] No full name, going back');
-    navigation.goBack();
-    return;
-  }
-
-  console.log('✅ [PHONE_SILENT] Validation passed, proceeding with silent registration');
-  console.log('🔵 [PHONE_SILENT] Creating user with UID: phone_' + Date.now());
-  
-  await completePhoneRegistrationSilent({
-    uid: `phone_${Date.now()}`,
-    phoneNumber: formData.phone
-  });
-  
-  console.log('✅ [PHONE_SILENT] Phone registration complete');
-};
-
-const handleEmailRegisterWithoutAlert = async () => {
-  console.log('🔵 [EMAIL_SILENT] Starting email registration without alert');
-  console.log('🔵 [EMAIL_SILENT] Full name:', formData.fullName);
-  console.log('🔵 [EMAIL_SILENT] Email:', formData.email);
-  console.log('🔵 [EMAIL_SILENT] Password length:', formData.password?.length);
-  
-  if (!formData.fullName.trim() || !formData.email.trim() || !formData.password) {
-    console.log('❌ [EMAIL_SILENT] Missing required fields, going back');
-    navigation.goBack();
-    return;
-  }
-
-  console.log('✅ [EMAIL_SILENT] Validation passed, proceeding with Firebase registration');
-  
-  try {
-    // ✅ Get auth instance lazily (FIXED)
-    const auth = getAuthInstance();
+    try {
+      const auth = getAuthInstance();
+      await auth.signOut();
+    } catch (error) {
+      console.log('❌ [NO_PAYMENT] Error signing out:', error);
+    }
     
-    console.log('🔵 [EMAIL_SILENT] Creating user with email/password...');
-    const userCredential = await createUserWithEmailAndPassword(
-      auth, 
-      formData.email.trim(), 
-      formData.password
-    );
+    setVerificationId('');
+    setShowOtpInput(false);
+    setOtp('');
+  };
+
+  const handleEmailRegisterWithoutPayment = async () => {
+    console.log('🔵 [NO_PAYMENT] Starting email registration without payment');
     
-    const userId = userCredential.user.uid;
-    const finalRole = isDonationFlow ? 'donor' : role;
+    if (!formData.fullName.trim() || !formData.email.trim() || !formData.password) {
+      Alert.alert('Error', 'Please fill all required fields');
+      return;
+    }
+
+    try {
+      const auth = getAuthInstance();
+      
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        formData.email.trim(), 
+        formData.password
+      );
+      
+      const userId = userCredential.user.uid;
+      const finalRole = isDonationFlow ? 'donor' : role;
+
+      const userData = {
+        fullName: formData.fullName.trim(),
+        fatherName: formData.fatherName.trim(),
+        dob: formData.dob,
+        gender: formData.gender,
+        education: formData.education,
+        caste: formData.caste,
+        spouseName: formData.spouseName,
+        aadharNumber: formData.aadharNumber,
+        phone: formData.phone.trim() || '',
+        email: formData.email.trim().toLowerCase(),
+        address: formData.address.trim(),
+        village: formData.village,
+        postOffice: formData.postOffice,
+        thana: formData.thana,
+        district: formData.district,
+        state: formData.state,
+        pinCode: formData.pinCode,
+        nationality: formData.nationality,
+        profession: formData.profession,
+        membershipNumber: formData.membershipNumber,
+        membershipDate: formData.membershipDate,
+        guruAshram: formData.guruAshram,
+        memberType: formData.memberType,
+        contributionAmount: formData.contributionAmount,
+        role: finalRole,
+        status: 'pending',
+        profilePhoto: formData.profilePhoto || null,
+        aadharFront: formData.aadharFront || null,
+        aadharBack: formData.aadharBack || null,
+        panCard: formData.panCard || null,
+        signature: formData.signature || null,
+        registrationFeePaid: false,
+        registrationFeeAmount: parseFloat(feeAmount) || 0,
+        registrationFeePaidAt: null,
+        paymentSkipped: true,
+        paymentSkippedReason: noPaymentReason || 'Payment skipped by user',
+        paymentSkippedAt: new Date().toISOString(),
+        requiresAdminApproval: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        referredBy: referrerData ? referrerData.id : null,
+        referredByName: referrerData ? referrerData.name : null,
+        referralCodeUsed: referralCode || null,
+        referralDate: referrerData ? new Date().toISOString() : null,
+      };
+
+      if (finalRole === 'donor') {
+        await setDoc(doc(db, 'donors', userId), {
+          ...userData,
+          totalDonations: 0,
+          donationCount: 0,
+          lastDonation: null,
+        });
+      } else {
+        await setDoc(doc(db, 'users', userId), userData);
+      }
+
+      console.log('✅ [NO_PAYMENT] User saved with pending status');
+      await auth.signOut();
+      
+    } catch (error) {
+      console.log('❌ [NO_PAYMENT] Registration error:', error);
+      throw error;
+    }
+  };
+
+  const completePhoneRegistrationSilent = async (user) => {
+    console.log('🔵 [SILENT] Starting silent phone registration');
+    console.log('🔵 [SILENT] User UID:', user.uid);
+    console.log('🔵 [SILENT] Phone number:', user.phoneNumber);
+    console.log('🔵 [SILENT] Is Donor Flow:', isDonorFlow);
     
-    console.log('✅ [EMAIL_SILENT] User created with UID:', userId);
-    console.log('🔵 [EMAIL_SILENT] Final role:', finalRole);
+    const userId = user.uid;
+    const finalRole = isDonorFlow ? 'donor' : (isDonationFlow ? 'donor' : role);
+    
+    console.log('🔵 [SILENT] Final role:', finalRole);
 
-    const userData = {
-      fullName: formData.fullName.trim(),
-      fatherName: formData.fatherName.trim(),
-      dob: formData.dob,
-      gender: formData.gender,
-      education: formData.education,
-      caste: formData.caste,
-      spouseName: formData.spouseName,
-      aadharNumber: formData.aadharNumber,
-      phone: formData.phone.trim() || '',
-      email: formData.email.trim().toLowerCase(),
-      address: formData.address.trim(),
-      village: formData.village,
-      postOffice: formData.postOffice,
-      thana: formData.thana,
-      district: formData.district,
-      state: formData.state,
-      pinCode: formData.pinCode,
-      nationality: formData.nationality,
-      profession: formData.profession,
-      membershipNumber: formData.membershipNumber,
-      membershipDate: formData.membershipDate,
-      guruAshram: formData.guruAshram,
-      memberType: formData.memberType,
-      contributionAmount: formData.contributionAmount,
-      role: finalRole,
-      status: finalRole === 'donor' ? 'active' : (finalRole === 'working' ? 'active' : 'pending'),
-      profilePhoto: formData.profilePhoto || null,
-      aadharFront: formData.aadharFront || null,
-      aadharBack: formData.aadharBack || null,
-      panCard: formData.panCard || null,
-      signature: formData.signature || null,
-      registrationFeePaid: parseFloat(feeAmount) > 0 ? true : false,
-      registrationFeeAmount: parseFloat(feeAmount) || 0,
-      registrationFeePaidAt: parseFloat(feeAmount) > 0 ? new Date().toISOString() : null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      referredBy: referrerData ? referrerData.id : null,
-      referredByName: referrerData ? referrerData.name : null,
-      referralCodeUsed: referralCode || null,
-      referralDate: referrerData ? new Date().toISOString() : null,
-    };
-
-    console.log('🔵 [EMAIL_SILENT] Saving user data to Firestore...');
-
-    if (finalRole === 'donor') {
-      console.log('🔵 [EMAIL_SILENT] Saving as donor');
-      await setDoc(doc(db, 'donors', userId), {
-        ...userData,
+    let userData;
+    
+    if (isDonorFlow) {
+      userData = {
+        fullName: formData.fullName.trim(),
+        phone: formData.phone.trim(),
+        email: formData.email.trim().toLowerCase() || '',
+        address: formData.address.trim() || '',
+        role: 'donor',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        uid: userId,
+        phoneNumber: formData.phone.trim(),
+        phoneVerified: registrationMethod === 'phone' ? true : false,
+        registrationMethod: registrationMethod,
         totalDonations: 0,
         donationCount: 0,
         lastDonation: null,
-      });
-      console.log('✅ [EMAIL_SILENT] Donor saved');
+        profilePhoto: null,
+        referredBy: referrerData ? referrerData.id : null,
+        referredByName: referrerData ? referrerData.name : null,
+        referralCodeUsed: referralCode || null,
+        referralDate: referrerData ? new Date().toISOString() : null,
+      };
     } else {
-      console.log('🔵 [EMAIL_SILENT] Saving as user');
-      await setDoc(doc(db, 'users', userId), userData);
-      console.log('✅ [EMAIL_SILENT] User saved');
-    }
-
-    if (finalRole === 'working') {
-      console.log('🔵 [EMAIL_SILENT] Creating wallet for working member');
-      await setDoc(doc(db, 'wallets', userId), {
-        balance: 0,
-        totalEarned: 0,
-        totalWithdrawn: 0,
-        pendingWithdrawals: 0,
+      userData = {
+        fullName: formData.fullName.trim(),
+        fatherName: formData.fatherName.trim(),
+        dob: formData.dob,
+        gender: formData.gender,
+        education: formData.education,
+        caste: formData.caste,
+        spouseName: formData.spouseName,
+        aadharNumber: formData.aadharNumber,
+        phone: formData.phone.trim(),
+        email: formData.email.trim().toLowerCase() || '',
+        address: formData.address.trim(),
+        village: formData.village,
+        postOffice: formData.postOffice,
+        thana: formData.thana,
+        district: formData.district,
+        state: formData.state,
+        pinCode: formData.pinCode,
+        nationality: formData.nationality,
+        otherNationality: formData.otherNationality || '',
+        profession: formData.profession,
+        membershipNumber: formData.membershipNumber,
+        membershipDate: formData.membershipDate,
+        guruAshram: formData.guruAshram,
+        memberType: formData.memberType,
+        contributionAmount: formData.contributionAmount,
+        role: finalRole,
+        status: 'active',
+        profilePhoto: formData.profilePhoto || null,
+        aadharFront: formData.aadharFront || null,
+        aadharBack: formData.aadharBack || null,
+        panCard: formData.panCard || null,
+        signature: formData.signature || null,
+        registrationFeePaid: parseFloat(feeAmount) > 0 ? true : false,
+        registrationFeeAmount: parseFloat(feeAmount) || 0,
+        registrationFeePaidAt: parseFloat(feeAmount) > 0 ? new Date().toISOString() : null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      });
-      console.log('✅ [EMAIL_SILENT] Wallet created');
+        uid: userId,
+        phoneNumber: formData.phone.trim(),
+        phoneVerified: true,
+        registrationMethod: 'phone',
+        referredBy: referrerData ? referrerData.id : null,
+        referredByName: referrerData ? referrerData.name : null,
+        referralCodeUsed: referralCode || null,
+        referralDate: referrerData ? new Date().toISOString() : null,
+      };
     }
 
-    // Update referrer
-    if (referrerData && referrerData.id) {
-      console.log('🔵 [EMAIL_SILENT] Updating referrer:', referrerData.id);
+    console.log('🔵 [SILENT] User data prepared:', JSON.stringify(userData, null, 2));
+    console.log('🔵 [SILENT] Saving user data to Firestore...');
+
+    try {
+      if (finalRole === 'donor') {
+        console.log('🔵 [SILENT] Saving as donor');
+        await setDoc(doc(db, 'donors', userId), userData);
+        console.log('✅ [SILENT] Donor saved successfully');
+      } else {
+        console.log('🔵 [SILENT] Saving as user (role:', finalRole + ')');
+        await setDoc(doc(db, 'users', userId), userData);
+        console.log('✅ [SILENT] User saved successfully');
+      }
+    } catch (error) {
+      console.log('❌ [SILENT] Error saving user data:', error);
+      throw error;
+    }
+
+    if (!isDonorFlow && referrerData && referrerData.id) {
+      console.log('🔵 [SILENT] Updating referrer:', referrerData.id);
+      console.log('🔵 [SILENT] Referrer name:', referrerData.name);
+      
       try {
         const referrerRef = doc(db, 'users', referrerData.id);
         const referrerDoc = await getDoc(referrerRef);
@@ -1290,208 +1023,425 @@ const handleEmailRegisterWithoutAlert = async () => {
         if (referrerDoc.exists()) {
           const referrer = referrerDoc.data();
           const currentReferrals = referrer.directReferrals || [];
+          console.log('🔵 [SILENT] Current referrals count:', currentReferrals.length);
           
           await updateDoc(referrerRef, {
             directReferrals: [...currentReferrals, userId],
             updatedAt: new Date().toISOString()
           });
-          console.log('✅ [EMAIL_SILENT] Referrer updated');
+          console.log('✅ [SILENT] Referrer updated successfully');
+        } else {
+          console.log('⚠️ [SILENT] Referrer document not found');
         }
       } catch (error) {
-        console.log('❌ [EMAIL_SILENT] Error updating referrer:', error);
+        console.log('❌ [SILENT] Error updating referrer:', error);
+      }
+    } else {
+      console.log('🔵 [SILENT] No referrer to update (donor flow or no referrer)');
+    }
+
+    try {
+      console.log('🔵 [SILENT] Saving phone mapping for:', userData.phone);
+      await setDoc(doc(db, 'phoneUsers', userData.phone), {
+        userId: userId,
+        phone: userData.phone,
+        role: finalRole,
+        referredBy: referrerData ? referrerData.id : null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      console.log('✅ [SILENT] Phone mapping saved successfully');
+    } catch (error) {
+      console.log('❌ [SILENT] Error saving phone mapping:', error);
+    }
+
+    if (!isDonorFlow && finalRole === 'working') {
+      console.log('🔵 [SILENT] Creating wallet for working member');
+      try {
+        await setDoc(doc(db, 'wallets', userId), {
+          balance: 0,
+          totalEarned: 0,
+          pendingCommission: 0,
+          totalWithdrawn: 0,
+          pendingWithdrawals: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        console.log('✅ [SILENT] Wallet created successfully');
+      } catch (error) {
+        console.log('❌ [SILENT] Error creating wallet:', error);
       }
     }
 
-    console.log('🔵 [EMAIL_SILENT] Signing out...');
-    await auth.signOut();
-    console.log('✅ [EMAIL_SILENT] Signed out');
+    try {
+      const auth = getAuthInstance();
+      console.log('🔵 [SILENT] Signing out user...');
+      await auth.signOut();
+      console.log('✅ [SILENT] User signed out');
+    } catch (error) {
+      console.log('❌ [SILENT] Error signing out:', error);
+    }
 
-    // ✅ SILENT NAVIGATION - NO ALERT
-    const navigateTo = finalRole === 'donor' ? 'DonationTabs' : 'Login';
-    console.log('🔵 [EMAIL_SILENT] Navigating to:', navigateTo);
+    const navigateTo = (isDonorFlow || finalRole === 'donor') ? 'DonationTabs' : 'Login';
+    console.log('🔵 [SILENT] Navigating to:', navigateTo);
     
-    if (finalRole === 'donor') {
+    setVerificationId('');
+    setShowOtpInput(false);
+    setOtp('');
+    console.log('🔵 [SILENT] States reset');
+    
+    console.log('✅ [SILENT] Navigation starting...');
+    if (isDonorFlow || finalRole === 'donor') {
+      console.log('✅ [SILENT] Resetting to DonationTabs');
       navigation.reset({
         index: 0,
         routes: [{ name: 'DonationTabs' }],
       });
     } else {
+      console.log('✅ [SILENT] Navigating to', navigateTo);
       navigation.navigate(navigateTo);
     }
-    console.log('✅ [EMAIL_SILENT] Navigation complete');
+    console.log('✅ [SILENT] Navigation complete');
+  };
+
+  const handlePhoneRegisterWithoutAlert = async () => {
+    console.log('🔵 [PHONE_SILENT] Starting phone registration without alert');
+    console.log('🔵 [PHONE_SILENT] isPhoneVerified:', isPhoneVerified);
+    console.log('🔵 [PHONE_SILENT] Full name:', formData.fullName);
     
-  } catch (error) {
-    console.log('❌ [EMAIL_SILENT] Registration error:', error);
-    console.log('❌ [EMAIL_SILENT] Error code:', error.code);
-    console.log('❌ [EMAIL_SILENT] Error message:', error.message);
-    navigation.goBack();
-  }
-};
-  // ============ EMAIL REGISTRATION ============
+    if (!isPhoneVerified) {
+      console.log('❌ [PHONE_SILENT] Phone not verified, going back');
+      navigation.goBack();
+      return;
+    }
+
+    if (!formData.fullName.trim()) {
+      console.log('❌ [PHONE_SILENT] No full name, going back');
+      navigation.goBack();
+      return;
+    }
+
+    console.log('✅ [PHONE_SILENT] Validation passed, proceeding with silent registration');
+    console.log('🔵 [PHONE_SILENT] Creating user with UID: phone_' + Date.now());
+    
+    await completePhoneRegistrationSilent({
+      uid: `phone_${Date.now()}`,
+      phoneNumber: formData.phone
+    });
+    
+    console.log('✅ [PHONE_SILENT] Phone registration complete');
+  };
+
+  const handleEmailRegisterWithoutAlert = async () => {
+    console.log('🔵 [EMAIL_SILENT] Starting email registration without alert');
+    console.log('🔵 [EMAIL_SILENT] Full name:', formData.fullName);
+    console.log('🔵 [EMAIL_SILENT] Email:', formData.email);
+    console.log('🔵 [EMAIL_SILENT] Password length:', formData.password?.length);
+    
+    if (!formData.fullName.trim() || !formData.email.trim() || !formData.password) {
+      console.log('❌ [EMAIL_SILENT] Missing required fields, going back');
+      navigation.goBack();
+      return;
+    }
+
+    console.log('✅ [EMAIL_SILENT] Validation passed, proceeding with Firebase registration');
+    
+    try {
+      const auth = getAuthInstance();
+      
+      console.log('🔵 [EMAIL_SILENT] Creating user with email/password...');
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        formData.email.trim(), 
+        formData.password
+      );
+      
+      const userId = userCredential.user.uid;
+      const finalRole = isDonationFlow ? 'donor' : role;
+      
+      console.log('✅ [EMAIL_SILENT] User created with UID:', userId);
+      console.log('🔵 [EMAIL_SILENT] Final role:', finalRole);
+
+      const userData = {
+        fullName: formData.fullName.trim(),
+        fatherName: formData.fatherName.trim(),
+        dob: formData.dob,
+        gender: formData.gender,
+        education: formData.education,
+        caste: formData.caste,
+        spouseName: formData.spouseName,
+        aadharNumber: formData.aadharNumber,
+        phone: formData.phone.trim() || '',
+        email: formData.email.trim().toLowerCase(),
+        address: formData.address.trim(),
+        village: formData.village,
+        postOffice: formData.postOffice,
+        thana: formData.thana,
+        district: formData.district,
+        state: formData.state,
+        pinCode: formData.pinCode,
+        nationality: formData.nationality,
+        profession: formData.profession,
+        membershipNumber: formData.membershipNumber,
+        membershipDate: formData.membershipDate,
+        guruAshram: formData.guruAshram,
+        memberType: formData.memberType,
+        contributionAmount: formData.contributionAmount,
+        role: finalRole,
+        status: finalRole === 'donor' ? 'active' : (finalRole === 'working' ? 'active' : 'pending'),
+        profilePhoto: formData.profilePhoto || null,
+        aadharFront: formData.aadharFront || null,
+        aadharBack: formData.aadharBack || null,
+        panCard: formData.panCard || null,
+        signature: formData.signature || null,
+        registrationFeePaid: parseFloat(feeAmount) > 0 ? true : false,
+        registrationFeeAmount: parseFloat(feeAmount) || 0,
+        registrationFeePaidAt: parseFloat(feeAmount) > 0 ? new Date().toISOString() : null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        referredBy: referrerData ? referrerData.id : null,
+        referredByName: referrerData ? referrerData.name : null,
+        referralCodeUsed: referralCode || null,
+        referralDate: referrerData ? new Date().toISOString() : null,
+      };
+
+      console.log('🔵 [EMAIL_SILENT] Saving user data to Firestore...');
+
+      if (finalRole === 'donor') {
+        console.log('🔵 [EMAIL_SILENT] Saving as donor');
+        await setDoc(doc(db, 'donors', userId), {
+          ...userData,
+          totalDonations: 0,
+          donationCount: 0,
+          lastDonation: null,
+        });
+        console.log('✅ [EMAIL_SILENT] Donor saved');
+      } else {
+        console.log('🔵 [EMAIL_SILENT] Saving as user');
+        await setDoc(doc(db, 'users', userId), userData);
+        console.log('✅ [EMAIL_SILENT] User saved');
+      }
+
+      if (finalRole === 'working') {
+        console.log('🔵 [EMAIL_SILENT] Creating wallet for working member');
+        await setDoc(doc(db, 'wallets', userId), {
+          balance: 0,
+          totalEarned: 0,
+          totalWithdrawn: 0,
+          pendingWithdrawals: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        console.log('✅ [EMAIL_SILENT] Wallet created');
+      }
+
+      if (referrerData && referrerData.id) {
+        console.log('🔵 [EMAIL_SILENT] Updating referrer:', referrerData.id);
+        try {
+          const referrerRef = doc(db, 'users', referrerData.id);
+          const referrerDoc = await getDoc(referrerRef);
+          
+          if (referrerDoc.exists()) {
+            const referrer = referrerDoc.data();
+            const currentReferrals = referrer.directReferrals || [];
+            
+            await updateDoc(referrerRef, {
+              directReferrals: [...currentReferrals, userId],
+              updatedAt: new Date().toISOString()
+            });
+            console.log('✅ [EMAIL_SILENT] Referrer updated');
+          }
+        } catch (error) {
+          console.log('❌ [EMAIL_SILENT] Error updating referrer:', error);
+        }
+      }
+
+      console.log('🔵 [EMAIL_SILENT] Signing out...');
+      await auth.signOut();
+      console.log('✅ [EMAIL_SILENT] Signed out');
+
+      const navigateTo = finalRole === 'donor' ? 'DonationTabs' : 'Login';
+      console.log('🔵 [EMAIL_SILENT] Navigating to:', navigateTo);
+      
+      if (finalRole === 'donor') {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'DonationTabs' }],
+        });
+      } else {
+        navigation.navigate(navigateTo);
+      }
+      console.log('✅ [EMAIL_SILENT] Navigation complete');
+      
+    } catch (error) {
+      console.log('❌ [EMAIL_SILENT] Registration error:', error);
+      console.log('❌ [EMAIL_SILENT] Error code:', error.code);
+      console.log('❌ [EMAIL_SILENT] Error message:', error.message);
+      navigation.goBack();
+    }
+  };
+
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
   };
 
   const handleEmailRegister = async () => {
-  if (!formData.fullName.trim()) {
-    Alert.alert(translations.error, translations.fullNameRequired);
-    return;
-  }
-
-  if (!formData.email.trim() || !validateEmail(formData.email)) {
-    Alert.alert(translations.error, translations.validEmail);
-    return;
-  }
-
-  // ✅ Donors don't need phone number
-  if (!isDonorFlow && !isDonationFlow && !formData.phone.trim()) {
-    Alert.alert(translations.error, translations.phoneRequired);
-    return;
-  }
-
-  if (formData.password.length < 6) {
-    Alert.alert(translations.error, translations.passwordMinLength);
-    return;
-  }
-
-  if (formData.password !== formData.confirmPassword) {
-    Alert.alert(translations.error, translations.passwordMismatch);
-    return;
-  }
-
-  if (!isDonationFlow && role !== 'donor') {
-    const fee = parseFloat(feeAmount);
-    if (fee > 0 && formData.memberType) {
-      setShowPaymentModal(true);
+    if (!formData.fullName.trim()) {
+      Alert.alert(translations.error, translations.fullNameRequired);
       return;
     }
-  }
 
-  setLoading(true);
-  try {
-    // ✅ Get auth instance lazily (FIXED)
-    const auth = getAuthInstance();
-    const userCredential = await createUserWithEmailAndPassword(
-      auth, 
-      formData.email.trim(), 
-      formData.password
-    );
-    
-    const userId = userCredential.user.uid;
-    const finalRole = isDonationFlow ? 'donor' : role;
-
-    const userData = {
-      fullName: formData.fullName.trim(),
-      fatherName: formData.fatherName.trim(),
-      dob: formData.dob,
-      gender: formData.gender,
-      education: formData.education,
-      caste: formData.caste,
-      spouseName: formData.spouseName,
-      aadharNumber: formData.aadharNumber,
-      phone: formData.phone.trim() || '',
-      email: formData.email.trim().toLowerCase(),
-      address: formData.address.trim(),
-      village: formData.village,
-      postOffice: formData.postOffice,
-      thana: formData.thana,
-      district: formData.district,
-      state: formData.state,
-      pinCode: formData.pinCode,
-      nationality: formData.nationality,
-      profession: formData.profession,
-      membershipNumber: formData.membershipNumber,
-      membershipDate: formData.membershipDate,
-      guruAshram: formData.guruAshram,
-      memberType: formData.memberType,
-      contributionAmount: formData.contributionAmount,
-      role: finalRole,
-      status: finalRole === 'donor' ? 'active' : (finalRole === 'working' ? 'active' : 'pending'),
-      profilePhoto: formData.profilePhoto || null,
-      aadharFront: formData.aadharFront || null,
-      aadharBack: formData.aadharBack || null,
-      panCard: formData.panCard || null,
-      signature: formData.signature || null,
-      registrationFeePaid: parseFloat(feeAmount) > 0 ? true : false,
-      registrationFeeAmount: parseFloat(feeAmount) || 0,
-      registrationFeePaidAt: parseFloat(feeAmount) > 0 ? new Date().toISOString() : null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    if (finalRole === 'donor') {
-      await setDoc(doc(db, 'donors', userId), {
-        ...userData,
-        totalDonations: 0,
-        donationCount: 0,
-        lastDonation: null,
-      });
-    } else {
-      await setDoc(doc(db, 'users', userId), userData);
+    if (!formData.email.trim() || !validateEmail(formData.email)) {
+      Alert.alert(translations.error, translations.validEmail);
+      return;
     }
 
-    if (finalRole === 'working') {
-      await setDoc(doc(db, 'wallets', userId), {
-        balance: 0,
-        totalEarned: 0,
-        totalWithdrawn: 0,
-        pendingWithdrawals: 0,
+    if (!isDonorFlow && !isDonationFlow && !formData.phone.trim()) {
+      Alert.alert(translations.error, translations.phoneRequired);
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      Alert.alert(translations.error, translations.passwordMinLength);
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      Alert.alert(translations.error, translations.passwordMismatch);
+      return;
+    }
+
+    if (!isDonationFlow && role !== 'donor') {
+      const fee = parseFloat(feeAmount);
+      if (fee > 0 && formData.memberType) {
+        setShowPaymentModal(true);
+        return;
+      }
+    }
+
+    setLoading(true);
+    try {
+      const auth = getAuthInstance();
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        formData.email.trim(), 
+        formData.password
+      );
+      
+      const userId = userCredential.user.uid;
+      const finalRole = isDonationFlow ? 'donor' : role;
+
+      const userData = {
+        fullName: formData.fullName.trim(),
+        fatherName: formData.fatherName.trim(),
+        dob: formData.dob,
+        gender: formData.gender,
+        education: formData.education,
+        caste: formData.caste,
+        spouseName: formData.spouseName,
+        aadharNumber: formData.aadharNumber,
+        phone: formData.phone.trim() || '',
+        email: formData.email.trim().toLowerCase(),
+        address: formData.address.trim(),
+        village: formData.village,
+        postOffice: formData.postOffice,
+        thana: formData.thana,
+        district: formData.district,
+        state: formData.state,
+        pinCode: formData.pinCode,
+        nationality: formData.nationality,
+        profession: formData.profession,
+        membershipNumber: formData.membershipNumber,
+        membershipDate: formData.membershipDate,
+        guruAshram: formData.guruAshram,
+        memberType: formData.memberType,
+        contributionAmount: formData.contributionAmount,
+        role: finalRole,
+        status: finalRole === 'donor' ? 'active' : (finalRole === 'working' ? 'active' : 'pending'),
+        profilePhoto: formData.profilePhoto || null,
+        aadharFront: formData.aadharFront || null,
+        aadharBack: formData.aadharBack || null,
+        panCard: formData.panCard || null,
+        signature: formData.signature || null,
+        registrationFeePaid: parseFloat(feeAmount) > 0 ? true : false,
+        registrationFeeAmount: parseFloat(feeAmount) || 0,
+        registrationFeePaidAt: parseFloat(feeAmount) > 0 ? new Date().toISOString() : null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      });
-    }
+      };
 
-    let successMessage = translations.registrationSubmitted;
-    let navigateTo = 'Login';
+      if (finalRole === 'donor') {
+        await setDoc(doc(db, 'donors', userId), {
+          ...userData,
+          totalDonations: 0,
+          donationCount: 0,
+          lastDonation: null,
+        });
+      } else {
+        await setDoc(doc(db, 'users', userId), userData);
+      }
 
-    if (finalRole === 'donor') {
-      successMessage = translations.donorAccountCreated;
-      navigateTo = 'DonationTabs';
-    } else if (finalRole === 'working') {
-      successMessage = translations.workingAccountCreated;
-    }
+      if (finalRole === 'working') {
+        await setDoc(doc(db, 'wallets', userId), {
+          balance: 0,
+          totalEarned: 0,
+          totalWithdrawn: 0,
+          pendingWithdrawals: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
 
-    Alert.alert(
-      translations.registrationComplete, 
-      successMessage,
-      [
-        { 
-          text: 'OK', 
-          onPress: () => {
-            if (finalRole === 'donor') {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'DonationTabs' }],
-              });
-            } else {
-              navigation.navigate(navigateTo);
+      let successMessage = translations.registrationSubmitted;
+      let navigateTo = 'Login';
+
+      if (finalRole === 'donor') {
+        successMessage = translations.donorAccountCreated;
+        navigateTo = 'DonationTabs';
+      } else if (finalRole === 'working') {
+        successMessage = translations.workingAccountCreated;
+      }
+
+      Alert.alert(
+        translations.registrationComplete, 
+        successMessage,
+        [
+          { 
+            text: 'OK', 
+            onPress: () => {
+              if (finalRole === 'donor') {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'DonationTabs' }],
+                });
+              } else {
+                navigation.navigate(navigateTo);
+              }
             }
           }
-        }
-      ]
-    );
-  } catch (error) {
-    console.error('Registration error:', error);
-    
-    let errorMessage = translations.registrationFailed;
-    if (error.code === 'auth/email-already-in-use') {
-      errorMessage = translations.emailAlreadyUsed;
-    } else if (error.code === 'auth/invalid-email') {
-      errorMessage = translations.invalidEmailFormat;
-    } else if (error.code === 'auth/weak-password') {
-      errorMessage = translations.weakPassword;
-    } else if (error.code === 'auth/network-request-failed') {
-      errorMessage = translations.networkError;
+        ]
+      );
+    } catch (error) {
+      console.error('Registration error:', error);
+      
+      let errorMessage = translations.registrationFailed;
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = translations.emailAlreadyUsed;
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = translations.invalidEmailFormat;
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = translations.weakPassword;
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = translations.networkError;
+      }
+      
+      Alert.alert(translations.registrationFailed, errorMessage);
+    } finally {
+      setLoading(false);
     }
-    
-    Alert.alert(translations.registrationFailed, errorMessage);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-  // ============ IMAGE PICKER ============
   const pickImage = async (field) => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1562,8 +1512,6 @@ const handleEmailRegisterWithoutAlert = async () => {
             <MaterialIcons name="check-circle" size={20} color="#8b5cf6" />
           )}
         </TouchableOpacity>
-
-        
 
         <TouchableOpacity style={styles.nextButton} onPress={() => setStep(2)}>
           <Text style={styles.buttonText}>{translations.next} →</Text>
@@ -1771,17 +1719,110 @@ const handleEmailRegisterWithoutAlert = async () => {
   };
 
   // ============ STEP 4: Personal Information ============
-const renderPersonalInfo = () => {
-  if (registrationMethod === 'phone' && !isPhoneVerified) {
-    return null;
-  }
+  const renderPersonalInfo = () => {
+    if (registrationMethod === 'phone' && !isPhoneVerified) {
+      return null;
+    }
 
-  // ✅ For donor flow - show only required fields
-  if (isDonorFlow) {
+    if (isDonorFlow) {
+      return (
+        <View>
+          <Text style={styles.stepTitle}>Donor Registration</Text>
+          <Text style={styles.subStep}>Enter your basic details to register as a donor</Text>
+          
+          {registrationMethod === 'phone' && isPhoneVerified && (
+            <View style={styles.verifiedBadge}>
+              <MaterialIcons name="verified" size={16} color="#10b981" />
+              <Text style={styles.verifiedBadgeText}>Phone Verified</Text>
+            </View>
+          )}
+          
+          <View style={styles.fieldContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Full Name *"
+              placeholderTextColor="#9ca3af"
+              value={formData.fullName}
+              onChangeText={(text) => setFormData({...formData, fullName: text})}
+            />
+            <View style={styles.bottomLine} />
+          </View>
+
+          {registrationMethod === 'email' && (
+            <View style={styles.fieldContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Email *"
+                placeholderTextColor="#9ca3af"
+                value={formData.email}
+                onChangeText={(text) => setFormData({...formData, email: text})}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <View style={styles.bottomLine} />
+            </View>
+          )}
+
+          <View style={styles.fieldContainer}>
+            <TextInput
+              style={[styles.input, registrationMethod === 'phone' && styles.disabledInput]}
+              placeholder="Phone Number *"
+              placeholderTextColor="#9ca3af"
+              value={formData.phone}
+              onChangeText={(text) => {
+                if (registrationMethod !== 'phone') {
+                  setFormData({...formData, phone: text});
+                }
+              }}
+              keyboardType="phone-pad"
+              maxLength={10}
+              editable={registrationMethod !== 'phone'}
+            />
+            <View style={styles.bottomLine} />
+            {registrationMethod === 'phone' && (
+              <Text style={styles.phoneLockedText}>Phone number verified and locked</Text>
+            )}
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Address"
+              placeholderTextColor="#9ca3af"
+              value={formData.address}
+              onChangeText={(text) => setFormData({...formData, address: text})}
+              multiline
+              numberOfLines={2}
+              textAlignVertical="top"
+            />
+            <View style={styles.bottomLine} />
+          </View>
+
+          <View style={styles.stepButtons}>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => setStep(registrationMethod === 'phone' ? 3 : 2)}
+            >
+              <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
+              <Text style={styles.buttonText}>Back</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.nextButton} 
+              onPress={() => setStep(7)}
+            >
+              <Text style={styles.buttonText}>Next →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View>
-        <Text style={styles.stepTitle}>Donor Registration</Text>
-        <Text style={styles.subStep}>Enter your basic details to register as a donor</Text>
+        <Text style={styles.stepTitle}>{translations.personalInformation}</Text>
+        <Text style={styles.subStep}>{translations.enterPersonalDetails}</Text>
         
         {registrationMethod === 'phone' && isPhoneVerified && (
           <View style={styles.verifiedBadge}>
@@ -1790,11 +1831,10 @@ const renderPersonalInfo = () => {
           </View>
         )}
         
-        {/* Full Name */}
         <View style={styles.fieldContainer}>
           <TextInput
             style={styles.input}
-            placeholder="Full Name *"
+            placeholder={`${translations.fullName} *`}
             placeholderTextColor="#9ca3af"
             value={formData.fullName}
             onChangeText={(text) => setFormData({...formData, fullName: text})}
@@ -1802,12 +1842,158 @@ const renderPersonalInfo = () => {
           <View style={styles.bottomLine} />
         </View>
 
-        {/* Email (only for email registration) */}
+        <View style={styles.fieldContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder={translations.fatherHusbandName}
+            placeholderTextColor="#9ca3af"
+            value={formData.fatherName}
+            onChangeText={(text) => setFormData({...formData, fatherName: text})}
+          />
+          <View style={styles.bottomLine} />
+        </View>
+
+        <View style={styles.fieldContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder={translations.dateOfBirth}
+            placeholderTextColor="#9ca3af"
+            value={formData.dob}
+            onChangeText={(text) => setFormData({...formData, dob: text})}
+          />
+          <View style={styles.bottomLine} />
+        </View>
+
+        <View style={styles.fieldContainer}>
+          <View style={styles.pickerWrapper}>
+            <Picker
+              selectedValue={formData.gender}
+              onValueChange={(itemValue) => setFormData({...formData, gender: itemValue})}
+              style={styles.picker}
+            >
+              <Picker.Item label={translations.selectGender} value="" />
+              <Picker.Item label={translations.male} value="Male" />
+              <Picker.Item label={translations.female} value="Female" />
+              <Picker.Item label={translations.other} value="Other" />
+            </Picker>
+            <View style={styles.bottomLine} />
+          </View>
+        </View>
+
+        <View style={styles.fieldContainer}>
+          <View style={styles.pickerWrapper}>
+            <Picker
+              selectedValue={formData.nationality || 'indian'}
+              onValueChange={(itemValue) => setFormData({...formData, nationality: itemValue})}
+              style={styles.picker}
+            >
+              <Picker.Item label="Indian" value="indian" />
+              <Picker.Item label="Other" value="other" />
+            </Picker>
+            <View style={styles.bottomLine} />
+          </View>
+        </View>
+
+        {formData.nationality === 'other' && (
+          <View style={styles.fieldContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Please specify your nationality"
+              placeholderTextColor="#9ca3af"
+              value={formData.otherNationality}
+              onChangeText={(text) => setFormData({...formData, otherNationality: text})}
+            />
+            <View style={styles.bottomLine} />
+          </View>
+        )}
+
+        <View style={styles.fieldContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder={translations.educationQualification}
+            placeholderTextColor="#9ca3af"
+            value={formData.education}
+            onChangeText={(text) => setFormData({...formData, education: text})}
+          />
+          <View style={styles.bottomLine} />
+        </View>
+
+        <View style={styles.fieldContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder={translations.caste}
+            placeholderTextColor="#9ca3af"
+            value={formData.caste}
+            onChangeText={(text) => setFormData({...formData, caste: text})}
+          />
+          <View style={styles.bottomLine} />
+        </View>
+
+        <View style={styles.fieldContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder={translations.spouseName}
+            placeholderTextColor="#9ca3af"
+            value={formData.spouseName}
+            onChangeText={(text) => setFormData({...formData, spouseName: text})}
+          />
+          <View style={styles.bottomLine} />
+        </View>
+
+        <View style={styles.fieldContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder={translations.aadharNumber}
+            placeholderTextColor="#9ca3af"
+            value={formData.aadharNumber}
+            onChangeText={(text) => setFormData({...formData, aadharNumber: text})}
+            keyboardType="numeric"
+            maxLength={12}
+          />
+          <View style={styles.bottomLine} />
+        </View>
+
+        <View style={styles.fieldContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Referral Code (Optional)"
+            placeholderTextColor="#9ca3af"
+            value={referralCode}
+            onChangeText={(text) => {
+              const code = text.toUpperCase();
+              setReferralCode(code);
+              if (code.length >= 6) {
+                validateReferralCode(code);
+              } else {
+                setReferralValid(false);
+                setReferrerData(null);
+              }
+            }}
+            autoCapitalize="characters"
+            maxLength={8}
+          />
+          <View style={styles.bottomLine} />
+          {referralValid && referrerData && (
+            <View style={styles.referralValidContainer}>
+              <MaterialIcons name="verified" size={16} color="#10b981" />
+              <Text style={styles.referralValidText}>
+                Referred by: {referrerData.name} (Level {referrerData.level})
+              </Text>
+            </View>
+          )}
+          {checkingReferral && (
+            <View style={styles.referralCheckingContainer}>
+              <ActivityIndicator size="small" color="#FF7722" />
+              <Text style={styles.referralCheckingText}>Checking...</Text>
+            </View>
+          )}
+        </View>
+        
         {registrationMethod === 'email' && (
           <View style={styles.fieldContainer}>
             <TextInput
               style={styles.input}
-              placeholder="Email *"
+              placeholder={`${translations.email} *`}
               placeholderTextColor="#9ca3af"
               value={formData.email}
               onChangeText={(text) => setFormData({...formData, email: text})}
@@ -1819,11 +2005,10 @@ const renderPersonalInfo = () => {
           </View>
         )}
 
-        {/* Phone Number */}
         <View style={styles.fieldContainer}>
           <TextInput
             style={[styles.input, registrationMethod === 'phone' && styles.disabledInput]}
-            placeholder="Phone Number *"
+            placeholder={`${translations.phoneNumber} *`}
             placeholderTextColor="#9ca3af"
             value={formData.phone}
             onChangeText={(text) => {
@@ -1841,262 +2026,20 @@ const renderPersonalInfo = () => {
           )}
         </View>
 
-        {/* Address */}
-        <View style={styles.fieldContainer}>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Address"
-            placeholderTextColor="#9ca3af"
-            value={formData.address}
-            onChangeText={(text) => setFormData({...formData, address: text})}
-            multiline
-            numberOfLines={2}
-            textAlignVertical="top"
-          />
-          <View style={styles.bottomLine} />
-        </View>
-
         <View style={styles.stepButtons}>
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => setStep(registrationMethod === 'phone' ? 3 : 2)}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => setStep(registrationMethod === 'phone' ? 3 : 2)}>
             <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
-            <Text style={styles.buttonText}>Back</Text>
+            <Text style={styles.buttonText}>{translations.back}</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={styles.nextButton} 
-            onPress={() => setStep(7)}
-          >
-            <Text style={styles.buttonText}>Next →</Text>
+          <TouchableOpacity style={styles.nextButton} onPress={() => setStep(5)}>
+            <Text style={styles.buttonText}>{translations.next} →</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
-  }
+  };
 
-  // ============ REGULAR REGISTRATION (Non-Donor) ============
-  return (
-    <View>
-      <Text style={styles.stepTitle}>{translations.personalInformation}</Text>
-      <Text style={styles.subStep}>{translations.enterPersonalDetails}</Text>
-      
-      {registrationMethod === 'phone' && isPhoneVerified && (
-        <View style={styles.verifiedBadge}>
-          <MaterialIcons name="verified" size={16} color="#10b981" />
-          <Text style={styles.verifiedBadgeText}>Phone Verified</Text>
-        </View>
-      )}
-      
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder={`${translations.fullName} *`}
-          placeholderTextColor="#9ca3af"
-          value={formData.fullName}
-          onChangeText={(text) => setFormData({...formData, fullName: text})}
-        />
-        <View style={styles.bottomLine} />
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder={translations.fatherHusbandName}
-          placeholderTextColor="#9ca3af"
-          value={formData.fatherName}
-          onChangeText={(text) => setFormData({...formData, fatherName: text})}
-        />
-        <View style={styles.bottomLine} />
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder={translations.dateOfBirth}
-          placeholderTextColor="#9ca3af"
-          value={formData.dob}
-          onChangeText={(text) => setFormData({...formData, dob: text})}
-        />
-        <View style={styles.bottomLine} />
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <View style={styles.pickerWrapper}>
-          <Picker
-            selectedValue={formData.gender}
-            onValueChange={(itemValue) => setFormData({...formData, gender: itemValue})}
-            style={styles.picker}
-          >
-            <Picker.Item label={translations.selectGender} value="" />
-            <Picker.Item label={translations.male} value="Male" />
-            <Picker.Item label={translations.female} value="Female" />
-            <Picker.Item label={translations.other} value="Other" />
-          </Picker>
-          <View style={styles.bottomLine} />
-        </View>
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <View style={styles.pickerWrapper}>
-          <Picker
-            selectedValue={formData.nationality || 'indian'}
-            onValueChange={(itemValue) => setFormData({...formData, nationality: itemValue})}
-            style={styles.picker}
-          >
-            <Picker.Item label="Indian" value="indian" />
-            <Picker.Item label="Other" value="other" />
-          </Picker>
-          <View style={styles.bottomLine} />
-        </View>
-      </View>
-
-      {formData.nationality === 'other' && (
-        <View style={styles.fieldContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Please specify your nationality"
-            placeholderTextColor="#9ca3af"
-            value={formData.otherNationality}
-            onChangeText={(text) => setFormData({...formData, otherNationality: text})}
-          />
-          <View style={styles.bottomLine} />
-        </View>
-      )}
-
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder={translations.educationQualification}
-          placeholderTextColor="#9ca3af"
-          value={formData.education}
-          onChangeText={(text) => setFormData({...formData, education: text})}
-        />
-        <View style={styles.bottomLine} />
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder={translations.caste}
-          placeholderTextColor="#9ca3af"
-          value={formData.caste}
-          onChangeText={(text) => setFormData({...formData, caste: text})}
-        />
-        <View style={styles.bottomLine} />
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder={translations.spouseName}
-          placeholderTextColor="#9ca3af"
-          value={formData.spouseName}
-          onChangeText={(text) => setFormData({...formData, spouseName: text})}
-        />
-        <View style={styles.bottomLine} />
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder={translations.aadharNumber}
-          placeholderTextColor="#9ca3af"
-          value={formData.aadharNumber}
-          onChangeText={(text) => setFormData({...formData, aadharNumber: text})}
-          keyboardType="numeric"
-          maxLength={12}
-        />
-        <View style={styles.bottomLine} />
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Referral Code (Optional)"
-          placeholderTextColor="#9ca3af"
-          value={referralCode}
-          onChangeText={(text) => {
-            const code = text.toUpperCase();
-            setReferralCode(code);
-            if (code.length >= 6) {
-              validateReferralCode(code);
-            } else {
-              setReferralValid(false);
-              setReferrerData(null);
-            }
-          }}
-          autoCapitalize="characters"
-          maxLength={8}
-        />
-        <View style={styles.bottomLine} />
-        {referralValid && referrerData && (
-          <View style={styles.referralValidContainer}>
-            <MaterialIcons name="verified" size={16} color="#10b981" />
-            <Text style={styles.referralValidText}>
-              Referred by: {referrerData.name} (Level {referrerData.level})
-            </Text>
-          </View>
-        )}
-        {checkingReferral && (
-          <View style={styles.referralCheckingContainer}>
-            <ActivityIndicator size="small" color="#FF7722" />
-            <Text style={styles.referralCheckingText}>Checking...</Text>
-          </View>
-        )}
-      </View>
-      
-      {registrationMethod === 'email' && (
-        <View style={styles.fieldContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder={`${translations.email} *`}
-            placeholderTextColor="#9ca3af"
-            value={formData.email}
-            onChangeText={(text) => setFormData({...formData, email: text})}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <View style={styles.bottomLine} />
-        </View>
-      )}
-
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={[styles.input, registrationMethod === 'phone' && styles.disabledInput]}
-          placeholder={`${translations.phoneNumber} *`}
-          placeholderTextColor="#9ca3af"
-          value={formData.phone}
-          onChangeText={(text) => {
-            if (registrationMethod !== 'phone') {
-              setFormData({...formData, phone: text});
-            }
-          }}
-          keyboardType="phone-pad"
-          maxLength={10}
-          editable={registrationMethod !== 'phone'}
-        />
-        <View style={styles.bottomLine} />
-        {registrationMethod === 'phone' && (
-          <Text style={styles.phoneLockedText}>Phone number verified and locked</Text>
-        )}
-      </View>
-
-      <View style={styles.stepButtons}>
-        <TouchableOpacity style={styles.backButton} onPress={() => setStep(registrationMethod === 'phone' ? 3 : 2)}>
-          <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
-          <Text style={styles.buttonText}>{translations.back}</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.nextButton} onPress={() => setStep(5)}>
-          <Text style={styles.buttonText}>{translations.next} →</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
   // ============ STEP 5: Address & Location ============
   const renderAddress = () => (
     <View>
@@ -2209,19 +2152,67 @@ const renderPersonalInfo = () => {
     </View>
   );
 
+  // ============ STEP 6: Membership Details ============
   const renderMembershipDetails = () => {
-  if (isDonationFlow) {
-    setTimeout(() => setStep(9), 100);
-    return null;
-  }
+    if (isDonationFlow) {
+      setTimeout(() => setStep(9), 100);
+      return null;
+    }
 
-  // ✅ Show loading while fees are being fetched
-  if (!feesLoaded) {
+    if (!feesLoaded) {
+      return (
+        <View>
+          <Text style={styles.stepTitle}>{translations.membershipDetails}</Text>
+          <Text style={styles.subStep}>{translations.enterMembershipInfo}</Text>
+          
+          <View style={styles.fieldContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder={translations.membershipDate}
+              placeholderTextColor="#9ca3af"
+              value={formData.membershipDate}
+              onChangeText={(text) => setFormData({...formData, membershipDate: text})}
+            />
+            <View style={styles.bottomLine} />
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder={translations.guruAshram}
+              placeholderTextColor="#9ca3af"
+              value={formData.guruAshram}
+              onChangeText={(text) => setFormData({...formData, guruAshram: text})}
+            />
+            <View style={styles.bottomLine} />
+          </View>
+
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#FF7722" />
+            <Text style={styles.loadingText}>Loading member types...</Text>
+          </View>
+
+          <View style={styles.stepButtons}>
+            <TouchableOpacity style={styles.backButton} onPress={() => setStep(5)}>
+              <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
+              <Text style={styles.buttonText}>{translations.back}</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={[styles.nextButton, styles.disabledButton]} disabled>
+              <Text style={styles.buttonText}>{translations.next} →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    const showFee = !isDonationFlow && role !== 'donor';
+
     return (
       <View>
         <Text style={styles.stepTitle}>{translations.membershipDetails}</Text>
         <Text style={styles.subStep}>{translations.enterMembershipInfo}</Text>
-        
+
         <View style={styles.fieldContainer}>
           <TextInput
             style={styles.input}
@@ -2244,11 +2235,42 @@ const renderPersonalInfo = () => {
           <View style={styles.bottomLine} />
         </View>
 
-        {/* ✅ Show loading indicator instead of dropdown */}
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF7722" />
-          <Text style={styles.loadingText}>Loading member types...</Text>
+        <View style={styles.fieldContainer}>
+          <View style={styles.pickerWrapper}>
+            <Picker
+              selectedValue={formData.memberType}
+              onValueChange={(itemValue) => {
+                setFormData({...formData, memberType: itemValue});
+              }}
+              style={styles.picker}
+            >
+              <Picker.Item label={translations.selectMemberType} value="" />
+              {Object.keys(memberFees).map((type) => (
+                <Picker.Item 
+                  key={type}
+                  label={`${type} (₹${memberFees[type]})`} 
+                  value={type} 
+                />
+              ))}
+            </Picker>
+            <View style={styles.bottomLine} />
+          </View>
         </View>
+
+        {showFee && formData.memberType && (
+          <View style={styles.feeContainer}>
+            <View style={styles.feeCard}>
+              <MaterialIcons name="payments" size={24} color="#FF7722" />
+              <View style={styles.feeInfo}>
+                <Text style={styles.feeLabel}>Registration Fee</Text>
+                <Text style={styles.feeAmount}>₹{memberFees[formData.memberType]}</Text>
+              </View>
+            </View>
+            <Text style={styles.feeNote}>
+              💳 Registration fee must be paid to complete registration
+            </Text>
+          </View>
+        )}
 
         <View style={styles.stepButtons}>
           <TouchableOpacity style={styles.backButton} onPress={() => setStep(5)}>
@@ -2256,115 +2278,77 @@ const renderPersonalInfo = () => {
             <Text style={styles.buttonText}>{translations.back}</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={[styles.nextButton, styles.disabledButton]} disabled>
+          <TouchableOpacity style={styles.nextButton} onPress={() => setStep(7)}>
             <Text style={styles.buttonText}>{translations.next} →</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
-  }
-
-  // ✅ Show dropdown only when fees are loaded
-  const showFee = !isDonationFlow && role !== 'donor';
-
-  return (
-    <View>
-      <Text style={styles.stepTitle}>{translations.membershipDetails}</Text>
-      <Text style={styles.subStep}>{translations.enterMembershipInfo}</Text>
-
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder={translations.membershipDate}
-          placeholderTextColor="#9ca3af"
-          value={formData.membershipDate}
-          onChangeText={(text) => setFormData({...formData, membershipDate: text})}
-        />
-        <View style={styles.bottomLine} />
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder={translations.guruAshram}
-          placeholderTextColor="#9ca3af"
-          value={formData.guruAshram}
-          onChangeText={(text) => setFormData({...formData, guruAshram: text})}
-        />
-        <View style={styles.bottomLine} />
-      </View>
-
-      {/* ✅ Dropdown with real values only */}
-      <View style={styles.fieldContainer}>
-        <View style={styles.pickerWrapper}>
-          <Picker
-            selectedValue={formData.memberType}
-            onValueChange={(itemValue) => {
-              setFormData({...formData, memberType: itemValue});
-            }}
-            style={styles.picker}
-          >
-            <Picker.Item label={translations.selectMemberType} value="" />
-            {Object.keys(memberFees).map((type) => (
-              <Picker.Item 
-                key={type}
-                label={`${type} (₹${memberFees[type]})`} 
-                value={type} 
-              />
-            ))}
-          </Picker>
-          <View style={styles.bottomLine} />
-        </View>
-      </View>
-
-      {showFee && formData.memberType && (
-        <View style={styles.feeContainer}>
-          <View style={styles.feeCard}>
-            <MaterialIcons name="payments" size={24} color="#FF7722" />
-            <View style={styles.feeInfo}>
-              <Text style={styles.feeLabel}>Registration Fee</Text>
-              <Text style={styles.feeAmount}>₹{memberFees[formData.memberType]}</Text>
-            </View>
-          </View>
-          <Text style={styles.feeNote}>
-            💳 Registration fee must be paid to complete registration
-          </Text>
-        </View>
-      )}
-
-      <View style={styles.stepButtons}>
-        <TouchableOpacity style={styles.backButton} onPress={() => setStep(5)}>
-          <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
-          <Text style={styles.buttonText}>{translations.back}</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.nextButton} onPress={() => setStep(7)}>
-          <Text style={styles.buttonText}>{translations.next} →</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
+  };
 
   // ============ STEP 7: Password ============
-const renderPassword = () => {
-  // ✅ For phone registration, skip password step (handled in step 8)
-  if (registrationMethod === 'phone') {
-    setTimeout(() => setStep(8), 100);
-    return null;
-  }
+  const renderPassword = () => {
+    if (registrationMethod === 'phone') {
+      setTimeout(() => setStep(8), 100);
+      return null;
+    }
 
-  // ✅ For donor flow - show password fields and go to step 12 directly
-  if (isDonorFlow) {
+    if (isDonorFlow) {
+      return (
+        <View>
+          <Text style={styles.stepTitle}>Set Password</Text>
+          <Text style={styles.subStep}>Create a secure password for your donor account</Text>
+          
+          <View style={styles.fieldContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Password * (min 6 characters)"
+              placeholderTextColor="#9ca3af"
+              value={formData.password}
+              onChangeText={(text) => setFormData({...formData, password: text})}
+              secureTextEntry
+            />
+            <View style={styles.bottomLine} />
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm Password *"
+              placeholderTextColor="#9ca3af"
+              value={formData.confirmPassword}
+              onChangeText={(text) => setFormData({...formData, confirmPassword: text})}
+              secureTextEntry
+            />
+            <View style={styles.bottomLine} />
+          </View>
+
+          <View style={styles.stepButtons}>
+            <TouchableOpacity style={styles.backButton} onPress={() => setStep(4)}>
+              <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
+              <Text style={styles.buttonText}>Back</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.nextButton} 
+              onPress={() => setStep(12)}
+            >
+              <Text style={styles.buttonText}>Next →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View>
-        <Text style={styles.stepTitle}>Set Password</Text>
-        <Text style={styles.subStep}>Create a secure password for your donor account</Text>
+        <Text style={styles.stepTitle}>{translations.accountSecurity}</Text>
+        <Text style={styles.subStep}>{translations.setPassword}</Text>
         
         <View style={styles.fieldContainer}>
           <TextInput
             style={styles.input}
-            placeholder="Password * (min 6 characters)"
+            placeholder={`${translations.password} * (min 6 characters)`}
             placeholderTextColor="#9ca3af"
             value={formData.password}
             onChangeText={(text) => setFormData({...formData, password: text})}
@@ -2376,7 +2360,7 @@ const renderPassword = () => {
         <View style={styles.fieldContainer}>
           <TextInput
             style={styles.input}
-            placeholder="Confirm Password *"
+            placeholder={`${translations.confirmPassword} *`}
             placeholderTextColor="#9ca3af"
             value={formData.confirmPassword}
             onChangeText={(text) => setFormData({...formData, confirmPassword: text})}
@@ -2386,65 +2370,19 @@ const renderPassword = () => {
         </View>
 
         <View style={styles.stepButtons}>
-          <TouchableOpacity style={styles.backButton} onPress={() => setStep(4)}>
+          <TouchableOpacity style={styles.backButton} onPress={() => setStep(6)}>
             <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
-            <Text style={styles.buttonText}>Back</Text>
+            <Text style={styles.buttonText}>{translations.back}</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={styles.nextButton} 
-            onPress={() => setStep(12)}
-          >
-            <Text style={styles.buttonText}>Next →</Text>
+          <TouchableOpacity style={styles.nextButton} onPress={() => setStep(8)}>
+            <Text style={styles.buttonText}>{translations.next} →</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
-  }
+  };
 
-  // ============ REGULAR REGISTRATION (Non-Donor) ============
-  return (
-    <View>
-      <Text style={styles.stepTitle}>{translations.accountSecurity}</Text>
-      <Text style={styles.subStep}>{translations.setPassword}</Text>
-      
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder={`${translations.password} * (min 6 characters)`}
-          placeholderTextColor="#9ca3af"
-          value={formData.password}
-          onChangeText={(text) => setFormData({...formData, password: text})}
-          secureTextEntry
-        />
-        <View style={styles.bottomLine} />
-      </View>
-
-      <View style={styles.fieldContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder={`${translations.confirmPassword} *`}
-          placeholderTextColor="#9ca3af"
-          value={formData.confirmPassword}
-          onChangeText={(text) => setFormData({...formData, confirmPassword: text})}
-          secureTextEntry
-        />
-        <View style={styles.bottomLine} />
-      </View>
-
-      <View style={styles.stepButtons}>
-        <TouchableOpacity style={styles.backButton} onPress={() => setStep(6)}>
-          <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
-          <Text style={styles.buttonText}>{translations.back}</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.nextButton} onPress={() => setStep(8)}>
-          <Text style={styles.buttonText}>{translations.next} →</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
   // ============ STEP 8: Profile Photo ============
   const renderProfilePhoto = () => (
     <View>
@@ -2585,177 +2523,155 @@ const renderPassword = () => {
   };
 
   // ============ STEP 12: Signature & Submit ============
-  // ============ STEP 12: Signature & Submit ============
-const renderSignature = () => {
-  // ✅ Check if this is a donor flow
-  const isDonor = isDonationFlow || role === 'donor' || isDonorFlow;
-  const buttonColor = isDonor ? '#FF7722' : (role === 'working' ? '#8b5cf6' : '#FF7722');
+  const renderSignature = () => {
+    const isDonor = isDonationFlow || role === 'donor' || isDonorFlow;
+    const buttonColor = isDonor ? '#FF7722' : (role === 'working' ? '#8b5cf6' : '#FF7722');
 
-  const handleSubmit = () => {
-    console.log('🔵 HandleSubmit called');
-    console.log('🔵 isDonorFlow:', isDonorFlow);
-    console.log('🔵 isDonationFlow:', isDonationFlow);
-    console.log('🔵 role:', role);
-    
-    // ✅ Donor flow - skip payment and register directly
-    if (isDonorFlow || isDonationFlow || role === 'donor') {
-      console.log('🔵 Donor flow detected, proceeding with registration');
+    const handleSubmit = () => {
+      console.log('🔵 HandleSubmit called');
+      console.log('🔵 isDonorFlow:', isDonorFlow);
+      console.log('🔵 isDonationFlow:', isDonationFlow);
+      console.log('🔵 role:', role);
+      
+      if (isDonorFlow || isDonationFlow || role === 'donor') {
+        console.log('🔵 Donor flow detected, proceeding with registration');
+        if (registrationMethod === 'phone') {
+          handlePhoneRegister();
+        } else {
+          handleEmailRegister();
+        }
+        return;
+      }
+
+      if (!isDonationFlow && role !== 'donor') {
+        const fee = parseFloat(feeAmount);
+        console.log('🔵 Fee check:', { fee, memberType: formData.memberType });
+        if (fee > 0 && formData.memberType) {
+          console.log('🔵 Opening payment modal');
+          setShowPaymentModal(true);
+          return;
+        } else if (fee > 0 && !formData.memberType) {
+          Alert.alert('Error', 'Please select a member type first');
+          return;
+        }
+      }
+      
+      console.log('🔵 Proceeding with registration');
       if (registrationMethod === 'phone') {
         handlePhoneRegister();
       } else {
         handleEmailRegister();
       }
-      return;
-    }
+    };
 
-    // ✅ Regular member/working flow - check payment
-    if (!isDonationFlow && role !== 'donor') {
-      const fee = parseFloat(feeAmount);
-      console.log('🔵 Fee check:', { fee, memberType: formData.memberType });
-      if (fee > 0 && formData.memberType) {
-        console.log('🔵 Opening payment modal');
-        setShowPaymentModal(true);
-        return;
-      } else if (fee > 0 && !formData.memberType) {
-        Alert.alert('Error', 'Please select a member type first');
-        return;
-      }
-    }
-    
-    console.log('🔵 Proceeding with registration');
-    if (registrationMethod === 'phone') {
-      handlePhoneRegister();
-    } else {
-      handleEmailRegister();
-    }
+    return (
+      <View>
+        <Text style={styles.stepTitle}>{translations.signature}</Text>
+        <Text style={styles.subStep}>{translations.uploadSignature}</Text>
+
+        <View style={styles.uploadContainer}>
+          <TouchableOpacity style={styles.uploadButton} onPress={() => pickImage('signature')}>
+            <MaterialIcons name="edit" size={24} color={buttonColor} />
+            <Text style={[styles.uploadButtonText, { color: buttonColor }]}>
+              {formData.signature ? translations.changeSignature : translations.uploadSignatureLabel}
+            </Text>
+          </TouchableOpacity>
+          {formData.signature && (
+            <Image source={{ uri: formData.signature }} style={styles.previewImage} />
+          )}
+        </View>
+
+        <View style={styles.declarationContainer}>
+          <Text style={styles.declarationText}>
+            {translations.declaration.part1.replace('{name}', formData.fullName || '___________')}
+          </Text>
+          <Text style={styles.declarationText}>
+            {translations.declaration.part2}
+          </Text>
+          <Text style={styles.declarationText}>
+            {translations.declaration.part3}
+          </Text>
+          <Text style={styles.declarationText}>
+            {translations.declaration.part4}
+          </Text>
+        </View>
+
+        <View style={styles.stepButtons}>
+          {!isDonationFlow && !isDonorFlow && (
+            <TouchableOpacity style={styles.backButton} onPress={() => setStep(11)}>
+              <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
+              <Text style={styles.buttonText}>{translations.back}</Text>
+            </TouchableOpacity>
+          )}
+          
+          {isDonorFlow && (
+            <TouchableOpacity style={styles.backButton} onPress={() => setStep(7)}>
+              <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
+              <Text style={styles.buttonText}>Back</Text>
+            </TouchableOpacity>
+          )}
+          
+          <TouchableOpacity 
+            style={[styles.submitButton, { backgroundColor: buttonColor }]} 
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <>
+                <MaterialIcons name="check" size={20} color="#ffffff" />
+                <Text style={styles.buttonText}>
+                  {isDonorFlow || role === 'donor' ? 'Register as Donor' : translations.register}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   };
 
-  return (
-    <View>
-      <Text style={styles.stepTitle}>{translations.signature}</Text>
-      <Text style={styles.subStep}>{translations.uploadSignature}</Text>
-
-      <View style={styles.uploadContainer}>
-        <TouchableOpacity style={styles.uploadButton} onPress={() => pickImage('signature')}>
-          <MaterialIcons name="edit" size={24} color={buttonColor} />
-          <Text style={[styles.uploadButtonText, { color: buttonColor }]}>
-            {formData.signature ? translations.changeSignature : translations.uploadSignatureLabel}
-          </Text>
-        </TouchableOpacity>
-        {formData.signature && (
-          <Image source={{ uri: formData.signature }} style={styles.previewImage} />
-        )}
-      </View>
-
-      <View style={styles.declarationContainer}>
-        <Text style={styles.declarationText}>
-          {translations.declaration.part1.replace('{name}', formData.fullName || '___________')}
-        </Text>
-        <Text style={styles.declarationText}>
-          {translations.declaration.part2}
-        </Text>
-        <Text style={styles.declarationText}>
-          {translations.declaration.part3}
-        </Text>
-        <Text style={styles.declarationText}>
-          {translations.declaration.part4}
-        </Text>
-      </View>
-
-      <View style={styles.stepButtons}>
-        {!isDonationFlow && !isDonorFlow && (
-          <TouchableOpacity style={styles.backButton} onPress={() => setStep(11)}>
-            <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
-            <Text style={styles.buttonText}>{translations.back}</Text>
-          </TouchableOpacity>
-        )}
-        
-        {/* For donor flow, show a smaller back button to step 7 */}
-        {isDonorFlow && (
-          <TouchableOpacity style={styles.backButton} onPress={() => setStep(7)}>
-            <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
-            <Text style={styles.buttonText}>Back</Text>
-          </TouchableOpacity>
-        )}
-        
-        <TouchableOpacity 
-          style={[styles.submitButton, { backgroundColor: buttonColor }]} 
-          onPress={handleSubmit}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#ffffff" />
-          ) : (
-            <>
-              <MaterialIcons name="check" size={20} color="#ffffff" />
-              <Text style={styles.buttonText}>
-                {isDonorFlow || role === 'donor' ? 'Register as Donor' : translations.register}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
   // ============ PAYMENT MODAL ============
   const renderPaymentModal = () => (
-  <Modal
-    visible={showPaymentModal}
-    transparent={true}
-    animationType="slide"
-    onRequestClose={() => {
-      if (!paymentLoading) {
-        setShowPaymentModal(false);
-        // Show the no-payment option after closing the modal
-        setShowNoPaymentOption(true);
-      }
-    }}
-  >
-    <View style={styles.paymentModalOverlay}>
-      <View style={styles.paymentModalContent}>
-        <View style={styles.paymentSuccessIconContainer}>
-          <MaterialIcons name="payments" size={50} color="#FF7722" />
-        </View>
-        <Text style={styles.paymentModalTitle}>Registration Fee</Text>
-        <Text style={styles.paymentModalSubtitle}>
-          ₹{feeAmount} for {formData.memberType || 'Member'} Registration
-        </Text>
-        
-        <View style={styles.paymentModalDetails}>
-          <Text style={styles.paymentModalDetailText}>
-            <Text style={styles.paymentModalDetailLabel}>Name: </Text>
-            {formData.fullName || 'Member'}
+    <Modal
+      visible={showPaymentModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => {
+        if (!paymentLoading) {
+          setShowPaymentModal(false);
+          setShowNoPaymentOption(true);
+        }
+      }}
+    >
+      <View style={styles.paymentModalOverlay}>
+        <View style={styles.paymentModalContent}>
+          <View style={styles.paymentSuccessIconContainer}>
+            <MaterialIcons name="payments" size={50} color="#FF7722" />
+          </View>
+          <Text style={styles.paymentModalTitle}>Registration Fee</Text>
+          <Text style={styles.paymentModalSubtitle}>
+            ₹{feeAmount} for {formData.memberType || 'Member'} Registration
           </Text>
-          <Text style={styles.paymentModalDetailText}>
-            <Text style={styles.paymentModalDetailLabel}>Email: </Text>
-            {formData.email || 'member@email.com'}
-          </Text>
-          <Text style={styles.paymentModalDetailText}>
-            <Text style={styles.paymentModalDetailLabel}>Phone: </Text>
-            {formData.phone || 'Not provided'}
-          </Text>
-        </View>
+          
+          <View style={styles.paymentModalDetails}>
+            <Text style={styles.paymentModalDetailText}>
+              <Text style={styles.paymentModalDetailLabel}>Name: </Text>
+              {formData.fullName || 'Member'}
+            </Text>
+            <Text style={styles.paymentModalDetailText}>
+              <Text style={styles.paymentModalDetailLabel}>Email: </Text>
+              {formData.email || 'member@email.com'}
+            </Text>
+            <Text style={styles.paymentModalDetailText}>
+              <Text style={styles.paymentModalDetailLabel}>Phone: </Text>
+              {formData.phone || 'Not provided'}
+            </Text>
+          </View>
 
-        {/* ✅ NEW: No Payment Option */}
-        <TouchableOpacity
-          style={styles.noPaymentOptionButton}
-          onPress={() => {
-            setShowPaymentModal(false);
-            setShowNoPaymentOption(true);
-          }}
-          disabled={paymentLoading}
-          activeOpacity={0.7}
-        >
-          <MaterialIcons name="help" size={18} color="#6b7280" />
-          <Text style={styles.noPaymentOptionText}>
-            Having trouble with payment? Click here
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.paymentModalButtons}>
           <TouchableOpacity
-            style={[styles.paymentModalButton, styles.paymentModalButtonSecondary]}
+            style={styles.noPaymentOptionButton}
             onPress={() => {
               setShowPaymentModal(false);
               setShowNoPaymentOption(true);
@@ -2763,343 +2679,299 @@ const renderSignature = () => {
             disabled={paymentLoading}
             activeOpacity={0.7}
           >
-            <Text style={styles.paymentModalButtonTextSecondary}>Cancel</Text>
+            <MaterialIcons name="help" size={18} color="#6b7280" />
+            <Text style={styles.noPaymentOptionText}>
+              Having trouble with payment? Click here
+            </Text>
           </TouchableOpacity>
+
+          <View style={styles.paymentModalButtons}>
+            <TouchableOpacity
+              style={[styles.paymentModalButton, styles.paymentModalButtonSecondary]}
+              onPress={() => {
+                setShowPaymentModal(false);
+                setShowNoPaymentOption(true);
+              }}
+              disabled={paymentLoading}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.paymentModalButtonTextSecondary}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.paymentModalButton, styles.paymentModalButtonPrimary, paymentLoading && { opacity: 0.6 }]}
+              onPress={handleRegistrationFeePayment}
+              disabled={paymentLoading}
+              activeOpacity={0.7}
+            >
+              {paymentLoading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.paymentModalButtonTextPrimary}>Pay ₹{feeAmount}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          
           <TouchableOpacity
-            style={[styles.paymentModalButton, styles.paymentModalButtonPrimary, paymentLoading && { opacity: 0.6 }]}
-            onPress={handleRegistrationFeePayment}
+            style={styles.paymentModalCloseButton}
+            onPress={() => {
+              setShowPaymentModal(false);
+              setShowNoPaymentOption(true);
+            }}
             disabled={paymentLoading}
             activeOpacity={0.7}
           >
-            {paymentLoading ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text style={styles.paymentModalButtonTextPrimary}>Pay ₹{feeAmount}</Text>
-            )}
+            <Text style={styles.paymentModalCloseText}>Close</Text>
           </TouchableOpacity>
         </View>
-        
-        <TouchableOpacity
-          style={styles.paymentModalCloseButton}
-          onPress={() => {
-            setShowPaymentModal(false);
-            setShowNoPaymentOption(true);
-          }}
-          disabled={paymentLoading}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.paymentModalCloseText}>Close</Text>
-        </TouchableOpacity>
       </View>
-    </View>
-  </Modal>
-);
-// Add this after renderPaymentModal function
+    </Modal>
+  );
 
-const renderNoPaymentOption = () => (
-  <Modal
-    visible={showNoPaymentOption}
-    transparent={true}
-    animationType="slide"
-    onRequestClose={() => setShowNoPaymentOption(false)}
-  >
-    <View style={styles.paymentModalOverlay}>
-      <View style={[styles.paymentModalContent, { paddingTop: 20 }]}>
-        <View style={[styles.paymentSuccessIconContainer, { backgroundColor: '#fef3c7' }]}>
-          <MaterialIcons name="warning" size={50} color="#f59e0b" />
-        </View>
-        <Text style={[styles.paymentModalTitle, { color: '#f59e0b' }]}>
-          Complete Registration Without Payment
-        </Text>
-        <Text style={[styles.paymentModalSubtitle, { fontSize: 14 }]}>
-          If you're having technical issues with payment, you can complete your registration without paying now.
-        </Text>
-        
-        <View style={[styles.paymentModalDetails, { backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fde68a' }]}>
-          <Text style={[styles.paymentModalDetailText, { color: '#92400e' }]}>
-            <Text style={[styles.paymentModalDetailLabel, { color: '#92400e' }]}>⚠️ Important: </Text>
-            Your account will be created with "Pending" status. You will not be able to login until an admin approves your registration.
+  const renderNoPaymentOption = () => (
+    <Modal
+      visible={showNoPaymentOption}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowNoPaymentOption(false)}
+    >
+      <View style={styles.paymentModalOverlay}>
+        <View style={[styles.paymentModalContent, { paddingTop: 20 }]}>
+          <View style={[styles.paymentSuccessIconContainer, { backgroundColor: '#fef3c7' }]}>
+            <MaterialIcons name="warning" size={50} color="#f59e0b" />
+          </View>
+          <Text style={[styles.paymentModalTitle, { color: '#f59e0b' }]}>
+            Complete Registration Without Payment
           </Text>
-        </View>
+          <Text style={[styles.paymentModalSubtitle, { fontSize: 14 }]}>
+            If you're having technical issues with payment, you can complete your registration without paying now.
+          </Text>
+          
+          <View style={[styles.paymentModalDetails, { backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fde68a' }]}>
+            <Text style={[styles.paymentModalDetailText, { color: '#92400e' }]}>
+              <Text style={[styles.paymentModalDetailLabel, { color: '#92400e' }]}>⚠️ Important: </Text>
+              Your account will be created with "Pending" status. You will not be able to login until an admin approves your registration.
+            </Text>
+          </View>
 
-        <View style={styles.noPaymentInputContainer}>
-          <Text style={styles.noPaymentInputLabel}>Reason for not paying (Optional)</Text>
-          <TextInput
-            style={[styles.input, styles.noPaymentTextArea]}
-            placeholder="E.g., Internet issues, payment failed, etc."
-            placeholderTextColor="#9ca3af"
-            value={noPaymentReason}
-            onChangeText={setNoPaymentReason}
-            multiline
-            numberOfLines={2}
-            textAlignVertical="top"
-          />
-          <View style={styles.bottomLine} />
-        </View>
+          <View style={styles.noPaymentInputContainer}>
+            <Text style={styles.noPaymentInputLabel}>Reason for not paying (Optional)</Text>
+            <TextInput
+              style={[styles.input, styles.noPaymentTextArea]}
+              placeholder="E.g., Internet issues, payment failed, etc."
+              placeholderTextColor="#9ca3af"
+              value={noPaymentReason}
+              onChangeText={setNoPaymentReason}
+              multiline
+              numberOfLines={2}
+              textAlignVertical="top"
+            />
+            <View style={styles.bottomLine} />
+          </View>
 
-        <View style={[styles.paymentModalButtons, { marginTop: 8 }]}>
+          <View style={[styles.paymentModalButtons, { marginTop: 8 }]}>
+            <TouchableOpacity
+              style={[styles.paymentModalButton, styles.paymentModalButtonSecondary]}
+              onPress={() => {
+                setShowNoPaymentOption(false);
+                setShowPaymentModal(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.paymentModalButtonTextSecondary}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.paymentModalButton, { backgroundColor: '#f59e0b' }]}
+              onPress={handleRegistrationWithoutPayment}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.paymentModalButtonTextPrimary}>Complete</Text>
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity
-            style={[styles.paymentModalButton, styles.paymentModalButtonSecondary]}
-            onPress={() => {
-              setShowNoPaymentOption(false);
-              setShowPaymentModal(true);
-            }}
+            style={styles.paymentModalCloseButton}
+            onPress={() => setShowNoPaymentOption(false)}
             activeOpacity={0.7}
           >
-            <Text style={styles.paymentModalButtonTextSecondary}>Back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.paymentModalButton, { backgroundColor: '#f59e0b' }]}
-            onPress={handleRegistrationWithoutPayment}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.paymentModalButtonTextPrimary}>Complete</Text>
+            <Text style={styles.paymentModalCloseText}>Close</Text>
           </TouchableOpacity>
         </View>
-
-        <TouchableOpacity
-          style={styles.paymentModalCloseButton}
-          onPress={() => setShowNoPaymentOption(false)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.paymentModalCloseText}>Close</Text>
-        </TouchableOpacity>
       </View>
-    </View>
-  </Modal>
-);
-// ============ STEP ROUTING ============
-const getStepContent = () => {
-  // STEP 1: Role Selection
-  if (step === 1) {
-    // ✅ For donor flow, skip role selection
-    if (isDonorFlow) {
-      setTimeout(() => setStep(2), 100);
-      return null;
-    }
-    return renderRoleSelection();
-  }
-  
-  // STEP 2: Registration Method
-  if (step === 2) {
-    // ✅ For donor flow, skip registration method selection - always use email
-    if (isDonorFlow) {
-      setRegistrationMethod('email');
-      setTimeout(() => setStep(4), 100);
-      return null;
-    }
-    return renderRegistrationMethod();
-  }
-  
-  // STEP 3: OTP Verification (Phone Only)
-  if (step === 3) {
-    return renderOtpVerification();
-  }
-  
-  // STEP 4: Personal Information
-  if (step === 4) {
-    return renderPersonalInfo();
-  }
-  
-  // STEP 5: Address & Location
-  if (step === 5) {
-    // ✅ For donor flow, skip address step (it's in personal info)
-    if (isDonorFlow) {
-      setTimeout(() => setStep(7), 100);
-      return null;
-    }
-    return renderAddress();
-  }
-  
-  // STEP 6: Membership Details
-  if (step === 6) {
-    // ✅ For donor flow, skip membership details
-    if (isDonorFlow) {
-      setTimeout(() => setStep(7), 100);
-      return null;
-    }
-    return renderMembershipDetails();
-  }
-  
-  // STEP 7: Password
-  if (step === 7) {
-    return renderPassword();
-  }
-  
-  // STEP 8: Profile Photo
-  if (step === 8) {
-    // ✅ For donor flow, skip profile photo
-    if (isDonorFlow) {
-      setTimeout(() => setStep(12), 100);
-      return null;
-    }
-    return renderProfilePhoto();
-  }
-  
-  // STEP 9: Aadhar Front
-  if (step === 9) {
-    // ✅ For donor flow, skip Aadhar front
-    if (isDonorFlow) {
-      setTimeout(() => setStep(12), 100);
-      return null;
-    }
-    return renderAadharFront();
-  }
-  
-  // STEP 10: Aadhar Back
-  if (step === 10) {
-    // ✅ For donor flow, skip Aadhar back
-    if (isDonorFlow) {
-      setTimeout(() => setStep(12), 100);
-      return null;
-    }
-    return renderAadharBack();
-  }
-  
-  // STEP 11: PAN Card
-  if (step === 11) {
-    // ✅ For donor flow, skip PAN card
-    if (isDonorFlow) {
-      setTimeout(() => setStep(12), 100);
-      return null;
-    }
-    return renderPANCard();
-  }
-  
-  // STEP 12: Signature & Submit
-  if (step === 12) {
-    return renderSignature();
-  }
-  
-  return null;
-};
+    </Modal>
+  );
 
-// ============ GET TOTAL STEPS ============
-const getTotalSteps = () => {
-  // ✅ For donor flow - only 4 steps total (Personal Info → Password → Submit)
-  if (isDonorFlow) {
-    return 4;
-  }
-  
-  // ✅ For donation flow (legacy) - 6 steps
-  if (isDonationFlow) {
-    return 6;
-  }
-  
-  // ✅ For phone registration - 11 steps
-  if (registrationMethod === 'phone') {
-    return 11;
-  }
-  
-  // ✅ For regular email registration - 12 steps
-  return 12;
-};
-
-// ============ STEP SKIPPING LOGIC ============
-
-// Skip steps for donor flow - RUN THIS EVERY RENDER
-// ============ STEP SKIPPING LOGIC ============
-
-// Skip steps for donor flow - RUN THIS EVERY RENDER
-useEffect(() => {
-  // Donor flow - skip to step 12 after password
-  if (isDonorFlow && step === 7) {
-    console.log('🔵 [DONOR] Step 7 reached, staying on step 7 for password entry');
-    // Don't auto-skip - let user click Next to go to step 12
-    return;
-  }
-  
-  // Donor flow - skip all intermediate steps (8-11)
-  if (isDonorFlow && step > 7 && step < 12) {
-    console.log('🔵 [DONOR] Skipping step', step, 'moving to 12');
-    setTimeout(() => setStep(12), 100);
-  }
-}, [step, isDonorFlow]);
-
-// Skip steps for phone registration - skip password step
-useEffect(() => {
-  if (registrationMethod === 'phone' && step === 7) {
-    console.log('🔵 [PHONE] Skipping password step, moving to step 8');
-    setTimeout(() => setStep(8), 100);
-  }
-}, [step, registrationMethod]);
-
-// Skip steps for donation flow
-useEffect(() => {
-  if (isDonationFlow && step === 1) {
-    console.log('🔵 [DONATION] Skipping step 1, moving to step 2');
-    setTimeout(() => setStep(2), 100);
-  }
-  if (isDonationFlow && step === 6) {
-    console.log('🔵 [DONATION] Skipping step 6, moving to step 9');
-    setTimeout(() => setStep(9), 100);
-  }
-  if (isDonationFlow && step === 9) {
-    console.log('🔵 [DONATION] Skipping step 9, moving to step 12');
-    setTimeout(() => setStep(12), 100);
-  }
-}, [step, isDonationFlow]);
-
-// Skip aadhar/pan for donation flow
-useEffect(() => {
-  if (isDonationFlow && step >= 9 && step <= 11) {
-    console.log('🔵 [DONATION] Skipping aadhar/pan steps, moving to step 12');
-    setTimeout(() => setStep(12), 100);
-  }
-}, [step, isDonationFlow]);
-
-// ============ FETCH MEMBER FEES ============
-useEffect(() => {
-  fetchMemberFees();
-}, []);
-
-// ============ OTP TIMER CLEANUP ============
-useEffect(() => {
-  return () => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
+  // ============ STEP ROUTING ============
+  const getStepContent = () => {
+    if (step === 1) {
+      if (isDonorFlow) {
+        setTimeout(() => setStep(2), 100);
+        return null;
+      }
+      return renderRoleSelection();
     }
+    
+    if (step === 2) {
+      if (isDonorFlow) {
+        setRegistrationMethod('email');
+        setTimeout(() => setStep(4), 100);
+        return null;
+      }
+      return renderRegistrationMethod();
+    }
+    
+    if (step === 3) {
+      return renderOtpVerification();
+    }
+    
+    if (step === 4) {
+      return renderPersonalInfo();
+    }
+    
+    if (step === 5) {
+      if (isDonorFlow) {
+        setTimeout(() => setStep(7), 100);
+        return null;
+      }
+      return renderAddress();
+    }
+    
+    if (step === 6) {
+      if (isDonorFlow) {
+        setTimeout(() => setStep(7), 100);
+        return null;
+      }
+      return renderMembershipDetails();
+    }
+    
+    if (step === 7) {
+      return renderPassword();
+    }
+    
+    if (step === 8) {
+      if (isDonorFlow) {
+        setTimeout(() => setStep(12), 100);
+        return null;
+      }
+      return renderProfilePhoto();
+    }
+    
+    if (step === 9) {
+      if (isDonorFlow) {
+        setTimeout(() => setStep(12), 100);
+        return null;
+      }
+      return renderAadharFront();
+    }
+    
+    if (step === 10) {
+      if (isDonorFlow) {
+        setTimeout(() => setStep(12), 100);
+        return null;
+      }
+      return renderAadharBack();
+    }
+    
+    if (step === 11) {
+      if (isDonorFlow) {
+        setTimeout(() => setStep(12), 100);
+        return null;
+      }
+      return renderPANCard();
+    }
+    
+    if (step === 12) {
+      return renderSignature();
+    }
+    
+    return null;
   };
-}, []);
 
-// ============ PHONE REGISTRATION METHOD CHANGE ============
-useEffect(() => {
-  if (registrationMethod === 'phone') {
-    setIsPhoneVerified(false);
-    setShowOtpInput(false);
-    setOtp('');
-    setVerificationId('');
-  }
-}, [registrationMethod]);
+  const getTotalSteps = () => {
+    if (isDonorFlow) {
+      return 4;
+    }
+    
+    if (isDonationFlow) {
+      return 6;
+    }
+    
+    if (registrationMethod === 'phone') {
+      return 11;
+    }
+    
+    return 12;
+  };
 
-// ============ MEMBER TYPE FEE AUTO-SET ============
-useEffect(() => {
-  if (formData.memberType) {
-    const fee = getMemberTypeFee(formData.memberType);
-    setFeeAmount(fee.toString());
-    setFormData(prev => ({ ...prev, contributionAmount: fee.toString() }));
-  }
-}, [formData.memberType, memberFees]);
-// Skip steps for phone registration
-if (registrationMethod === 'phone' && step === 7) {
-  setTimeout(() => setStep(8), 100);
-}
+  // ============ STEP SKIPPING LOGIC ============
+  useEffect(() => {
+    if (isDonorFlow && step === 7) {
+      console.log('🔵 [DONOR] Step 7 reached, staying on step 7 for password entry');
+      return;
+    }
+    
+    if (isDonorFlow && step > 7 && step < 12) {
+      console.log('🔵 [DONOR] Skipping step', step, 'moving to 12');
+      setTimeout(() => setStep(12), 100);
+    }
+  }, [step, isDonorFlow]);
 
-// Skip steps for donation flow
-if (isDonationFlow && step === 1) {
-  setTimeout(() => setStep(2), 100);
-}
-if (isDonationFlow && step === 6) {
-  setTimeout(() => setStep(9), 100);
-}
-if (isDonationFlow && step === 9) {
-  setTimeout(() => setStep(12), 100);
-}
+  useEffect(() => {
+    if (registrationMethod === 'phone' && step === 7) {
+      console.log('🔵 [PHONE] Skipping password step, moving to step 8');
+      setTimeout(() => setStep(8), 100);
+    }
+  }, [step, registrationMethod]);
 
-// Skip aadhar/pan for donor flow
-if (isDonationFlow && step >= 9 && step <= 11) {
-  setTimeout(() => setStep(12), 100);
-}
+  useEffect(() => {
+    if (isDonationFlow && step === 1) {
+      console.log('🔵 [DONATION] Skipping step 1, moving to step 2');
+      setTimeout(() => setStep(2), 100);
+    }
+    if (isDonationFlow && step === 6) {
+      console.log('🔵 [DONATION] Skipping step 6, moving to step 9');
+      setTimeout(() => setStep(9), 100);
+    }
+    if (isDonationFlow && step === 9) {
+      console.log('🔵 [DONATION] Skipping step 9, moving to step 12');
+      setTimeout(() => setStep(12), 100);
+    }
+  }, [step, isDonationFlow]);
+
+  useEffect(() => {
+    if (isDonationFlow && step >= 9 && step <= 11) {
+      console.log('🔵 [DONATION] Skipping aadhar/pan steps, moving to step 12');
+      setTimeout(() => setStep(12), 100);
+    }
+  }, [step, isDonationFlow]);
+
+  useEffect(() => {
+    fetchMemberFees();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (registrationMethod === 'phone') {
+      setIsPhoneVerified(false);
+      setShowOtpInput(false);
+      setOtp('');
+      setVerificationId('');
+    }
+  }, [registrationMethod]);
+
+  useEffect(() => {
+    if (formData.memberType) {
+      const fee = getMemberTypeFee(formData.memberType);
+      setFeeAmount(fee.toString());
+      setFormData(prev => ({ ...prev, contributionAmount: fee.toString() }));
+    }
+  }, [formData.memberType, memberFees]);
 
   return (
     <KeyboardAvoidingView 
@@ -3113,10 +2985,9 @@ if (isDonationFlow && step >= 9 && step <= 11) {
         showsVerticalScrollIndicator={true}
         keyboardShouldPersistTaps="handled"
       >
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('PublicTabs')}>
-
-  <MaterialIcons name="arrow-back" size={24} color="#1f2937" />
-</TouchableOpacity>
+        <TouchableOpacity style={styles.backHeaderButton} onPress={() => navigation.navigate('Login')}>
+          <MaterialIcons name="arrow-back" size={24} color="#1f2937" />
+        </TouchableOpacity>
         <Text style={styles.title}>{translations.title}</Text>
         <Text style={styles.subtitle}>
           {translations.subtitle}
@@ -3143,9 +3014,8 @@ if (isDonationFlow && step >= 9 && step <= 11) {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Payment Modal */}
       {renderPaymentModal()}
-    {renderNoPaymentOption()}
+      {renderNoPaymentOption()}
     </KeyboardAvoidingView>
   );
 }
@@ -3199,42 +3069,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     width: '100%',
   },
-// Add these styles to the styles object
-
-noPaymentOptionButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingVertical: 10,
-  paddingHorizontal: 12,
-  marginBottom: 12,
-  gap: 6,
-},
-noPaymentOptionText: {
-  fontFamily: Fonts.Regular,
-  fontSize: 13,
-  color: '#6b7280',
-  textDecorationLine: 'underline',
-},
-noPaymentInputContainer: {
-  width: '100%',
-  marginBottom: 12,
-},
-noPaymentInputLabel: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 13,
-  color: '#1f2937',
-  marginBottom: 4,
-},
-noPaymentTextArea: {
-  height: 50,
-  textAlignVertical: 'top',
-  paddingVertical: 8,
-  borderWidth: 1,
-  borderColor: '#e5e7eb',
-  borderRadius: 8,
-  paddingHorizontal: 12,
-},
+  noPaymentOptionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    gap: 6,
+  },
+  noPaymentOptionText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#6b7280',
+    textDecorationLine: 'underline',
+  },
+  noPaymentInputContainer: {
+    width: '100%',
+    marginBottom: 12,
+  },
+  noPaymentInputLabel: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 13,
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  noPaymentTextArea: {
+    height: 50,
+    textAlignVertical: 'top',
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+  },
   stepTitle: {
     fontFamily: Fonts.SemiBold,
     fontSize: 18,
@@ -3344,10 +3212,20 @@ noPaymentTextArea: {
     elevation: 5,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    backgroundColor: '#6b7280',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 50,
+    flex: 1,
+    gap: 8,
+    shadowColor: '#6b7280',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
   },
   submitButton: {
     flexDirection: 'row',
@@ -3713,20 +3591,20 @@ noPaymentTextArea: {
     fontSize: 16,
     color: '#6b7280',
   },
-loadingContainer: {
-  padding: 40,
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: '#f9fafb',
-  borderRadius: 12,
-  marginVertical: 16,
-},
-loadingText: {
-  fontFamily: Fonts.Regular,
-  fontSize: 14,
-  color: '#6b7280',
-  marginTop: 12,
-},
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    marginVertical: 16,
+  },
+  loadingText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 12,
+  },
   paymentModalCloseButton: {
     paddingVertical: 8,
     paddingHorizontal: 20,

@@ -919,12 +919,6 @@ const renderPhoneLogin = () => (
               </View>
             </View>
 
-            <View style={styles.signUpContainer}>
-              <Text style={styles.signUpText}>{translations.dontHaveAccount}</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Register', { isDonorRegistration: true })}>
-                <Text style={styles.signUpLink}>{translations.signUp}</Text>
-              </TouchableOpacity>
-            </View>
 
             {!isDonationFlow && (
               <View style={styles.donationContainer}>

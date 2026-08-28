@@ -23,13 +23,13 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "extra": {
-      "eas": {
-        "projectId": "513f8993-a16c-4ae2-a619-a4cf568d6cde"
-      }
-    },
     "plugins": [
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "223ed2fe-1205-4393-906c-848736269b24"
+      }
+    }
   }
 }

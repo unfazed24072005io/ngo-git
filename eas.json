@@ -12,13 +12,7 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true,
-      "android": {
-        "gradleCommand": ":app:assembleRelease"
-      },
-      "env": {
-        "EXPO_NO_EAGER": "true"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {

@@ -9,7 +9,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { db } from '../../config/firebase';
 import { 
   collection, getDocs, updateDoc, doc, deleteDoc, query, 
-  where, orderBy, onSnapshot, getDoc, addDoc, runTransaction
+  where, orderBy, onSnapshot, getDoc, addDoc, runTransaction, limit
 } from 'firebase/firestore';
 import { useNavigation } from '@react-navigation/native';
 import { Fonts } from '../../config/fonts';
@@ -55,6 +55,7 @@ export default function MemberListManagement({ navigation }) {
   // Refs for capturing views
   const idCardRef = useRef(null);
   const certificateRefs = useRef({});
+  const certificateTemplateRef = useRef(null);
   
   // Force re-render when language changes
   const renderKey = `members-${counter}`;
@@ -134,6 +135,8 @@ export default function MemberListManagement({ navigation }) {
     feeAddedSuccess: 'Fee added successfully',
     enterValidFee: 'Please enter a valid fee amount',
     feeNotePlaceholder: 'Add a note (optional)',
+    certificateOfMembership: 'Certificate of Membership',
+    viewCertificate: 'View Certificate',
   });
 
   const translations = getTranslations();
@@ -143,6 +146,8 @@ export default function MemberListManagement({ navigation }) {
   const [members, setMembers] = useState([]);
   const [filteredMembers, setFilteredMembers] = useState([]);
   const [search, setSearch] = useState('');
+const [membershipCertificates, setMembershipCertificates] = useState([]);
+const [donationCertificates, setDonationCertificates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -152,6 +157,8 @@ export default function MemberListManagement({ navigation }) {
   const [memberCertificates, setMemberCertificates] = useState([]);
   const [downloading, setDownloading] = useState(false);
   const [downloadingCertId, setDownloadingCertId] = useState(null);
+  const [selectedCertificate, setSelectedCertificate] = useState(null);
+  const [certificateModalVisible, setCertificateModalVisible] = useState(false);
   
   // Fee Modal States
   const [feeModalVisible, setFeeModalVisible] = useState(false);
@@ -259,16 +266,112 @@ export default function MemberListManagement({ navigation }) {
       );
       const certSnap = await getDocs(certQuery);
       const certList = [];
+      const membershipList = [];
+      const donationList = [];
       certSnap.forEach((doc) => {
-        certList.push({ id: doc.id, ...doc.data() });
+        const certData = { id: doc.id, ...doc.data() };
+        certList.push(certData);
+        if (certData.type === 'donation') {
+          donationList.push(certData);
+        } else {
+          membershipList.push(certData);
+        }
       });
       setMemberCertificates(certList);
+      setMembershipCertificates(membershipList);
+      setDonationCertificates(donationList);
     } catch (error) {
       console.error('Error fetching certificates:', error);
       setMemberCertificates([]);
+      setMembershipCertificates([]);
+      setDonationCertificates([]);
     }
   };
+// Render Membership Certificate with Template
+const renderMembershipCertificate = (member, cert) => (
+  <View style={styles.certificateContainer}>
+    <View style={styles.certificate}>
+      {/* Certificate Background Template */}
+      <Image 
+        source={require('../../assets/images/certificate-template.png')}
+        style={styles.certificateTemplateImage}
+        resizeMode="stretch"
+      />
+      
+      {/* Certificate Overlay Content */}
+      <View style={styles.certificateOverlay}>
+        {/* Member Name */}
+        <View style={styles.certificateNameRow}>
+          <Text style={styles.certificateNameValue} numberOfLines={1}>
+            {member.fullName || 'Member Name'}
+          </Text>
+        </View>
+        
+        {/* Address */}
+        <View style={styles.certificateAddressRow}>
+          <Text style={styles.certificateAddressValue} numberOfLines={2}>
+            {member.address || 'Address'}
+          </Text>
+        </View>
+        
+        {/* Member Type */}
+        <View style={styles.certificateTypeRow}>
+          <Text style={styles.certificateTypeValue} numberOfLines={1}>
+            {member.position || getRoleLabel(member.role)}
+          </Text>
+        </View>
+      </View>
+    </View>
+  </View>
+);
 
+// Render Donation Certificate - Simple Document Style
+const renderDonationCertificate = (member, cert) => (
+  <View style={styles.donationCertificateContainer}>
+    <View style={styles.donationCertificate}>
+      {/* Header */}
+      <View style={styles.donationHeader}>
+        <Text style={styles.donationOrgName}>KABIR SAT DHARM FOUNDATION (TRUST)</Text>
+        <Text style={styles.donationOrgSub}>Recognized Institution by the Government of India</Text>
+        <View style={styles.donationDivider} />
+        <Text style={styles.donationTitle}>DONATION CERTIFICATE</Text>
+      </View>
+
+      {/* Certificate Body */}
+      <View style={styles.donationBody}>
+        <Text style={styles.donationText}>This is to certify that</Text>
+        <Text style={styles.donationMemberName}>{member.fullName || 'Member Name'}</Text>
+        <Text style={styles.donationText}>has made a donation of</Text>
+        <Text style={styles.donationAmount}>₹{cert.amount || '0'}</Text>
+        <Text style={styles.donationText}>to the Kabir Sat Dharm Foundation (Trust)</Text>
+        <Text style={styles.donationText}>on this day</Text>
+        <Text style={styles.donationDate}>
+          {cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString() : new Date().toLocaleDateString()}
+        </Text>
+      </View>
+
+      {/* Footer */}
+      <View style={styles.donationFooter}>
+        <View style={styles.donationSignatureBox}>
+          <View style={styles.donationSignatureLine} />
+          <Text style={styles.donationSignatureLabel}>Director</Text>
+        </View>
+        <View style={styles.donationSeal}>
+          <MaterialIcons name="verified" size={40} color="#d4af37" />
+        </View>
+        <View style={styles.donationSignatureBox}>
+          <View style={styles.donationSignatureLine} />
+          <Text style={styles.donationSignatureLabel}>Founder</Text>
+        </View>
+      </View>
+
+      {/* Certificate ID */}
+      <Text style={styles.donationCertificateId}>
+        Certificate ID: {cert.id || `DON-${Date.now()}`}
+      </Text>
+    </View>
+  </View>
+);
   const handleViewMember = async (member) => {
     setSelectedMember(member);
     await fetchMemberCertificates(member.id);
@@ -440,7 +543,12 @@ export default function MemberListManagement({ navigation }) {
   };
 
   const downloadCertificate = async (cert, index) => {
-    const refKey = `cert_${cert.id || index}`;
+    let refKey;
+    if (cert.type === 'donation') {
+      refKey = `donation_${cert.id || index}`;
+    } else {
+      refKey = `membership_${cert.id || index}`;
+    }
     const certRef = certificateRefs.current[refKey];
     
     if (!certRef) {
@@ -453,8 +561,8 @@ export default function MemberListManagement({ navigation }) {
       const uri = await ViewShot.captureRef(certRef, {
         format: 'png',
         quality: 0.9,
-        width: 800,
-        height: 500,
+        width: 1200,
+        height: 850,
       });
 
       const fileName = `Certificate_${cert.title || 'Certificate'}_${Date.now()}.png`;
@@ -565,7 +673,7 @@ export default function MemberListManagement({ navigation }) {
     setRefreshing(false);
   };
 
-  // Render ID Card Component - Using PNG Template like MemberProfile
+  // Render ID Card Component - Using PNG Template
   const renderIDCard = (member) => (
     <View ref={idCardRef} collapsable={false} style={styles.idCardContainer}>
       <View style={styles.idCard}>
@@ -651,7 +759,111 @@ export default function MemberListManagement({ navigation }) {
     </View>
   );
 
-  // Render Certificate Item with ViewShot
+  // Render Certificate Template Component
+const renderCertificateTemplate = (member, cert) => {
+  // If it's a donation certificate, render a simple document-style certificate
+  if (cert.type === 'donation') {
+    return (
+      <View style={styles.donationCertificateContainer}>
+        <View style={styles.donationCertificate}>
+          {/* Header */}
+          <View style={styles.donationHeader}>
+            <Text style={styles.donationOrgName}>KABIR SAT DHARM FOUNDATION (TRUST)</Text>
+            <Text style={styles.donationOrgSub}>Recognized Institution by the Government of India</Text>
+            <View style={styles.donationDivider} />
+            <Text style={styles.donationTitle}>DONATION CERTIFICATE</Text>
+          </View>
+
+          {/* Certificate Body */}
+          <View style={styles.donationBody}>
+            <Text style={styles.donationText}>This is to certify that</Text>
+            <Text style={styles.donationMemberName}>{member.fullName || 'Member Name'}</Text>
+            <Text style={styles.donationText}>has made a donation of</Text>
+            <Text style={styles.donationAmount}>₹{cert.amount || '0'}</Text>
+            <Text style={styles.donationText}>to the Kabir Sat Dharm Foundation (Trust)</Text>
+            <Text style={styles.donationText}>on this day</Text>
+            <Text style={styles.donationDate}>
+              {cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString() : new Date().toLocaleDateString()}
+            </Text>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.donationFooter}>
+            <View style={styles.donationSignatureBox}>
+              <View style={styles.donationSignatureLine} />
+              <Text style={styles.donationSignatureLabel}>Director</Text>
+            </View>
+            <View style={styles.donationSeal}>
+              <MaterialIcons name="verified" size={40} color="#d4af37" />
+            </View>
+            <View style={styles.donationSignatureBox}>
+              <View style={styles.donationSignatureLine} />
+              <Text style={styles.donationSignatureLabel}>Founder</Text>
+            </View>
+          </View>
+
+          {/* Certificate ID */}
+          <Text style={styles.donationCertificateId}>
+            Certificate ID: {cert.id || `DON-${Date.now()}`}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // For other certificate types (membership, volunteer), use template image
+  const getCertificateTemplate = (type) => {
+    switch(type) {
+      case 'membership':
+        return require('../../assets/images/certificate-template.png');
+      case 'volunteer':
+        return require('../../assets/images/certificate-template.png');
+      default:
+        return require('../../assets/images/certificate-template.png');
+    }
+  };
+
+  const templateImage = getCertificateTemplate(cert.type);
+
+  return (
+    <View style={styles.certificateContainer}>
+      <View style={styles.certificate}>
+        {/* Certificate Background Template */}
+        <Image 
+          source={templateImage}
+          style={styles.certificateTemplateImage}
+          resizeMode="stretch"
+        />
+        
+        {/* Certificate Overlay Content */}
+        <View style={styles.certificateOverlay}>
+          {/* Member Name */}
+          <View style={styles.certificateNameRow}>
+            <Text style={styles.certificateNameValue} numberOfLines={1}>
+              {member.fullName || 'Member Name'}
+            </Text>
+          </View>
+          
+          {/* Address */}
+          <View style={styles.certificateAddressRow}>
+            <Text style={styles.certificateAddressValue} numberOfLines={2}>
+              {member.address || 'Address'}
+            </Text>
+          </View>
+          
+          {/* Member Type */}
+          <View style={styles.certificateTypeRow}>
+            <Text style={styles.certificateTypeValue} numberOfLines={1}>
+              {member.position || getRoleLabel(member.role)}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+  // Render Certificate Item with Download Button
   const renderCertificateItem = (cert, index) => {
     const refKey = `cert_${cert.id || index}`;
     return (
@@ -660,7 +872,11 @@ export default function MemberListManagement({ navigation }) {
           ref={ref => certificateRefs.current[refKey] = ref}
           options={{ format: 'png', quality: 0.9 }}
         >
-          <View style={styles.certItem}>
+          {renderCertificateTemplate(selectedMember, cert)}
+        </ViewShot>
+        
+        <View style={styles.certItemInfo}>
+          <View style={styles.certItemHeader}>
             <View style={[styles.certItemIcon, { backgroundColor: getCertificateColor(cert.type) + '15' }]}>
               <MaterialIcons name={getCertificateIcon(cert.type)} size={16} color={getCertificateColor(cert.type)} />
             </View>
@@ -677,23 +893,37 @@ export default function MemberListManagement({ navigation }) {
               <Text style={styles.certItemAmount} numberOfLines={1}>₹{cert.amount}</Text>
             )}
           </View>
-        </ViewShot>
-        
-        <TouchableOpacity 
-          style={styles.certDownloadButton}
-          onPress={() => downloadCertificate(cert, index)}
-          disabled={downloadingCertId === (cert.id || index)}
-          activeOpacity={0.7}
-        >
-          <MaterialIcons 
-            name={downloadingCertId === (cert.id || index) ? "hourglass-empty" : "download"} 
-            size={14} 
-            color="#8b5cf6" 
-          />
-          <Text style={styles.certDownloadText}>
-            {downloadingCertId === (cert.id || index) ? translations.downloading : translations.download}
-          </Text>
-        </TouchableOpacity>
+          
+          <View style={styles.certItemActions}>
+            <TouchableOpacity 
+              style={styles.certViewButton}
+              onPress={() => {
+                setSelectedCertificate(cert);
+                setCertificateModalVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="visibility" size={14} color="#8b5cf6" />
+              <Text style={styles.certViewText}>{translations.view}</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.certDownloadButton}
+              onPress={() => downloadCertificate(cert, index)}
+              disabled={downloadingCertId === (cert.id || index)}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons 
+                name={downloadingCertId === (cert.id || index) ? "hourglass-empty" : "download"} 
+                size={14} 
+                color="#8b5cf6" 
+              />
+              <Text style={styles.certDownloadText}>
+                {downloadingCertId === (cert.id || index) ? translations.downloading : translations.download}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     );
   };
@@ -1020,24 +1250,162 @@ export default function MemberListManagement({ navigation }) {
                   {renderIDCard(selectedMember)}
                 </View>
 
-                {/* Certificates Section with Download for each */}
-                <View style={styles.modalSection}>
-                  <View style={styles.modalSectionHeader}>
-                    <Text style={styles.modalSectionTitle}>{translations.certificates}</Text>
-                    <Text style={styles.modalSectionCount}>
-                      {memberCertificates.length} {translations.earned}
-                    </Text>
-                  </View>
+                {/* Membership Certificates Section */}
+<View style={styles.modalSection}>
+  <View style={styles.modalSectionHeader}>
+    <Text style={styles.modalSectionTitle}>Membership Certificates</Text>
+    <Text style={styles.modalSectionCount}>
+      {membershipCertificates.length} {translations.earned}
+    </Text>
+  </View>
 
-                  {memberCertificates.length > 0 ? (
-                    memberCertificates.map((cert, index) => renderCertificateItem(cert, index))
-                  ) : (
-                    <View style={styles.noCertContainer}>
-                      <MaterialIcons name="verified" size={30} color="#d1d5db" />
-                      <Text style={styles.noCertText}>{translations.noCertificates}</Text>
-                    </View>
-                  )}
-                </View>
+  {membershipCertificates.length > 0 ? (
+    membershipCertificates.map((cert, index) => (
+      <View key={index} style={styles.certItemWrapper}>
+        {/* Render Membership Certificate with Template */}
+        <ViewShot 
+          ref={ref => certificateRefs.current[`membership_${cert.id || index}`] = ref}
+          options={{ format: 'png', quality: 0.9 }}
+        >
+          {renderMembershipCertificate(selectedMember, cert)}
+        </ViewShot>
+        
+        {/* Certificate Info and Actions */}
+        <View style={styles.certItemInfo}>
+          <View style={styles.certItemHeader}>
+            <View style={[styles.certItemIcon, { backgroundColor: getCertificateColor(cert.type) + '15' }]}>
+              <MaterialIcons name={getCertificateIcon(cert.type)} size={16} color={getCertificateColor(cert.type)} />
+            </View>
+            <View style={styles.certItemContent}>
+              <Text style={styles.certItemTitle} numberOfLines={1}>{cert.title || getCertificateTypeLabel(cert.type)}</Text>
+              <View style={styles.certItemMeta}>
+                <Text style={styles.certItemType} numberOfLines={1}>{getCertificateTypeLabel(cert.type)}</Text>
+                <Text style={styles.certItemDate} numberOfLines={1}>
+                  {cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString() : translations.nA}
+                </Text>
+              </View>
+            </View>
+          </View>
+          
+          <View style={styles.certItemActions}>
+            <TouchableOpacity 
+              style={styles.certViewButton}
+              onPress={() => {
+                setSelectedCertificate(cert);
+                setCertificateModalVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="visibility" size={14} color="#8b5cf6" />
+              <Text style={styles.certViewText}>{translations.view}</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.certDownloadButton}
+              onPress={() => downloadCertificate(cert, index)}
+              disabled={downloadingCertId === (cert.id || index)}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons 
+                name={downloadingCertId === (cert.id || index) ? "hourglass-empty" : "download"} 
+                size={14} 
+                color="#8b5cf6" 
+              />
+              <Text style={styles.certDownloadText}>
+                {downloadingCertId === (cert.id || index) ? translations.downloading : translations.download}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    ))
+  ) : (
+    <View style={styles.noCertContainer}>
+      <MaterialIcons name="verified" size={30} color="#d1d5db" />
+      <Text style={styles.noCertText}>No membership certificates yet</Text>
+    </View>
+  )}
+</View>
+
+{/* Donation Certificates Section */}
+<View style={styles.modalSection}>
+  <View style={styles.modalSectionHeader}>
+    <Text style={styles.modalSectionTitle}>Donation Certificates</Text>
+    <Text style={styles.modalSectionCount}>
+      {donationCertificates.length} {translations.earned}
+    </Text>
+  </View>
+
+  {donationCertificates.length > 0 ? (
+    donationCertificates.map((cert, index) => (
+      <View key={index} style={styles.certItemWrapper}>
+        {/* Render Donation Certificate - Simple Document Style */}
+        <ViewShot 
+          ref={ref => certificateRefs.current[`donation_${cert.id || index}`] = ref}
+          options={{ format: 'png', quality: 0.9 }}
+        >
+          {renderDonationCertificate(selectedMember, cert)}
+        </ViewShot>
+        
+        {/* Certificate Info and Actions */}
+        <View style={styles.certItemInfo}>
+          <View style={styles.certItemHeader}>
+            <View style={[styles.certItemIcon, { backgroundColor: getCertificateColor(cert.type) + '15' }]}>
+              <MaterialIcons name={getCertificateIcon(cert.type)} size={16} color={getCertificateColor(cert.type)} />
+            </View>
+            <View style={styles.certItemContent}>
+              <Text style={styles.certItemTitle} numberOfLines={1}>{cert.title || getCertificateTypeLabel(cert.type)}</Text>
+              <View style={styles.certItemMeta}>
+                <Text style={styles.certItemType} numberOfLines={1}>{getCertificateTypeLabel(cert.type)}</Text>
+                <Text style={styles.certItemDate} numberOfLines={1}>
+                  {cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString() : translations.nA}
+                </Text>
+              </View>
+            </View>
+            {cert.amount && (
+              <Text style={styles.certItemAmount} numberOfLines={1}>₹{cert.amount}</Text>
+            )}
+          </View>
+          
+          <View style={styles.certItemActions}>
+            <TouchableOpacity 
+              style={styles.certViewButton}
+              onPress={() => {
+                setSelectedCertificate(cert);
+                setCertificateModalVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="visibility" size={14} color="#8b5cf6" />
+              <Text style={styles.certViewText}>{translations.view}</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.certDownloadButton}
+              onPress={() => downloadCertificate(cert, index)}
+              disabled={downloadingCertId === (cert.id || index)}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons 
+                name={downloadingCertId === (cert.id || index) ? "hourglass-empty" : "download"} 
+                size={14} 
+                color="#8b5cf6" 
+              />
+              <Text style={styles.certDownloadText}>
+                {downloadingCertId === (cert.id || index) ? translations.downloading : translations.download}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    ))
+  ) : (
+    <View style={styles.noCertContainer}>
+      <MaterialIcons name="favorite" size={30} color="#d1d5db" />
+      <Text style={styles.noCertText}>No donation certificates yet</Text>
+    </View>
+  )}
+</View>
 
                 {/* Member Info Section */}
                 <View style={styles.modalInfoSection}>
@@ -1155,6 +1523,56 @@ export default function MemberListManagement({ navigation }) {
               </>
             )}
           </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Certificate View Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={certificateModalVisible}
+        onRequestClose={() => setCertificateModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { fontSize: 16 }]}>{translations.certificateOfMembership}</Text>
+              <TouchableOpacity onPress={() => setCertificateModalVisible(false)}>
+                <MaterialIcons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            
+            {selectedCertificate && selectedMember && (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {selectedCertificate.type === 'donation' ? 
+      renderDonationCertificate(selectedMember, selectedCertificate) :
+      renderMembershipCertificate(selectedMember, selectedCertificate)
+    }
+                
+                <View style={styles.certificateViewActions}>
+                  <TouchableOpacity 
+                    style={[styles.modalActionButton, styles.modalCancelButton, { flex: 1 }]}
+                    onPress={() => setCertificateModalVisible(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalCancelText}>{translations.cancel}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.modalActionButton, styles.modalConfirmButton, { flex: 1 }]}
+                    onPress={() => {
+                      const index = memberCertificates.findIndex(c => c.id === selectedCertificate.id);
+                      downloadCertificate(selectedCertificate, index >= 0 ? index : 0);
+                      setCertificateModalVisible(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="download" size={16} color="#ffffff" />
+                    <Text style={styles.modalActionText}>{translations.download}</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            )}
+          </View>
         </View>
       </Modal>
 
@@ -1806,13 +2224,202 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
 
-  // Certificate Styles
+  // ============ CERTIFICATE TEMPLATE STYLES ============
+  certificateContainer: {
+    width: '100%',
+    aspectRatio: 1.414,
+    backgroundColor: '#ffffff',
+    borderRadius: responsiveWidth(8),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    marginBottom: responsiveHeight(8),
+  },
+  certificate: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  certificateTemplateImage: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  certificateOverlay: {
+    flex: 1,
+    position: 'relative',
+    zIndex: 1,
+  },
+  certificateNameRow: {
+    position: 'absolute',
+    top: '46%',
+    left: '35%',
+    width: '60%',
+  },
+// Add to styles:
+donationCertificateContainer: {
+  width: '100%',
+  backgroundColor: '#ffffff',
+  borderRadius: responsiveWidth(8),
+  overflow: 'hidden',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 3,
+  marginBottom: responsiveHeight(8),
+},
+donationCertificate: {
+  padding: responsiveWidth(16),
+  borderWidth: 2,
+  borderColor: '#d4af37',
+  borderRadius: responsiveWidth(8),
+  backgroundColor: '#fffdf5',
+},
+donationHeader: {
+  alignItems: 'center',
+  marginBottom: responsiveHeight(12),
+},
+donationOrgName: {
+  fontFamily: Fonts.Bold,
+  fontSize: responsiveFont(16),
+  color: '#1a3c8f',
+  textAlign: 'center',
+},
+donationOrgSub: {
+  fontFamily: Fonts.Regular,
+  fontSize: responsiveFont(10),
+  color: '#666',
+  textAlign: 'center',
+  marginTop: responsiveHeight(2),
+},
+donationDivider: {
+  width: '60%',
+  height: 1,
+  backgroundColor: '#d4af37',
+  marginVertical: responsiveHeight(8),
+},
+donationTitle: {
+  fontFamily: Fonts.Bold,
+  fontSize: responsiveFont(18),
+  color: '#cc0000',
+  textAlign: 'center',
+  letterSpacing: 1,
+},
+donationBody: {
+  alignItems: 'center',
+  marginBottom: responsiveHeight(12),
+},
+donationText: {
+  fontFamily: Fonts.Regular,
+  fontSize: responsiveFont(12),
+  color: '#333',
+  textAlign: 'center',
+  marginVertical: responsiveHeight(2),
+},
+donationMemberName: {
+  fontFamily: Fonts.Bold,
+  fontSize: responsiveFont(18),
+  color: '#1a3c8f',
+  textAlign: 'center',
+  marginVertical: responsiveHeight(4),
+  textDecorationLine: 'underline',
+},
+donationAmount: {
+  fontFamily: Fonts.Bold,
+  fontSize: responsiveFont(24),
+  color: '#10b981',
+  textAlign: 'center',
+  marginVertical: responsiveHeight(4),
+},
+donationDate: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: responsiveFont(14),
+  color: '#1a3c8f',
+  textAlign: 'center',
+  marginVertical: responsiveHeight(4),
+},
+donationFooter: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  paddingHorizontal: responsiveWidth(20),
+  marginTop: responsiveHeight(12),
+  borderTopWidth: 1,
+  borderTopColor: '#e5e7eb',
+  paddingTop: responsiveHeight(8),
+},
+donationSignatureBox: {
+  alignItems: 'center',
+},
+donationSignatureLine: {
+  width: responsiveWidth(60),
+  height: 1,
+  backgroundColor: '#333',
+  marginBottom: responsiveHeight(4),
+},
+donationSignatureLabel: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: responsiveFont(10),
+  color: '#333',
+},
+donationSeal: {
+  alignItems: 'center',
+},
+donationCertificateId: {
+  fontFamily: Fonts.Regular,
+  fontSize: responsiveFont(8),
+  color: '#999',
+  textAlign: 'center',
+  marginTop: responsiveHeight(8),
+},
+  certificateNameValue: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: responsiveFont(13),
+    color: '#000000',
+    textDecorationLine: 'underline',
+  },
+  certificateAddressRow: {
+    position: 'absolute',
+    top: '52%',
+    left: '16%',
+    width: '60%',
+  },
+  certificateAddressValue: {
+    fontFamily: Fonts.Regular,
+    fontSize: responsiveFont(11),
+    color: '#000000',
+    textDecorationLine: 'underline',
+  },
+  certificateTypeRow: {
+    position: 'absolute',
+    top: '56%',
+    left: '61%',
+    width: '35%',
+  },
+  certificateTypeValue: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: responsiveFont(14),
+    color: '#000000',
+    textDecorationLine: 'underline',
+  },
+
+  // Certificate Item Styles
   certItemWrapper: {
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
-    paddingVertical: 6,
+    paddingVertical: 8,
   },
-  certItem: {
+  certItemInfo: {
+    marginTop: 8,
+  },
+  certItemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -1859,19 +2466,46 @@ const styles = StyleSheet.create({
     color: '#10b981',
     flexShrink: 0,
   },
+  certItemActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 4,
+  },
+  certViewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: '#f5f3ff',
+    gap: 3,
+  },
+  certViewText: {
+    fontFamily: Fonts.Regular,
+    color: '#8b5cf6',
+    fontSize: 10,
+  },
   certDownloadButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: '#f5f3ff',
     gap: 3,
-    alignSelf: 'flex-end',
   },
   certDownloadText: {
     fontFamily: Fonts.Regular,
     color: '#8b5cf6',
     fontSize: 10,
+  },
+
+  certificateViewActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    gap: 8,
   },
 
   noCertContainer: {

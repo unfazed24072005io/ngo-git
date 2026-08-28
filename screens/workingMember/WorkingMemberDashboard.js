@@ -11,6 +11,7 @@ import {
   Modal,
   Alert,
   Share,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { db, getAuthInstance } from '../../config/firebase';
@@ -146,9 +147,19 @@ export default function WorkingMemberDashboard({ navigation }) {
     workingMember: 'Working Member',
     newMemberRegistered: '{name} registered',
     activity: 'Activity',
+    
+    // Downline Section
+    downlineTitle: 'My Downline Network',
+    downlineSubtitle: 'Working members linked below you',
+    workingMembers: 'Working Members',
+    registeredMembers: 'Registered Members',
+    noDownline: 'No working members linked below you yet',
+    expandHint: 'Tap to expand',
+    collapseHint: 'Tap to collapse',
+    viewAllMembers: 'View All Members',
+    levelLabel: 'Level',
   };
-const [referredMembers, setReferredMembers] = useState([]);
-const [loadingReferred, setLoadingReferred] = useState(false);
+
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -171,69 +182,255 @@ const [loadingReferred, setLoadingReferred] = useState(false);
     donationCommission: 0
   });
   const [recentActivities, setRecentActivities] = useState([]);
+  const [referredMembers, setReferredMembers] = useState([]);
+  const [loadingReferred, setLoadingReferred] = useState(false);
+
+  // ============ NEW: Downline State ============
+  const [downlineData, setDownlineData] = useState([]);
+  const [loadingDownline, setLoadingDownline] = useState(false);
+  const [expandedDownline, setExpandedDownline] = useState({});
 
   useEffect(() => {
-  fetchUserData();
-  setupRealtimeListener();
-  fetchStats();
-  fetchRecentActivities();
-  fetchPendingApplications();
-  fetchPromotionProgress();
-  fetchReferredMembers(); // ✅ Add this
-}, []);
+    fetchUserData();
+    setupRealtimeListener();
+    fetchStats();
+    fetchRecentActivities();
+    fetchPendingApplications();
+    fetchPromotionProgress();
+    fetchReferredMembers();
+    fetchDownlineData(); // ✅ Fetch downline data
+  }, []);
 
-  // Find this code and REPLACE the entire setupRealtimeListener function
-const setupRealtimeListener = () => {
-  const auth = getAuthInstance();
-  const userId = auth.currentUser?.uid;
-  if (!userId) return;
+  // ============ FETCH DOWNLINE DATA ============
+  const fetchDownlineData = async () => {
+    const auth = getAuthInstance();
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
 
-  const userRef = doc(db, 'users', userId);
-  const unsubscribe = onSnapshot(userRef, async (doc) => {
-    if (doc.exists()) {
-      const data = doc.data();
-      setUserData(data);
-      setProfilePhoto(data.profilePhoto || null);
-      setReferralCode(data.referralCode || '');
+    setLoadingDownline(true);
+    try {
+      // 1. Get ALL users who were registered by this user (direct referrals)
+      const usersQuery = query(
+        collection(db, 'users'),
+        where('registeredBy', '==', userId)
+      );
+      const usersSnap = await getDocs(usersQuery);
       
-      const level = data.level || 'I';
-      
-      try {
-        // ✅ FETCH DYNAMIC LEVELS FROM FIRESTORE
-        const settingsRef = doc(db, 'settings', 'commission');
-        const settingsSnap = await getDoc(settingsRef);
-        let dynamicLevels = null;
+      const downline = [];
+
+      for (const userDoc of usersSnap.docs) {
+        const userData = userDoc.data();
+        const userId = userDoc.id;
         
-        if (settingsSnap.exists()) {
-          const settingsData = settingsSnap.data();
-          if (settingsData.levels) {
-            dynamicLevels = settingsData.levels;
+        // Check if this user is a working member
+        const isWorkingMember = userData.role === 'working' || userData.role === 'workingMember';
+        
+        // Get members registered by this user
+        const membersQuery = query(
+          collection(db, 'users'),
+          where('registeredBy', '==', userId)
+        );
+        const membersSnap = await getDocs(membersQuery);
+        const membersList = [];
+        membersSnap.forEach((doc) => {
+          membersList.push({
+            id: doc.id,
+            ...doc.data()
+          });
+        });
+
+        downline.push({
+          id: userId,
+          ...userData,
+          isWorkingMember: isWorkingMember,
+          registeredMembers: membersList,
+          memberCount: membersList.length
+        });
+      }
+
+      // Sort: Working members first, then by member count
+      downline.sort((a, b) => {
+        if (a.isWorkingMember && !b.isWorkingMember) return -1;
+        if (!a.isWorkingMember && b.isWorkingMember) return 1;
+        return b.memberCount - a.memberCount;
+      });
+
+      setDownlineData(downline);
+    } catch (error) {
+      console.error('Error fetching downline data:', error);
+    } finally {
+      setLoadingDownline(false);
+    }
+  };
+
+  const toggleExpand = (userId) => {
+    setExpandedDownline(prev => ({
+      ...prev,
+      [userId]: !prev[userId]
+    }));
+  };
+
+  // ============ DOWNLINE RENDER COMPONENT ============
+  const DownlineSection = () => {
+    if (loadingDownline) {
+      return (
+        <View style={styles.downlineLoadingContainer}>
+          <ActivityIndicator size="small" color="#8b5cf6" />
+          <Text style={styles.downlineLoadingText}>Loading downline...</Text>
+        </View>
+      );
+    }
+
+    if (downlineData.length === 0) {
+      return (
+        <View style={styles.downlineEmptyContainer}>
+          <MaterialIcons name="people-outline" size={40} color="#d1d5db" />
+          <Text style={styles.downlineEmptyText}>{translations.noDownline}</Text>
+          <Text style={styles.downlineEmptySubtext}>Share your referral code to build your network</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.downlineContainer}>
+        {downlineData.map((item) => (
+          <View key={item.id} style={styles.downlineCard}>
+            {/* Downline User Header */}
+            <TouchableOpacity 
+              style={styles.downlineHeader}
+              onPress={() => toggleExpand(item.id)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.downlineHeaderLeft}>
+                <View style={[
+                  styles.downlineAvatar,
+                  { backgroundColor: item.isWorkingMember ? '#8b5cf615' : '#10b98115' }
+                ]}>
+                  <Text style={[
+                    styles.downlineAvatarText,
+                    { color: item.isWorkingMember ? '#8b5cf6' : '#10b981' }
+                  ]}>
+                    {item.fullName?.charAt(0)?.toUpperCase() || '?'}
+                  </Text>
+                </View>
+                <View>
+                  <Text style={styles.downlineName} numberOfLines={1}>
+                    {item.fullName || item.name || 'Unknown'}
+                  </Text>
+                  <View style={styles.downlineMeta}>
+                    {item.isWorkingMember && (
+                      <View style={styles.downlineWorkingBadge}>
+                        <MaterialIcons name="star" size={10} color="#8b5cf6" />
+                        <Text style={styles.downlineWorkingText}>Working</Text>
+                      </View>
+                    )}
+                    <Text style={styles.downlineLevel}>
+                      {translations.levelLabel} {item.level || 'I'}
+                    </Text>
+                    <Text style={styles.downlineMemberCount}>
+                      👤 {item.memberCount} {translations.registeredMembers}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.downlineHeaderRight}>
+                <MaterialIcons 
+                  name={expandedDownline[item.id] ? 'expand-less' : 'expand-more'} 
+                  size={24} 
+                  color="#6b7280" 
+                />
+              </View>
+            </TouchableOpacity>
+
+            {/* Expanded Registered Members */}
+            {expandedDownline[item.id] && (
+              <View style={styles.downlineMembersContainer}>
+                {item.registeredMembers.length > 0 ? (
+                  item.registeredMembers.map((member, index) => (
+                    <View key={member.id || index} style={styles.downlineMemberItem}>
+                      <View style={styles.downlineMemberIcon}>
+                        <MaterialIcons name="person" size={14} color="#6b7280" />
+                      </View>
+                      <View style={styles.downlineMemberInfo}>
+                        <Text style={styles.downlineMemberName} numberOfLines={1}>
+                          {member.fullName || member.name || 'Unknown'}
+                        </Text>
+                        <Text style={styles.downlineMemberDetails} numberOfLines={1}>
+                          {member.phone || member.email || 'N/A'} • {member.role || 'Member'}
+                        </Text>
+                      </View>
+                      <Text style={styles.downlineMemberDate}>
+                        {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'N/A'}
+                      </Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.downlineNoMembers}>No registered members yet</Text>
+                )}
+              </View>
+            )}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const setupRealtimeListener = () => {
+    const auth = getAuthInstance();
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    const userRef = doc(db, 'users', userId);
+    const unsubscribe = onSnapshot(userRef, async (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        setUserData(data);
+        setProfilePhoto(data.profilePhoto || null);
+        setReferralCode(data.referralCode || '');
+        
+        const level = data.level || 'I';
+        
+        try {
+          const settingsRef = doc(db, 'settings', 'commission');
+          const settingsSnap = await getDoc(settingsRef);
+          let dynamicLevels = null;
+          
+          if (settingsSnap.exists()) {
+            const settingsData = settingsSnap.data();
+            if (settingsData.levels) {
+              dynamicLevels = settingsData.levels;
+            }
           }
-        }
-        
-        let details;
-        let nextLevelData = null;
-        let nextLevelId = null;
-        let nextLevelMinDonations = 0;
-        
-        if (dynamicLevels) {
-          // ✅ Use dynamic levels from Firestore
-          const levelData = dynamicLevels.find(l => l.id === level);
-          if (levelData) {
-            details = {
-              ...levelData,
-              title: levelData.name,  // ← Dynamic name from Firestore!
-              badge: getLevelBadge(level),
-              color: getLevelColor(level)
-            };
-            const currentIndex = dynamicLevels.findIndex(l => l.id === level);
-            if (currentIndex !== -1 && currentIndex < dynamicLevels.length - 1) {
-              nextLevelData = dynamicLevels[currentIndex + 1];
-              nextLevelId = nextLevelData.id;
-              nextLevelMinDonations = levelData.donationsRequiredForPromotion || 0;
+          
+          let details;
+          let nextLevelData = null;
+          let nextLevelId = null;
+          let nextLevelMinDonations = 0;
+          
+          if (dynamicLevels) {
+            const levelData = dynamicLevels.find(l => l.id === level);
+            if (levelData) {
+              details = {
+                ...levelData,
+                title: levelData.name,
+                badge: getLevelBadge(level),
+                color: getLevelColor(level)
+              };
+              const currentIndex = dynamicLevels.findIndex(l => l.id === level);
+              if (currentIndex !== -1 && currentIndex < dynamicLevels.length - 1) {
+                nextLevelData = dynamicLevels[currentIndex + 1];
+                nextLevelId = nextLevelData.id;
+                nextLevelMinDonations = levelData.donationsRequiredForPromotion || 0;
+              }
+            } else {
+              details = getLevelDetails(level);
+              const nextLevel = getLevelDetails(level).nextLevel;
+              if (nextLevel) {
+                nextLevelId = nextLevel;
+                nextLevelMinDonations = getLevelDetails(nextLevel).minDonations || 0;
+              }
             }
           } else {
-            // ✅ Fallback if level not found in dynamic levels
             details = getLevelDetails(level);
             const nextLevel = getLevelDetails(level).nextLevel;
             if (nextLevel) {
@@ -241,96 +438,89 @@ const setupRealtimeListener = () => {
               nextLevelMinDonations = getLevelDetails(nextLevel).minDonations || 0;
             }
           }
-        } else {
-          // ✅ Fallback to hardcoded if no dynamic levels exist
-          details = getLevelDetails(level);
-          const nextLevel = getLevelDetails(level).nextLevel;
-          if (nextLevel) {
-            nextLevelId = nextLevel;
-            nextLevelMinDonations = getLevelDetails(nextLevel).minDonations || 0;
+          
+          if (nextLevelData) {
+            details.nextLevelData = nextLevelData;
+          }
+          setLevelDetails(details);
+          
+          const donations = await CommissionService.getTotalDonationsByMember(userId);
+          setTotalDonations(donations);
+          
+          const progress = {
+            progress: nextLevelMinDonations > 0 ? Math.min((donations / nextLevelMinDonations) * 100, 100) : 100,
+            nextLevel: nextLevelId,
+            nextLevelTitle: nextLevelData ? nextLevelData.name : (nextLevelId ? getLevelDetails(nextLevelId)?.title || nextLevelId : null),
+            remainingDonations: nextLevelMinDonations > 0 ? Math.max(0, nextLevelMinDonations - donations) : 0,
+            donationProgress: nextLevelMinDonations > 0 ? (donations / nextLevelMinDonations) * 100 : 100,
+            requiredDonations: nextLevelMinDonations
+          };
+          setLevelProgress(progress);
+          
+          const isEligible = nextLevelMinDonations > 0 && donations >= nextLevelMinDonations;
+          setPromotionData({ isEligible });
+          
+          try {
+            const wallet = await WalletService.getOrCreateWallet(userId);
+            setWalletData(wallet);
+          } catch (error) {
+            console.error('Error fetching wallet:', error);
+          }
+        } catch (error) {
+          console.error('Error fetching dynamic levels:', error);
+          const details = getLevelDetails(level);
+          setLevelDetails(details);
+          const donations = await CommissionService.getTotalDonationsByMember(userId);
+          setTotalDonations(donations);
+          const progress = getLevelProgress(level, donations);
+          setLevelProgress(progress);
+          const isEligible = isEligibleForPromotion(level, donations);
+          setPromotionData({ isEligible });
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  };
+
+  const fetchReferredMembers = async () => {
+    const auth = getAuthInstance();
+
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+    
+    setLoadingReferred(true);
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const directReferrals = userData.directReferrals || [];
+        
+        if (directReferrals.length === 0) {
+          setReferredMembers([]);
+          return;
+        }
+        
+        const members = [];
+        for (const refId of directReferrals) {
+          const refDoc = await getDoc(doc(db, 'users', refId));
+          if (refDoc.exists()) {
+            const refData = refDoc.data();
+            members.push({
+              id: refId,
+              ...refData
+            });
           }
         }
-        
-        if (nextLevelData) {
-          details.nextLevelData = nextLevelData;
-        }
-        setLevelDetails(details);
-        
-        const donations = await CommissionService.getTotalDonationsByMember(userId);
-        setTotalDonations(donations);
-        
-        const progress = {
-          progress: nextLevelMinDonations > 0 ? Math.min((donations / nextLevelMinDonations) * 100, 100) : 100,
-          nextLevel: nextLevelId,
-          nextLevelTitle: nextLevelData ? nextLevelData.name : (nextLevelId ? getLevelDetails(nextLevelId)?.title || nextLevelId : null),
-          remainingDonations: nextLevelMinDonations > 0 ? Math.max(0, nextLevelMinDonations - donations) : 0,
-          donationProgress: nextLevelMinDonations > 0 ? (donations / nextLevelMinDonations) * 100 : 100,
-          requiredDonations: nextLevelMinDonations
-        };
-        setLevelProgress(progress);
-        
-        const isEligible = nextLevelMinDonations > 0 && donations >= nextLevelMinDonations;
-        setPromotionData({ isEligible });
-        
-        try {
-          const wallet = await WalletService.getOrCreateWallet(userId);
-          setWalletData(wallet);
-        } catch (error) {
-          console.error('Error fetching wallet:', error);
-        }
-      } catch (error) {
-        console.error('Error fetching dynamic levels:', error);
-        const details = getLevelDetails(level);
-        setLevelDetails(details);
-        const donations = await CommissionService.getTotalDonationsByMember(userId);
-        setTotalDonations(donations);
-        const progress = getLevelProgress(level, donations);
-        setLevelProgress(progress);
-        const isEligible = isEligibleForPromotion(level, donations);
-        setPromotionData({ isEligible });
+        setReferredMembers(members);
       }
+    } catch (error) {
+      console.error('Error fetching referred members:', error);
+    } finally {
+      setLoadingReferred(false);
     }
-  });
+  };
 
-  return () => unsubscribe();
-};
-const fetchReferredMembers = async () => {
-  const auth = getAuthInstance();
-
-  const userId = auth.currentUser?.uid;
-  if (!userId) return;
-  
-  setLoadingReferred(true);
-  try {
-    const userDoc = await getDoc(doc(db, 'users', userId));
-    if (userDoc.exists()) {
-      const userData = userDoc.data();
-      const directReferrals = userData.directReferrals || [];
-      
-      if (directReferrals.length === 0) {
-        setReferredMembers([]);
-        return;
-      }
-      
-      const members = [];
-      for (const refId of directReferrals) {
-        const refDoc = await getDoc(doc(db, 'users', refId));
-        if (refDoc.exists()) {
-          const refData = refDoc.data();
-          members.push({
-            id: refId,
-            ...refData
-          });
-        }
-      }
-      setReferredMembers(members);
-    }
-  } catch (error) {
-    console.error('Error fetching referred members:', error);
-  } finally {
-    setLoadingReferred(false);
-  }
-};
   const fetchUserData = async () => {
     try {
     const auth = getAuthInstance();
@@ -505,7 +695,7 @@ const fetchReferredMembers = async () => {
       const commissionsSnap = await getDocs(query(
         collection(db, 'walletTransactions'),
         where('userId', '==', userId),
-        where('type', 'in', ['direct_commission', 'secondary_commission'])
+        where('type', 'in', ['primary_commission', 'secondary_commission'])
       ));
 
       let totalCommission = 0;
@@ -635,6 +825,8 @@ const fetchReferredMembers = async () => {
     await fetchRecentActivities();
     await fetchPendingApplications();
     await fetchPromotionProgress();
+    await fetchReferredMembers();
+    await fetchDownlineData(); // ✅ Refresh downline
     setRefreshing(false);
   };
 
@@ -978,10 +1170,10 @@ const fetchReferredMembers = async () => {
           {/* Quick Actions */}
           <View style={styles.quickActionsRow}>
             <QuickActionButton 
-  title={translations.members} 
-  icon="people" 
-  onPress={() => navigation.navigate('WorkingMemberRegisteredMembers')}
-/>
+              title={translations.members} 
+              icon="people" 
+              onPress={() => navigation.navigate('WorkingMemberRegisteredMembers')}
+            />
             <QuickActionButton 
               title={translations.shop} 
               icon="shopping-cart" 
@@ -1042,45 +1234,61 @@ const fetchReferredMembers = async () => {
 
         {/* Wallet Card */}
         <WalletCard />
-<View style={styles.recentSection}>
-  <View style={styles.recentHeader}>
-    <Text style={styles.recentTitle}>📋 My Referred Members</Text>
-    <TouchableOpacity onPress={() => navigation.navigate('Members')} activeOpacity={0.7}>
-      <Text style={styles.viewAllText}>{translations.viewAll}</Text>
-    </TouchableOpacity>
-  </View>
 
-  {loadingReferred ? (
-    <View style={styles.emptyState}>
-      <ActivityIndicator size="small" color="#8b5cf6" />
-      <Text style={styles.emptyStateText}>Loading...</Text>
-    </View>
-  ) : referredMembers.length > 0 ? (
-    referredMembers.slice(0, 5).map((member, index) => (
-      <View key={index} style={styles.activityItem}>
-        <View style={styles.activityItemLeft}>
-          <View style={[styles.activityItemIcon, { backgroundColor: '#8b5cf615' }]}>
-            <MaterialIcons name="person" size={16} color="#8b5cf6" />
-          </View>
-          <View>
-            <Text style={styles.activityItemTitle}>{member.fullName}</Text>
-            <Text style={styles.activityItemSubtitle}>
-              {member.phone} • {member.status || 'Active'}
+        {/* ============ NEW: DOWNLINE SECTION ============ */}
+        <View style={styles.downlineSection}>
+          <View style={styles.downlineSectionHeader}>
+            <View style={styles.downlineSectionLeft}>
+              <MaterialIcons name="account-tree" size={22} color="#8b5cf6" />
+              <Text style={styles.downlineSectionTitle}>{translations.downlineTitle}</Text>
+            </View>
+            <Text style={styles.downlineSectionSubtitle}>
+              {downlineData.filter(m => m.isWorkingMember).length} {translations.workingMembers}
             </Text>
           </View>
+          <DownlineSection />
         </View>
-        <Text style={styles.activityItemDate}>
-          {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'N/A'}
-        </Text>
-      </View>
-    ))
-  ) : (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyStateText}>No referred members yet</Text>
-      <Text style={styles.emptyStateSubtext}>Share your referral code to get started!</Text>
-    </View>
-  )}
-</View>
+
+        <View style={styles.recentSection}>
+          <View style={styles.recentHeader}>
+            <Text style={styles.recentTitle}>📋 My Referred Members</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Members')} activeOpacity={0.7}>
+              <Text style={styles.viewAllText}>{translations.viewAll}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {loadingReferred ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="small" color="#8b5cf6" />
+              <Text style={styles.emptyStateText}>Loading...</Text>
+            </View>
+          ) : referredMembers.length > 0 ? (
+            referredMembers.slice(0, 5).map((member, index) => (
+              <View key={index} style={styles.activityItem}>
+                <View style={styles.activityItemLeft}>
+                  <View style={[styles.activityItemIcon, { backgroundColor: '#8b5cf615' }]}>
+                    <MaterialIcons name="person" size={16} color="#8b5cf6" />
+                  </View>
+                  <View>
+                    <Text style={styles.activityItemTitle}>{member.fullName}</Text>
+                    <Text style={styles.activityItemSubtitle}>
+                      {member.phone} • {member.status || 'Active'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.activityItemDate}>
+                  {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'N/A'}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No referred members yet</Text>
+              <Text style={styles.emptyStateSubtext}>Share your referral code to get started!</Text>
+            </View>
+          )}
+        </View>
+
         {/* Recent Activities */}
         <View style={styles.recentSection}>
           <View style={styles.recentHeader}>
@@ -1493,33 +1701,6 @@ const styles = StyleSheet.create({
   nextLevelHighlight: {
     fontFamily: Fonts.SemiBold,
   },
-// Add to styles
-referralValidContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: '#f0fdf4',
-  paddingHorizontal: 12,
-  paddingVertical: 6,
-  borderRadius: 8,
-  marginTop: 4,
-  gap: 6,
-},
-referralValidText: {
-  fontFamily: Fonts.Regular,
-  fontSize: 13,
-  color: '#10b981',
-},
-referralCheckingContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-  marginTop: 4,
-},
-referralCheckingText: {
-  fontFamily: Fonts.Regular,
-  fontSize: 13,
-  color: '#6b7280',
-},
   eligibleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1999,9 +2180,211 @@ referralCheckingText: {
     includeFontPadding: false,
     textAlignVertical: 'center',
   },
+  emptyStateSubtext: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#d1d5db',
+    marginTop: 4,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
   bottomSpacing: {
     height: 20,
   },
+
+  // ============ DOWNLINE STYLES ============
+  downlineSection: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  downlineSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  downlineSectionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  downlineSectionTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 18,
+    color: '#1f2937',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  downlineSectionSubtitle: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+
+  downlineContainer: {
+    gap: 10,
+  },
+  downlineCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  downlineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+  },
+  downlineHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  downlineAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  downlineAvatarText: {
+    fontFamily: Fonts.Bold,
+    fontSize: 18,
+  },
+  downlineName: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 15,
+    color: '#1f2937',
+  },
+  downlineMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
+  downlineWorkingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#8b5cf615',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 2,
+  },
+  downlineWorkingText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 9,
+    color: '#8b5cf6',
+  },
+  downlineLevel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 10,
+    color: '#6b7280',
+  },
+  downlineMemberCount: {
+    fontFamily: Fonts.Regular,
+    fontSize: 10,
+    color: '#6b7280',
+  },
+  downlineHeaderRight: {
+    paddingLeft: 8,
+  },
+
+  downlineMembersContainer: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  downlineMemberItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  
+  downlineMemberIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  downlineMemberInfo: {
+    flex: 1,
+  },
+  downlineMemberName: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 13,
+    color: '#1f2937',
+  },
+  downlineMemberDetails: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  downlineMemberDate: {
+    fontFamily: Fonts.Regular,
+    fontSize: 10,
+    color: '#9ca3af',
+  },
+  downlineNoMembers: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
+    paddingVertical: 10,
+  },
+  downlineLoadingContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  downlineLoadingText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 8,
+  },
+  downlineEmptyContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  downlineEmptyText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#1f2937',
+    marginTop: 8,
+  },
+  downlineEmptySubtext: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#9ca3af',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+
   // FAB Modal
   modalOverlay: {
     flex: 1,

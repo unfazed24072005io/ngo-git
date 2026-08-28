@@ -32,7 +32,8 @@ export const WalletService = {
           totalEarned: 0,
           totalWithdrawn: 0,
           pendingCommission: 0,
-          donationCommission: 0, // NEW: Track donation commission separately
+          donationCommission: 0,
+          primaryCommission: 0, // NEW: Track primary commission separately
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now()
         };
@@ -45,7 +46,7 @@ export const WalletService = {
     }
   },
 
-  // Add commission to wallet
+  // Add commission to wallet (UPDATED to handle primary_commission)
   async addCommission(userId, amount, type, description, referenceId) {
     try {
       const walletRef = doc(db, 'wallets', userId);
@@ -56,7 +57,11 @@ export const WalletService = {
         const walletData = walletDoc.data();
         
         // Determine if this is a donation commission
-        const isDonation = description?.toLowerCase().includes('donation') || false;
+        const isDonation = type === 'donation_commission' || 
+                          description?.toLowerCase().includes('donation') || false;
+        
+        // Determine if this is a primary commission
+        const isPrimary = type === 'primary_commission';
         
         // Update wallet
         const updates = {
@@ -71,6 +76,11 @@ export const WalletService = {
           updates.donationCommission = increment(amount);
         }
         
+        // If primary commission, update primaryCommission field
+        if (isPrimary) {
+          updates.primaryCommission = increment(amount);
+        }
+        
         transaction.update(walletRef, updates);
         
         // Create transaction record
@@ -78,11 +88,12 @@ export const WalletService = {
         transaction.set(transactionRef, {
           userId: userId,
           amount: amount,
-          type: type, // 'direct_commission', 'secondary_commission', 'donation_commission', 'withdrawal'
+          type: type, // 'primary_commission', 'secondary_commission', 'donation_commission', 'withdrawal'
           status: 'pending',
           description: description,
           referenceId: referenceId,
-          isDonation: isDonation, // NEW: Flag for donation commissions
+          isDonation: isDonation,
+          isPrimary: isPrimary, // NEW: Flag for primary commissions
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now()
         });
@@ -95,7 +106,7 @@ export const WalletService = {
     }
   },
 
-  // Add donation commission specifically (NEW)
+  // Add donation commission specifically
   async addDonationCommission(userId, amount, description, referenceId) {
     try {
       const walletRef = doc(db, 'wallets', userId);
@@ -121,6 +132,7 @@ export const WalletService = {
           description: description,
           referenceId: referenceId,
           isDonation: true,
+          isPrimary: false,
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now()
         });
@@ -133,7 +145,46 @@ export const WalletService = {
     }
   },
 
-  // Get donation commission total (NEW)
+  // Add primary commission specifically (NEW)
+  async addPrimaryCommission(userId, amount, description, referenceId) {
+    try {
+      const walletRef = doc(db, 'wallets', userId);
+      
+      await runTransaction(db, async (transaction) => {
+        const walletDoc = await transaction.get(walletRef);
+        const walletData = walletDoc.data();
+        
+        transaction.update(walletRef, {
+          balance: increment(amount),
+          totalEarned: increment(amount),
+          pendingCommission: increment(amount),
+          primaryCommission: increment(amount),
+          updatedAt: Timestamp.now()
+        });
+        
+        const transactionRef = doc(collection(db, 'walletTransactions'));
+        transaction.set(transactionRef, {
+          userId: userId,
+          amount: amount,
+          type: 'primary_commission',
+          status: 'pending',
+          description: description,
+          referenceId: referenceId,
+          isDonation: false,
+          isPrimary: true,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
+        });
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error adding primary commission:', error);
+      throw error;
+    }
+  },
+
+  // Get donation commission total
   async getDonationCommissionTotal(userId) {
     try {
       const walletRef = doc(db, 'wallets', userId);
@@ -145,6 +196,22 @@ export const WalletService = {
       return 0;
     } catch (error) {
       console.error('Error getting donation commission total:', error);
+      return 0;
+    }
+  },
+
+  // Get primary commission total (NEW)
+  async getPrimaryCommissionTotal(userId) {
+    try {
+      const walletRef = doc(db, 'wallets', userId);
+      const walletDoc = await getDoc(walletRef);
+      
+      if (walletDoc.exists()) {
+        return walletDoc.data().primaryCommission || 0;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error getting primary commission total:', error);
       return 0;
     }
   },
@@ -189,6 +256,7 @@ export const WalletService = {
           status: 'pending',
           description: `Withdrawal request - ${bankDetails.bankName}`,
           isDonation: false,
+          isPrimary: false,
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now()
         });
@@ -224,7 +292,7 @@ export const WalletService = {
     }
   },
 
-  // Get donation transactions only (NEW)
+  // Get donation transactions only
   async getDonationTransactions(userId, limit = 50) {
     try {
       const q = query(
@@ -248,13 +316,37 @@ export const WalletService = {
     }
   },
 
-  // Get wallet summary with donation breakdown (NEW)
+  // Get primary commission transactions only (NEW)
+  async getPrimaryCommissionTransactions(userId, limit = 50) {
+    try {
+      const q = query(
+        collection(db, 'walletTransactions'),
+        where('userId', '==', userId),
+        where('type', '==', 'primary_commission'),
+        orderBy('createdAt', 'desc'),
+        limit(limit)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const transactions = [];
+      querySnapshot.forEach((doc) => {
+        transactions.push({ id: doc.id, ...doc.data() });
+      });
+      
+      return transactions;
+    } catch (error) {
+      console.error('Error getting primary commission transactions:', error);
+      throw error;
+    }
+  },
+
+  // Get wallet summary with breakdown (UPDATED)
   async getWalletSummary(userId) {
     try {
       const wallet = await this.getOrCreateWallet(userId);
       const transactions = await this.getWalletTransactions(userId, 100);
       
-      let totalDirect = 0;
+      let totalPrimary = 0;
       let totalSecondary = 0;
       let totalDonation = 0;
       let totalWithdrawn = 0;
@@ -264,8 +356,8 @@ export const WalletService = {
         if (t.status === 'pending' || t.status === 'partially_paid') {
           pending += Math.abs(t.amount || 0);
         } else if (t.status === 'completed' || t.status === 'paid') {
-          if (t.type === 'direct_commission') {
-            totalDirect += t.amount || 0;
+          if (t.type === 'primary_commission') {
+            totalPrimary += t.amount || 0;
           } else if (t.type === 'secondary_commission') {
             totalSecondary += t.amount || 0;
           } else if (t.type === 'donation_commission') {
@@ -282,8 +374,9 @@ export const WalletService = {
         totalWithdrawn: wallet.totalWithdrawn || 0,
         pendingCommission: wallet.pendingCommission || 0,
         donationCommission: wallet.donationCommission || 0,
+        primaryCommission: wallet.primaryCommission || 0,
         breakdown: {
-          direct: totalDirect,
+          primary: totalPrimary,
           secondary: totalSecondary,
           donation: totalDonation,
           withdrawn: totalWithdrawn,

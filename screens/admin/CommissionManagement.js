@@ -115,28 +115,14 @@ const LevelEditModal = memo(({
 
               <View style={styles.field}>
                 <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
-                  {t('commission.directCommission') || 'Direct Commission (%)'}
+                  {t('commission.primaryCommission') || 'Primary Commission (%)'}
                 </Text>
                 <TextInput
                   style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-                  value={getDisplayValue(selectedLevel.directCommission)}
-                  onChangeText={(text) => onUpdateField('directCommission', text)}
+                  value={getDisplayValue(selectedLevel.primaryCommission)}
+                  onChangeText={(text) => onUpdateField('primaryCommission', text)}
                   keyboardType="numeric"
-                  placeholder={t('commission.enterDirectCommission') || 'Enter direct commission'}
-                  placeholderTextColor="#9ca3af"
-                />
-              </View>
-
-              <View style={styles.field}>
-                <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
-                  {t('commission.secondaryCommission') || 'Secondary Commission (%)'}
-                </Text>
-                <TextInput
-                  style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-                  value={getDisplayValue(selectedLevel.secondaryCommission)}
-                  onChangeText={(text) => onUpdateField('secondaryCommission', text)}
-                  keyboardType="numeric"
-                  placeholder={t('commission.enterSecondaryCommission') || 'Enter secondary commission'}
+                  placeholder={t('commission.enterPrimaryCommission') || 'Enter primary commission'}
                   placeholderTextColor="#9ca3af"
                 />
               </View>
@@ -379,8 +365,7 @@ export default function CommissionManagement({ navigation }) {
   const [newLevelData, setNewLevelData] = useState({
     id: '',
     name: '',
-    directCommission: '',
-    secondaryCommission: '',
+    primaryCommission: '',
     minDonations: '',
     maxDonations: '',
     donationsRequiredForPromotion: '',
@@ -392,8 +377,7 @@ export default function CommissionManagement({ navigation }) {
       { 
         id: 'I', 
         name: 'Customer', 
-        directCommission: 25, 
-        secondaryCommission: 10, 
+        primaryCommission: 25,
         minDonations: 0,
         maxDonations: 9999,
         donationsRequiredForPromotion: 10000,
@@ -402,8 +386,7 @@ export default function CommissionManagement({ navigation }) {
       { 
         id: 'II', 
         name: 'Executive', 
-        directCommission: 35, 
-        secondaryCommission: 5, 
+        primaryCommission: 35,
         minDonations: 10000,
         maxDonations: 24999,
         donationsRequiredForPromotion: 25000,
@@ -412,8 +395,7 @@ export default function CommissionManagement({ navigation }) {
       { 
         id: 'III', 
         name: 'Manager', 
-        directCommission: 40, 
-        secondaryCommission: 2.5, 
+        primaryCommission: 40,
         minDonations: 25000,
         maxDonations: 49999,
         donationsRequiredForPromotion: 50000,
@@ -422,8 +404,7 @@ export default function CommissionManagement({ navigation }) {
       { 
         id: 'IV', 
         name: 'Coordinator', 
-        directCommission: 42.5, 
-        secondaryCommission: 1.25, 
+        primaryCommission: 42.5,
         minDonations: 50000,
         maxDonations: 99999,
         donationsRequiredForPromotion: 100000,
@@ -432,8 +413,7 @@ export default function CommissionManagement({ navigation }) {
       { 
         id: 'V', 
         name: 'Guide', 
-        directCommission: 43.75, 
-        secondaryCommission: 1.25, 
+        primaryCommission: 43.75,
         minDonations: 100000,
         maxDonations: 249999,
         donationsRequiredForPromotion: 250000,
@@ -442,8 +422,7 @@ export default function CommissionManagement({ navigation }) {
       { 
         id: 'VI', 
         name: 'Leader', 
-        directCommission: 44.5, 
-        secondaryCommission: 0.75, 
+        primaryCommission: 44.5,
         minDonations: 250000,
         maxDonations: 499999,
         donationsRequiredForPromotion: 500000,
@@ -452,8 +431,7 @@ export default function CommissionManagement({ navigation }) {
       { 
         id: 'VII', 
         name: 'Crown', 
-        directCommission: 45, 
-        secondaryCommission: 0.50, 
+        primaryCommission: 45,
         minDonations: 500000,
         maxDonations: Infinity,
         donationsRequiredForPromotion: Infinity,
@@ -495,8 +473,8 @@ export default function CommissionManagement({ navigation }) {
     levelsAndCommission: t('commission.levelsAndCommission') || 'Levels & Commission',
     level: t('common.level') || 'Level',
     type: t('common.type') || 'Type',
-    direct: t('commission.direct') || 'Direct',
-    secondary: t('commission.secondary') || 'Secondary',
+    primaryCommission: t('commission.primaryCommission') || 'Primary',
+    secondaryCommission: t('commission.secondaryCommission') || 'Secondary',
     donationsReq: t('commission.donationsReq') || 'Donations Req',
     editLevelsHint: t('commission.editLevelsHint') || 'Tap on any level row to edit its details',
     quickSettings: t('commission.quickSettings') || 'Quick Settings',
@@ -519,8 +497,7 @@ export default function CommissionManagement({ navigation }) {
     editLevel: t('commission.editLevel') || 'Edit Level',
     levelName: t('common.levelName') || 'Level Name',
     enterLevelName: t('common.enterLevelName') || 'Enter level name',
-    enterDirectCommission: t('commission.enterDirectCommission') || 'Enter direct commission',
-    enterSecondaryCommission: t('commission.enterSecondaryCommission') || 'Enter secondary commission',
+    enterPrimaryCommission: t('commission.enterPrimaryCommission') || 'Enter primary commission',
     donationRequirements: t('commission.donationRequirements') || 'Donation Requirements',
     minDonations: t('commission.minDonations') || 'Min Donations (₹)',
     maxDonations: t('commission.maxDonations') || 'Max Donations (₹)',
@@ -531,8 +508,6 @@ export default function CommissionManagement({ navigation }) {
     requiresDonations: t('commission.requiresDonations') || 'requires ₹',
     inDonations: t('commission.inDonations') || 'in donations',
     updateLevel: t('common.updateLevel') || 'Update Level',
-    directCommission: t('commission.directCommission') || 'Direct Commission',
-    secondaryCommission: t('commission.secondaryCommission') || 'Secondary Commission',
     loadingCommissionSettings: t('commission.loadingCommissionSettings') || 'Loading Commission Settings...',
     approvePromotion: t('commission.approvePromotion') || 'Approve Promotion',
     confirmPromote: t('commission.confirmPromote') || 'Are you sure you want to promote this member to',
@@ -739,7 +714,7 @@ export default function CommissionManagement({ navigation }) {
   const setupPendingPayoutsListener = () => {
     const q = query(
       collection(db, 'walletTransactions'),
-      where('type', 'in', ['direct_commission', 'secondary_commission', 'donation_commission']),
+      where('type', 'in', ['primary_commission', 'secondary_commission', 'donation_commission']),
       where('status', '==', 'pending'),
       orderBy('createdAt', 'desc')
     );
@@ -772,7 +747,7 @@ export default function CommissionManagement({ navigation }) {
 
       transactionsSnap.forEach((doc) => {
         const data = doc.data();
-        if (data.type === 'direct_commission' || data.type === 'secondary_commission' || data.type === 'donation_commission') {
+        if (data.type === 'primary_commission' || data.type === 'secondary_commission' || data.type === 'donation_commission') {
           if (data.status === 'completed' || data.status === 'paid') {
             totalPaid += data.amount || 0;
           } else if (data.status === 'pending') {
@@ -1051,7 +1026,7 @@ export default function CommissionManagement({ navigation }) {
     setSaving(true);
     try {
       const level = { ...selectedLevel };
-      const numericFields = ['directCommission', 'secondaryCommission', 'minDonations', 'maxDonations', 'donationsRequiredForPromotion', 'prizeAmount'];
+      const numericFields = ['primaryCommission', 'minDonations', 'maxDonations', 'donationsRequiredForPromotion', 'prizeAmount'];
       
       for (const field of numericFields) {
         if (level[field] === '' || level[field] === null || level[field] === undefined) {
@@ -1165,8 +1140,7 @@ export default function CommissionManagement({ navigation }) {
       const newLevel = {
         id: levelId,
         name: newLevelData.name.trim(),
-        directCommission: parseFloat(newLevelData.directCommission) || 0,
-        secondaryCommission: parseFloat(newLevelData.secondaryCommission) || 0,
+        primaryCommission: parseFloat(newLevelData.primaryCommission) || 0,
         minDonations: parseFloat(newLevelData.minDonations) || 0,
         maxDonations: parseFloat(newLevelData.maxDonations) || Infinity,
         donationsRequiredForPromotion: parseFloat(newLevelData.donationsRequiredForPromotion) || Infinity,
@@ -1194,8 +1168,7 @@ export default function CommissionManagement({ navigation }) {
       setNewLevelData({
         id: '',
         name: '',
-        directCommission: '',
-        secondaryCommission: '',
+        primaryCommission: '',
         minDonations: '',
         maxDonations: '',
         donationsRequiredForPromotion: '',
@@ -1578,7 +1551,7 @@ export default function CommissionManagement({ navigation }) {
       fetchUser();
     }, [item.userId]);
 
-    const isDirect = item.type === 'direct_commission';
+    const isPrimary = item.type === 'primary_commission';
     const isDonation = item.type === 'donation_commission' || item.isDonation === true;
     const isSecondary = item.type === 'secondary_commission';
 
@@ -1587,18 +1560,18 @@ export default function CommissionManagement({ navigation }) {
         <View style={styles.payoutHeader}>
           <View style={styles.payoutUser}>
             <View style={[styles.payoutIcon, { 
-              backgroundColor: isDonation ? '#fef3c7' : (isDirect ? '#8b5cf615' : '#10b98115') 
+              backgroundColor: isDonation ? '#fef3c7' : (isPrimary ? '#8b5cf615' : '#10b98115') 
             }]}>
               <MaterialIcons 
-                name={isDonation ? 'volunteer-activism' : (isDirect ? 'person-add' : 'share')} 
+                name={isDonation ? 'volunteer-activism' : (isPrimary ? 'person-add' : 'share')} 
                 size={isSmallDevice ? 14 : 18} 
-                color={isDonation ? '#f59e0b' : (isDirect ? '#8b5cf6' : '#10b981')} 
+                color={isDonation ? '#f59e0b' : (isPrimary ? '#8b5cf6' : '#10b981')} 
               />
             </View>
             <View>
               <Text style={[styles.payoutUserName, { fontSize: isSmallDevice ? 11 : 13 }]}>{userName}</Text>
               <Text style={[styles.payoutType, { fontSize: isSmallDevice ? 9 : 10 }]}>
-                {isDonation ? translations.donationCommission : (isDirect ? translations.directCommission : translations.secondaryCommission)}
+                {isDonation ? translations.donationCommission : (isPrimary ? translations.primaryCommission : translations.secondaryCommission)}
               </Text>
             </View>
           </View>
@@ -2084,10 +2057,7 @@ export default function CommissionManagement({ navigation }) {
                 {translations.type}
               </Text>
               <Text style={[styles.tableHeaderText, { fontSize: isSmallDevice ? 9 : 10 }]}>
-                {translations.direct}
-              </Text>
-              <Text style={[styles.tableHeaderText, { fontSize: isSmallDevice ? 9 : 10 }]}>
-                {translations.secondary}
+                {translations.primaryCommission}
               </Text>
               <Text style={[styles.tableHeaderText, { fontSize: isSmallDevice ? 9 : 10 }]}>
                 {translations.prize}
@@ -2108,10 +2078,7 @@ export default function CommissionManagement({ navigation }) {
                   {level.name}
                 </Text>
                 <Text style={[styles.tableCell, styles.percentageCol, styles.commissionText, { fontSize: isSmallDevice ? 10 : 11 }]}>
-                  {level.directCommission}%
-                </Text>
-                <Text style={[styles.tableCell, styles.percentageCol, styles.secondaryText, { fontSize: isSmallDevice ? 10 : 11 }]}>
-                  {level.secondaryCommission}%
+                  {level.primaryCommission}%
                 </Text>
                 <Text style={[styles.tableCell, styles.donationsCol, styles.donationText, { fontSize: isSmallDevice ? 10 : 11 }]}>
                   ₹{(level.prizeAmount || 0).toLocaleString()}
@@ -2413,27 +2380,13 @@ export default function CommissionManagement({ navigation }) {
 
                   <View style={styles.field}>
                     <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
-                      {translations.directCommission} (%)
+                      {translations.primaryCommission} (%)
                     </Text>
                     <TextInput
                       style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-                      value={String(newLevelData.directCommission)}
-                      onChangeText={(text) => setNewLevelData({ ...newLevelData, directCommission: text })}
-                      placeholder={translations.enterDirectCommission}
-                      placeholderTextColor="#9ca3af"
-                      keyboardType="numeric"
-                    />
-                  </View>
-
-                  <View style={styles.field}>
-                    <Text style={[styles.fieldLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
-                      {translations.secondaryCommission} (%)
-                    </Text>
-                    <TextInput
-                      style={[styles.fieldInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-                      value={String(newLevelData.secondaryCommission)}
-                      onChangeText={(text) => setNewLevelData({ ...newLevelData, secondaryCommission: text })}
-                      placeholder={translations.enterSecondaryCommission}
+                      value={String(newLevelData.primaryCommission)}
+                      onChangeText={(text) => setNewLevelData({ ...newLevelData, primaryCommission: text })}
+                      placeholder={translations.enterPrimaryCommission}
                       placeholderTextColor="#9ca3af"
                       keyboardType="numeric"
                     />
@@ -2911,19 +2864,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   levelCol: {
-    width: '11%',
+    width: '15%',
     minWidth: 28,
   },
   nameCol: {
-    width: '22%',
+    width: '30%',
     minWidth: 55,
   },
   percentageCol: {
-    width: '17%',
+    width: '22%',
     minWidth: 40,
   },
   donationsCol: {
-    width: '24%',
+    width: '28%',
     minWidth: 55,
   },
   levelBadge: {
@@ -2943,7 +2896,7 @@ const styles = StyleSheet.create({
     color: '#f59e0b',
   },
   editIconContainer: {
-    width: '8%',
+    width: '5%',
     minWidth: 24,
     alignItems: 'center',
     justifyContent: 'center',

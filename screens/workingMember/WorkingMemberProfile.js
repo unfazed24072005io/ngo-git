@@ -1,17 +1,19 @@
 // screens/member/MemberProfile.js
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch, Dimensions, Platform } from 'react-native';
+import { 
+  View, Text, StyleSheet, ScrollView, Image, TextInput, 
+  TouchableOpacity, Alert, ActivityIndicator, Switch, 
+  Dimensions, Platform, Modal 
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { db, getAuthInstance } from '../../config/firebase';
-
 import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import * as ImagePicker from 'expo-image-picker';
 import { signOut } from 'firebase/auth';
 import { Fonts } from '../../config/fonts';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLanguage } from '../../context/LanguageContext';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { captureRef } from 'react-native-view-shot';
 
 const { width, height } = Dimensions.get('window');
@@ -27,9 +29,7 @@ const scale = Math.min(width / BASE_WIDTH, 2);
 
 // Responsive functions
 const responsiveFont = (size) => {
-  // Scale font size based on device width
   let scaledSize = size * scale;
-  // Cap for very large screens
   if (isTablet) scaledSize = Math.min(scaledSize, size * 1.5);
   if (isWeb) scaledSize = Math.min(scaledSize, size * 1.8);
   return Math.round(scaledSize);
@@ -44,17 +44,12 @@ const responsiveHeight = (size) => {
   return (size / baseHeight) * height;
 };
 
-const getCardWidth = () => {
-  if (isWeb) return Math.min(width * 0.5, 500);
-  if (isTablet) return width * 0.7;
-  return width - 32;
-};
-
 // ============ MAIN COMPONENT ============
 
 export default function MemberProfile({ navigation }) {
   const { t, counter } = useLanguage();
   const cardRef = useRef();
+  const certificateRef = useRef();
   
   // Force re-render when language changes
   const renderKey = `member-profile-${counter}`;
@@ -95,6 +90,16 @@ export default function MemberProfile({ navigation }) {
     idCardSecretary: 'सचिव',
     downloadIDCard: 'Download ID Card',
     downloading: 'Downloading...',
+    
+    // Certificate
+    certificateOfMembership: 'Certificate of Membership',
+    downloadCertificate: 'Download Certificate',
+    certificateDownloading: 'Downloading Certificate...',
+    certificateDownloaded: 'Certificate downloaded successfully',
+    certificateDownloadFailed: 'Failed to download certificate',
+    viewCertificate: 'View Certificate',
+    generateCertificate: 'Generate Certificate',
+    closeCertificate: 'Close Certificate',
     
     // Personal Information
     personalInformation: t('member.personalInformation') || 'Personal Information',
@@ -178,10 +183,12 @@ export default function MemberProfile({ navigation }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [certificateDownloading, setCertificateDownloading] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [certificates, setCertificates] = useState([]);
   const [cardId, setCardId] = useState('');
   const [showAllCertificates, setShowAllCertificates] = useState(false);
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -208,7 +215,6 @@ export default function MemberProfile({ navigation }) {
 
   const fetchUserData = async () => {
     const auth = getAuthInstance();
-
     setLoading(true);
     try {
       const userId = auth.currentUser?.uid;
@@ -250,7 +256,6 @@ export default function MemberProfile({ navigation }) {
 
   const fetchCertificateData = async () => {
     const auth = getAuthInstance();
-
     try {
       const userId = auth.currentUser?.uid;
       if (!userId) return;
@@ -272,12 +277,12 @@ export default function MemberProfile({ navigation }) {
   };
 
   const generateCardId = () => {
-  const auth = getAuthInstance();
-  const userId = auth.currentUser?.uid;
-  if (userId) {
-    setCardId(`MBR-${userId.slice(0, 8).toUpperCase()}`);
-  }
-};
+    const auth = getAuthInstance();
+    const userId = auth.currentUser?.uid;
+    if (userId) {
+      setCardId(`MBR-${userId.slice(0, 8).toUpperCase()}`);
+    }
+  };
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -303,7 +308,6 @@ export default function MemberProfile({ navigation }) {
 
   const handleSave = async () => {
     const auth = getAuthInstance();
-
     setSaving(true);
     try {
       const userId = auth.currentUser?.uid;
@@ -336,7 +340,6 @@ export default function MemberProfile({ navigation }) {
 
   const handleLogout = async () => {
     const auth = getAuthInstance();
-
     try {
       await signOut(auth);
       navigation.reset({
@@ -379,6 +382,40 @@ export default function MemberProfile({ navigation }) {
       Alert.alert(translations.error, translations.downloadFailed);
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleDownloadCertificate = async () => {
+    try {
+      setCertificateDownloading(true);
+      
+      const uri = await captureRef(certificateRef, {
+        format: 'png',
+        quality: 1,
+        result: 'data-uri',
+      });
+      
+      const fileName = `Certificate-${formData.fullName || 'Member'}-${Date.now()}.png`;
+      const filePath = FileSystem.documentDirectory + fileName;
+      
+      await FileSystem.writeAsStringAsync(filePath, uri.split(',')[1], {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(filePath, {
+          mimeType: 'image/png',
+          dialogTitle: 'Share Membership Certificate',
+          UTI: 'public.png',
+        });
+      }
+      
+      Alert.alert(translations.success, translations.certificateDownloaded);
+    } catch (error) {
+      console.error('Error downloading certificate:', error);
+      Alert.alert(translations.error, translations.certificateDownloadFailed);
+    } finally {
+      setCertificateDownloading(false);
     }
   };
 
@@ -432,27 +469,15 @@ export default function MemberProfile({ navigation }) {
     <View style={styles.container} key={renderKey}>
       {/* Purple Header */}
       <View style={styles.headerCard}>
-        // In the header section
-<View style={styles.headerTop}>
-  <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
-    <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
-  </TouchableOpacity>
-  <Text style={styles.headerTitle} numberOfLines={1}>{translations.memberProfile}</Text>
-  
-  {editing ? (
-    <TouchableOpacity onPress={handleSave} disabled={saving} activeOpacity={0.7}>
-      {saving ? (
-        <ActivityIndicator size="small" color="#ffffff" />
-      ) : (
-        <Text style={styles.editButton}>Save</Text>
-      )}
-    </TouchableOpacity>
-  ) : (
-    <TouchableOpacity onPress={() => setEditing(true)} activeOpacity={0.7}>
-      <Text style={styles.editButton}>{translations.edit}</Text>
-    </TouchableOpacity>
-  )}
-</View>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} activeOpacity={0.7}>
+            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>{translations.memberProfile}</Text>
+          <TouchableOpacity onPress={() => setEditing(!editing)} activeOpacity={0.7}>
+            <Text style={styles.editButton}>{editing ? translations.cancel : translations.edit}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView 
@@ -545,7 +570,6 @@ export default function MemberProfile({ navigation }) {
                 
                 {/* Footer */}
                 <View style={styles.idCardFooter}>
-                  
                   <View style={styles.idCardSignatureContainer}>
                     <View style={styles.idCardSignatureLine} />
                     <Text style={styles.idCardSignatureLabel}>{translations.idCardSignature}</Text>
@@ -555,7 +579,34 @@ export default function MemberProfile({ navigation }) {
               </View>
             </View>
           </View>
-          
+        </View>
+
+        {/* ID Card Download Button */}
+        <TouchableOpacity style={styles.downloadButton} onPress={handleDownloadIDCard} activeOpacity={0.7}>
+          {downloading ? (
+            <ActivityIndicator size="small" color="#ffffff" />
+          ) : (
+            <MaterialIcons name="download" size={responsiveFont(20)} color="#ffffff" />
+          )}
+          <Text style={styles.downloadButtonText}>{downloading ? translations.downloading : translations.downloadIDCard}</Text>
+        </TouchableOpacity>
+
+        {/* Certificate Section */}
+        <View style={styles.certificateSection}>
+          <TouchableOpacity 
+            style={styles.certificateButton}
+            onPress={() => setShowCertificateModal(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.certificateButtonIcon}>
+              <MaterialIcons name="description" size={responsiveFont(24)} color="#d4af37" />
+            </View>
+            <View style={styles.certificateButtonContent}>
+              <Text style={styles.certificateButtonTitle}>{translations.certificateOfMembership}</Text>
+              <Text style={styles.certificateButtonSubtitle}>{translations.viewCertificate}</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={responsiveFont(24)} color="#d4af37" />
+          </TouchableOpacity>
         </View>
 
         {/* Personal Information Card */}
@@ -770,94 +821,211 @@ export default function MemberProfile({ navigation }) {
         </View>
 
         <TouchableOpacity style={styles.card} onPress={navigateToCertificates} activeOpacity={0.7}>
-  <View style={styles.certHeader}>
-    <Text style={styles.cardTitle}>{translations.certificates}</Text>
-    <View style={styles.certHeaderRight}>
-      {certificates.length > 0 && (
-        <Text style={styles.certCount} numberOfLines={1}>{certificates.length} {translations.earned}</Text>
-      )}
-      <MaterialIcons name="chevron-right" size={20} color="#8b5cf6" />
-    </View>
-  </View>
-
-  {certificates.length > 0 ? (
-    <>
-      {displayedCertificates.map((cert, index) => (
-        <TouchableOpacity 
-          key={index} 
-          style={styles.certItem}
-          onPress={() => navigation.navigate('MemberCertificate', { certificate: cert })}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.certItemIcon, { backgroundColor: getCertificateColor(cert.type) + '15' }]}>
-            <MaterialIcons name={getCertificateIcon(cert.type)} size={16} color={getCertificateColor(cert.type)} />
-          </View>
-          <View style={styles.certItemContent}>
-            <Text style={styles.certItemTitle} numberOfLines={1}>{cert.title || getCertificateTypeLabel(cert.type)}</Text>
-            <View style={styles.certItemMeta}>
-              <Text style={styles.certItemType} numberOfLines={1}>{getCertificateTypeLabel(cert.type)}</Text>
-              <Text style={styles.certItemDate} numberOfLines={1}>
-                {cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString() : translations.nA}
-              </Text>
+          <View style={styles.certHeader}>
+            <Text style={styles.cardTitle}>{translations.certificates}</Text>
+            <View style={styles.certHeaderRight}>
+              {certificates.length > 0 && (
+                <Text style={styles.certCount} numberOfLines={1}>{certificates.length} {translations.earned}</Text>
+              )}
+              <MaterialIcons name="chevron-right" size={20} color="#8b5cf6" />
             </View>
           </View>
-          {cert.amount && (
-            <Text style={styles.certItemAmount} numberOfLines={1}>₹{cert.amount}</Text>
+
+          {certificates.length > 0 ? (
+            <>
+              {displayedCertificates.map((cert, index) => (
+                <TouchableOpacity 
+                  key={index} 
+                  style={styles.certItem}
+                  onPress={() => navigation.navigate('MemberCertificate', { certificate: cert })}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.certItemIcon, { backgroundColor: getCertificateColor(cert.type) + '15' }]}>
+                    <MaterialIcons name={getCertificateIcon(cert.type)} size={16} color={getCertificateColor(cert.type)} />
+                  </View>
+                  <View style={styles.certItemContent}>
+                    <Text style={styles.certItemTitle} numberOfLines={1}>{cert.title || getCertificateTypeLabel(cert.type)}</Text>
+                    <View style={styles.certItemMeta}>
+                      <Text style={styles.certItemType} numberOfLines={1}>{getCertificateTypeLabel(cert.type)}</Text>
+                      <Text style={styles.certItemDate} numberOfLines={1}>
+                        {cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString() : translations.nA}
+                      </Text>
+                    </View>
+                  </View>
+                  {cert.amount && (
+                    <Text style={styles.certItemAmount} numberOfLines={1}>₹{cert.amount}</Text>
+                  )}
+                  <MaterialIcons name="chevron-right" size={20} color="#d1d5db" />
+                </TouchableOpacity>
+              ))}
+              {certificates.length > 3 && (
+                <TouchableOpacity 
+                  style={styles.viewAllCertificates}
+                  onPress={() => setShowAllCertificates(!showAllCertificates)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.viewAllText} numberOfLines={1}>
+                    {showAllCertificates ? translations.showLess : translations.viewAllCertificates.replace('{count}', certificates.length)}
+                  </Text>
+                  <MaterialIcons 
+                    name={showAllCertificates ? 'expand-less' : 'expand-more'} 
+                    size={16} 
+                    color="#8b5cf6" 
+                  />
+                </TouchableOpacity>
+              )}
+            </>
+          ) : (
+            <View style={styles.noCertContainer}>
+              <MaterialIcons name="verified" size={30} color="#d1d5db" />
+              <Text style={styles.noCertText}>{translations.noCertificates}</Text>
+              <Text style={styles.noCertSubtext}>{translations.noCertificatesSubtext}</Text>
+            </View>
           )}
-          <MaterialIcons name="chevron-right" size={20} color="#d1d5db" />
         </TouchableOpacity>
-      ))}
-      {certificates.length > 3 && (
+
+        {/* More Settings Button */}
         <TouchableOpacity 
-          style={styles.viewAllCertificates}
-          onPress={() => setShowAllCertificates(!showAllCertificates)}
+          style={styles.moreSettingsButton}
+          onPress={() => navigation.navigate('MemberMoreSettingsTabs')}
           activeOpacity={0.7}
         >
-          <Text style={styles.viewAllText} numberOfLines={1}>
-            {showAllCertificates ? translations.showLess : translations.viewAllCertificates.replace('{count}', certificates.length)}
-          </Text>
-          <MaterialIcons 
-            name={showAllCertificates ? 'expand-less' : 'expand-more'} 
-            size={16} 
-            color="#8b5cf6" 
-          />
+          <View style={styles.moreSettingsLeft}>
+            <View style={styles.moreSettingsIcon}>
+              <MaterialIcons name="settings" size={responsiveFont(24)} color="#ffffff" />
+            </View>
+            <View style={styles.moreSettingsTextContainer}>
+              <Text style={styles.moreSettingsTitle}>{translations.moreSettings}</Text>
+              <Text style={styles.moreSettingsSubtitle}>{translations.moreSettingsSubtitle}</Text>
+            </View>
+          </View>
+          <MaterialIcons name="chevron-right" size={responsiveFont(24)} color="#ffffff" />
         </TouchableOpacity>
-      )}
-    </>
-  ) : (
-    <View style={styles.noCertContainer}>
-      <MaterialIcons name="verified" size={30} color="#d1d5db" />
-      <Text style={styles.noCertText}>{translations.noCertificates}</Text>
-      <Text style={styles.noCertSubtext}>{translations.noCertificatesSubtext}</Text>
-    </View>
-  )}
-</TouchableOpacity>
-{/* More Settings Button */}
-<TouchableOpacity 
-  style={styles.moreSettingsButton}
-  onPress={() => navigation.navigate('WorkingMemberMoreSettingsTabs')}
-  activeOpacity={0.7}
->
-  <View style={styles.moreSettingsLeft}>
-    <View style={styles.moreSettingsIcon}>
-      <MaterialIcons name="settings" size={responsiveFont(24)} color="#ffffff" />
-    </View>
-    <View style={styles.moreSettingsTextContainer}>
-      <Text style={styles.moreSettingsTitle}>More Settings</Text>
-      <Text style={styles.moreSettingsSubtitle}>Applications, Classes, Commission, Org, Quotes, Add Member</Text>
-    </View>
-  </View>
-  <MaterialIcons name="chevron-right" size={responsiveFont(24)} color="#ffffff" />
-</TouchableOpacity>
-{/* ✅ ADD THIS - Logout Button */}
-<TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.7}>
-  <MaterialIcons name="logout" size={responsiveFont(20)} color="#ffffff" />
-  <Text style={styles.logoutButtonText}>{translations.logout}</Text>
-</TouchableOpacity>
+
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.7}>
+          <MaterialIcons name="logout" size={responsiveFont(20)} color="#ffffff" />
+          <Text style={styles.logoutButtonText}>{translations.logout}</Text>
+        </TouchableOpacity>
+
         <View style={styles.versionContainer}>
           <Text style={styles.versionFooterText}>NGO App v1.0.0</Text>
         </View>
       </ScrollView>
+
+      {/* Certificate Modal */}
+      <Modal
+        visible={showCertificateModal}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => setShowCertificateModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowCertificateModal(false)} style={styles.modalCloseButton} activeOpacity={0.7}>
+              <MaterialIcons name="close" size={24} color="#1a3c8f" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>{translations.certificateOfMembership}</Text>
+            <TouchableOpacity onPress={handleDownloadCertificate} style={styles.modalDownloadButton} activeOpacity={0.7}>
+              {certificateDownloading ? (
+                <ActivityIndicator size="small" color="#d4af37" />
+              ) : (
+                <MaterialIcons name="download" size={24} color="#d4af37" />
+              )}
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView 
+            contentContainerStyle={styles.modalContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Membership Certificate with Template */}
+            <View ref={certificateRef} collapsable={false} style={styles.certificateContainer}>
+              <View style={styles.certificate}>
+                {/* Certificate Background Template */}
+                <Image 
+                  source={require('../../assets/images/certificate-template.png')}
+                  style={styles.certificateTemplateImage}
+                  resizeMode="stretch"
+                />
+                
+                {/* Certificate Overlay Content */}
+                <View style={styles.certificateOverlay}>
+                  {/* Member Name */}
+                  <View style={styles.certificateNameRow}>
+                    <Text style={styles.certificateNameValue} numberOfLines={1}>
+                      {formData.fullName || 'Member Name'}
+                    </Text>
+                  </View>
+                  
+                  {/* Address */}
+                  <View style={styles.certificateAddressRow}>
+                    <Text style={styles.certificateAddressValue} numberOfLines={2}>
+                      {formData.address || 'Address'}
+                    </Text>
+                  </View>
+                  
+                  {/* Member Type */}
+                  <View style={styles.certificateTypeRow}>
+                    <Text style={styles.certificateTypeValue} numberOfLines={1}>
+                      {formData.position || 'Member'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Donation Certificate - Simple Document Style */}
+            {certificates.some(c => c.type === 'donation') ? (
+              certificates.filter(c => c.type === 'donation').map((cert, index) => (
+                <View key={index} style={styles.donationCertificateContainer}>
+                  <View style={styles.donationCertificate}>
+                    {/* Header */}
+                    <View style={styles.donationHeader}>
+                      <Text style={styles.donationOrgName}>KABIR SAT DHARM FOUNDATION (TRUST)</Text>
+                      <Text style={styles.donationOrgSub}>Recognized Institution by the Government of India</Text>
+                      <View style={styles.donationDivider} />
+                      <Text style={styles.donationTitle}>DONATION CERTIFICATE</Text>
+                    </View>
+
+                    {/* Certificate Body */}
+                    <View style={styles.donationBody}>
+                      <Text style={styles.donationText}>This is to certify that</Text>
+                      <Text style={styles.donationMemberName}>{formData.fullName || 'Member Name'}</Text>
+                      <Text style={styles.donationText}>has made a donation of</Text>
+                      <Text style={styles.donationAmount}>₹{cert.amount || '0'}</Text>
+                      <Text style={styles.donationText}>to the Kabir Sat Dharm Foundation (Trust)</Text>
+                      <Text style={styles.donationText}>on this day</Text>
+                      <Text style={styles.donationDate}>
+                        {cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString() : new Date().toLocaleDateString()}
+                      </Text>
+                    </View>
+
+                    {/* Footer */}
+                    <View style={styles.donationFooter}>
+                      <View style={styles.donationSignatureBox}>
+                        <View style={styles.donationSignatureLine} />
+                        <Text style={styles.donationSignatureLabel}>Director</Text>
+                      </View>
+                      <View style={styles.donationSeal}>
+                        <MaterialIcons name="verified" size={40} color="#d4af37" />
+                      </View>
+                      <View style={styles.donationSignatureBox}>
+                        <View style={styles.donationSignatureLine} />
+                        <Text style={styles.donationSignatureLabel}>Founder</Text>
+                      </View>
+                    </View>
+
+                    {/* Certificate ID */}
+                    <Text style={styles.donationCertificateId}>
+                      Certificate ID: {cert.id || `DON-${Date.now()}`}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            ) : null}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1022,61 +1190,23 @@ const styles = StyleSheet.create({
     position: 'relative',
     zIndex: 1,
   },
-  idCardOrgName: {
-    fontFamily: Fonts.Bold,
-    fontSize: responsiveFont(16),
-    color: '#1f2937',
-    textAlign: 'center',
-  },
-  idCardOrgSub: {
-    fontFamily: Fonts.Regular,
-    fontSize: responsiveFont(10),
-    color: '#4b5563',
-    textAlign: 'center',
-  },
-  idCardRegNo: {
-    fontFamily: Fonts.Regular,
-    fontSize: responsiveFont(9),
-    color: '#6b7280',
-    textAlign: 'center',
-  },
-  idCardTitleContainer: {
-    alignItems: 'center',
-    marginVertical: responsiveHeight(4),
-    paddingVertical: responsiveHeight(2),
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  idCardTitleText: {
-    fontFamily: Fonts.Bold,
-    fontSize: responsiveFont(18),
-    color: '#1f2937',
-    letterSpacing: 2,
-  },
   idCardDetailsContainer: {
-  flex: 1,
-  justifyContent: 'center',
-  paddingRight: responsiveWidth(100),  // ← Space for photo
-  paddingLeft: responsiveWidth(8),     // ← CHANGE THIS - Increase to move right
-  paddingTop: responsiveHeight(4),
-  paddingBottom: responsiveHeight(4),
-},
+    flex: 1,
+    justifyContent: 'center',
+    paddingRight: responsiveWidth(100),
+    paddingLeft: responsiveWidth(8),
+    paddingTop: responsiveHeight(4),
+    paddingBottom: responsiveHeight(4),
+  },
   idCardFieldRow: {
     flexDirection: 'row',
     marginBottom: responsiveHeight(2),
     alignItems: 'center',
   },
-  idCardFieldLabel: {
-    fontFamily: Fonts.SemiBold,
-    fontSize: responsiveFont(11),
-    color: '#4b5563',
-    width: responsiveWidth(75),
-  },
   idCardFieldValue: {
     fontFamily: Fonts.Regular,
     fontSize: responsiveFont(10),
-marginLeft: responsiveWidth(100),
+    marginLeft: responsiveWidth(100),
     color: '#1f2937',
     flex: 1,
   },
@@ -1154,7 +1284,7 @@ marginLeft: responsiveWidth(100),
     paddingVertical: responsiveHeight(12),
     paddingHorizontal: responsiveWidth(20),
     borderRadius: 8,
-    marginTop: responsiveHeight(12),
+    marginBottom: responsiveHeight(16),
     gap: 8,
     width: isWeb ? 500 : '100%',
     alignSelf: 'center',
@@ -1163,6 +1293,55 @@ marginLeft: responsiveWidth(100),
     fontFamily: Fonts.SemiBold,
     color: '#ffffff',
     fontSize: responsiveFont(14),
+  },
+
+  // Certificate Section
+  certificateSection: {
+    marginBottom: responsiveHeight(16),
+    ...(isWeb && {
+      maxWidth: 500,
+      alignSelf: 'center',
+      width: '100%',
+    }),
+  },
+  certificateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    paddingVertical: responsiveHeight(16),
+    paddingHorizontal: responsiveWidth(16),
+    borderRadius: responsiveWidth(12),
+    borderWidth: 1,
+    borderColor: '#d4af37',
+    shadowColor: '#d4af37',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    gap: 12,
+  },
+  certificateButtonIcon: {
+    width: responsiveWidth(44),
+    height: responsiveWidth(44),
+    borderRadius: responsiveWidth(22),
+    backgroundColor: '#fef9e7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  certificateButtonContent: {
+    flex: 1,
+  },
+  certificateButtonTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: responsiveFont(15),
+    color: '#1a3c8f',
+  },
+  certificateButtonSubtitle: {
+    fontFamily: Fonts.Regular,
+    fontSize: responsiveFont(12),
+    color: '#666',
+    marginTop: responsiveHeight(2),
   },
 
   card: {
@@ -1355,33 +1534,231 @@ marginLeft: responsiveWidth(100),
     color: '#9ca3af',
   },
 
-  // Settings
-  settingItem: {
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  // Donation Certificate Styles
+  donationCertificateContainer: {
+    width: '100%',
+    backgroundColor: '#ffffff',
+    borderRadius: responsiveWidth(8),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    marginBottom: responsiveHeight(8),
+    marginTop: responsiveHeight(8),
+  },
+  donationCertificate: {
+    padding: responsiveWidth(16),
+    borderWidth: 2,
+    borderColor: '#d4af37',
+    borderRadius: responsiveWidth(8),
+    backgroundColor: '#fffdf5',
+  },
+  donationHeader: {
+    alignItems: 'center',
+    marginBottom: responsiveHeight(12),
+  },
+  donationOrgName: {
+    fontFamily: Fonts.Bold,
+    fontSize: responsiveFont(16),
+    color: '#1a3c8f',
+    textAlign: 'center',
+  },
+  donationOrgSub: {
+    fontFamily: Fonts.Regular,
+    fontSize: responsiveFont(10),
+    color: '#666',
+    textAlign: 'center',
+    marginTop: responsiveHeight(2),
+  },
+  donationDivider: {
+    width: '60%',
+    height: 1,
+    backgroundColor: '#d4af37',
+    marginVertical: responsiveHeight(8),
+  },
+  donationTitle: {
+    fontFamily: Fonts.Bold,
+    fontSize: responsiveFont(18),
+    color: '#cc0000',
+    textAlign: 'center',
+    letterSpacing: 1,
+  },
+  donationBody: {
+    alignItems: 'center',
+    marginBottom: responsiveHeight(12),
+  },
+  donationText: {
+    fontFamily: Fonts.Regular,
+    fontSize: responsiveFont(12),
+    color: '#333',
+    textAlign: 'center',
+    marginVertical: responsiveHeight(2),
+  },
+  donationMemberName: {
+    fontFamily: Fonts.Bold,
+    fontSize: responsiveFont(18),
+    color: '#1a3c8f',
+    textAlign: 'center',
+    marginVertical: responsiveHeight(4),
+    textDecorationLine: 'underline',
+  },
+  donationAmount: {
+    fontFamily: Fonts.Bold,
+    fontSize: responsiveFont(24),
+    color: '#10b981',
+    textAlign: 'center',
+    marginVertical: responsiveHeight(4),
+  },
+  donationDate: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: responsiveFont(14),
+    color: '#1a3c8f',
+    textAlign: 'center',
+    marginVertical: responsiveHeight(4),
+  },
+  donationFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: responsiveHeight(12),
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    paddingHorizontal: responsiveWidth(20),
+    marginTop: responsiveHeight(12),
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingTop: responsiveHeight(8),
   },
-  settingLeft: {
+  donationSignatureBox: {
+    alignItems: 'center',
+  },
+  donationSignatureLine: {
+    width: responsiveWidth(60),
+    height: 1,
+    backgroundColor: '#333',
+    marginBottom: responsiveHeight(4),
+  },
+  donationSignatureLabel: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: responsiveFont(10),
+    color: '#333',
+  },
+  donationSeal: {
+    alignItems: 'center',
+  },
+  donationCertificateId: {
+    fontFamily: Fonts.Regular,
+    fontSize: responsiveFont(8),
+    color: '#999',
+    textAlign: 'center',
+    marginTop: responsiveHeight(8),
+  },
+  modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: responsiveWidth(16),
+    paddingVertical: responsiveHeight(12),
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    ...(Platform.OS === 'web' && {
+      paddingTop: responsiveHeight(20),
+    }),
+  },
+  modalCloseButton: {
+    padding: responsiveWidth(4),
+  },
+  modalTitle: {
+    fontFamily: Fonts.Bold,
+    fontSize: responsiveFont(16),
+    color: '#1a3c8f',
     flex: 1,
+    textAlign: 'center',
   },
-  settingLabel: {
-    fontFamily: Fonts.Regular,
-    fontSize: responsiveFont(14),
-    color: '#1f2937',
-    flexShrink: 1,
+  modalDownloadButton: {
+    padding: responsiveWidth(4),
   },
-  versionText: {
-    fontFamily: Fonts.Regular,
-    fontSize: responsiveFont(13),
-    color: '#6b7280',
+  modalContent: {
+    padding: responsiveWidth(16),
+    paddingBottom: responsiveHeight(40),
   },
 
+  // Certificate Template
+  certificateContainer: {
+    width: '100%',
+    aspectRatio: 1.414,
+    backgroundColor: '#ffffff',
+    borderRadius: responsiveWidth(8),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    ...(isWeb && {
+      maxWidth: 900,
+      alignSelf: 'center',
+    }),
+  },
+  certificate: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  certificateTemplateImage: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  certificateOverlay: {
+    flex: 1,
+    position: 'relative',
+    zIndex: 1,
+  },
+  certificateNameRow: {
+    position: 'absolute',
+    top: '46%',
+    left: '35%',
+    width: '60%',
+  },
+  certificateNameValue: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: responsiveFont(13),
+    color: '#000000',
+    textDecorationLine: 'underline',
+  },
+  certificateAddressRow: {
+    position: 'absolute',
+    top: '52%',
+    left: '16%',
+    width: '60%',
+  },
+  certificateAddressValue: {
+    fontFamily: Fonts.Regular,
+    fontSize: responsiveFont(11),
+    color: '#000000',
+    textDecorationLine: 'underline',
+  },
+  certificateTypeRow: {
+    position: 'absolute',
+    top: '56%',
+    left: '61%',
+    width: '35%',
+  },
+  certificateTypeValue: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: responsiveFont(14),
+    color: '#000000',
+    textDecorationLine: 'underline',
+  },
   // More Settings Button
   moreSettingsButton: {
     flexDirection: 'row',

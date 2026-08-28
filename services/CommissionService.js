@@ -17,16 +17,19 @@ import {
 import { 
   getLevelDetails, 
   getCommissionRates,
+  getPrimaryCommission,
+  getSecondaryCommission,
   getLevelByMemberCountAndDonations,
   isEligibleForPromotion,
-  getPromotionRequirements
+  getPromotionRequirements,
+  getNextLevel
 } from '../config/commissionLevels';
 import { WalletService } from './WalletService';
 import { LevelUpdateService } from './LevelUpdateService';
 
 export const CommissionService = {
   // ============================================================
-  // 1. PROCESS COMMISSION ON NEW MEMBER REGISTRATION
+  // 1. PROCESS COMMISSION ON NEW MEMBER REGISTRATION (UPDATED)
   // ============================================================
   async processNewRegistration(newMemberId, sponsorId, registrationAmount = 1000) {
     console.log('🔵 CommissionService.processNewRegistration called');
@@ -56,27 +59,29 @@ export const CommissionService = {
       
       // Get sponsor's level
       const sponsorLevel = sponsorData.level || 'I';
-      const levelDetails = getLevelDetails(sponsorLevel);
+      
+      // ============ NEW: Get PRIMARY commission ============
+      const primaryRate = getPrimaryCommission(sponsorLevel);
       
       console.log('📊 Sponsor Level:', sponsorLevel);
-      console.log('📊 Level Details:', levelDetails);
+      console.log('📊 Primary Commission Rate:', primaryRate);
       
-      // 1. Calculate Direct Commission
-      const directCommissionAmount = (registrationAmount * levelDetails.directCommission) / 100;
-      console.log('💰 Direct commission amount:', directCommissionAmount);
+      // 1. Calculate Primary Commission (Direct)
+      const primaryCommissionAmount = (registrationAmount * primaryRate) / 100;
+      console.log('💰 Primary commission amount:', primaryCommissionAmount);
       
-      // 2. Add direct commission to sponsor's wallet
+      // 2. Add primary commission to sponsor's wallet
       await WalletService.addCommission(
         sponsorId,
-        directCommissionAmount,
-        'direct_commission',
-        `Direct commission for registering new member (${levelDetails.directCommission}%)`,
+        primaryCommissionAmount,
+        'primary_commission',  // ← Changed from 'direct_commission'
+        `Primary commission for registering new member (${primaryRate}%)`,
         newMemberId
       );
       
-      console.log(`✅ Direct commission: ₹${directCommissionAmount} added to sponsor ${sponsorId}`);
+      console.log(`✅ Primary commission: ₹${primaryCommissionAmount} added to sponsor ${sponsorId}`);
       
-      // 3. Calculate Secondary Commissions (Upline)
+      // 3. Calculate Secondary Commissions (Upline) - NEW LOGIC
       const secondaryCommissions = await this.calculateSecondaryCommissions(
         sponsorId,
         registrationAmount,
@@ -88,12 +93,12 @@ export const CommissionService = {
       // 4. Update sponsor's direct referrals count
       await this.updateDirectReferrals(sponsorId, newMemberId);
       
-      // 5. Update sponsor's level (based on both members AND donations)
+      // 5. Update sponsor's level (based on donations)
       await LevelUpdateService.checkAndUpdateLevel(sponsorId);
       
       return {
         success: true,
-        directCommission: directCommissionAmount,
+        primaryCommission: primaryCommissionAmount,
         secondaryCommissions: secondaryCommissions,
         newLevel: sponsorData.level
       };
@@ -105,7 +110,7 @@ export const CommissionService = {
   },
 
   // ============================================================
-  // 2. PROCESS COMMISSION ON DONATION (NEW)
+  // 2. PROCESS COMMISSION ON DONATION (UPDATED)
   // ============================================================
   async processDonationCommission(memberId, donationAmount) {
     console.log('💰 CommissionService.processDonationCommission called');
@@ -154,23 +159,22 @@ export const CommissionService = {
         return { success: false, message: 'Sponsor is not a working member' };
       }
       
-      // 5. Get working member's level and commission rate
+      // ============ NEW: Get PRIMARY commission rate ============
       const level = workingMemberData.level || 'I';
-      const levelDetails = getLevelDetails(level);
-      const commissionRate = levelDetails.directCommission;
+      const primaryRate = getPrimaryCommission(level);
       
-      console.log(`📊 Working Member Level: ${level}, Commission Rate: ${commissionRate}%`);
+      console.log(`📊 Working Member Level: ${level}, Primary Rate: ${primaryRate}%`);
       
-      // 6. Calculate commission
-      const commissionAmount = (donationAmount * commissionRate) / 100;
+      // 6. Calculate commission using PRIMARY rate
+      const commissionAmount = (donationAmount * primaryRate) / 100;
       console.log(`💰 Commission Amount: ₹${commissionAmount}`);
       
       // 7. Add commission to working member's wallet
       await WalletService.addCommission(
         workingMemberId,
         commissionAmount,
-        'direct_commission',
-        `Commission from ${memberData.fullName || 'Member'}'s donation of ₹${donationAmount} (${commissionRate}%)`,
+        'donation_commission',  // Keep as donation_commission
+        `Donation commission from ${memberData.fullName || 'Member'} (${primaryRate}%)`,
         memberId
       );
       
@@ -183,7 +187,7 @@ export const CommissionService = {
         memberName: memberData.fullName || 'Unknown',
         donationAmount: donationAmount,
         commissionAmount: commissionAmount,
-        commissionRate: commissionRate,
+        commissionRate: primaryRate,
         level: level,
         type: 'donation_commission',
         createdAt: Timestamp.now()
@@ -214,7 +218,7 @@ export const CommissionService = {
       return {
         success: true,
         commissionAmount: commissionAmount,
-        commissionRate: commissionRate,
+        commissionRate: primaryRate,
         level: level,
         workingMemberId: workingMemberId,
         memberName: memberData.fullName || 'Unknown',
@@ -270,7 +274,7 @@ export const CommissionService = {
   },
 
   // ============================================================
-  // 4. CALCULATE SECONDARY COMMISSIONS (UPLINE)
+  // 4. CALCULATE SECONDARY COMMISSIONS (UPLINE) - UPDATED
   // ============================================================
   async calculateSecondaryCommissions(sponsorId, registrationAmount, newMemberId) {
     const commissions = [];
@@ -278,7 +282,12 @@ export const CommissionService = {
     let level = 1;
     const maxDepth = 10;
     
-    console.log('🔵 Calculating secondary commissions for sponsor:', sponsorId);
+    console.log('🔵 Calculating secondary commissions (difference-based)');
+    
+    // Get current sponsor's level for the first iteration
+    const sponsorDoc = await getDoc(doc(db, 'users', sponsorId));
+    const sponsorData = sponsorDoc.data();
+    let currentLevel = sponsorData.level || 'I';
     
     while (currentId && level <= maxDepth) {
       try {
@@ -298,19 +307,22 @@ export const CommissionService = {
                                uplineData.role === 'workingMember';
         
         if (!isWorkingMember) {
-          console.log(`❌ Upline at level ${level} is not a working member. Role: ${uplineData.role}`);
-          // Continue to next level instead of breaking
+          console.log(`⚠️ Upline at level ${level} is not a working member. Skipping.`);
           currentId = uplineData.sponsorId;
           level++;
           continue;
         }
         
-        // Get commission rate for this level
+        // Get upline's level
         const uplineLevel = uplineData.level || 'I';
-        const commissionRates = getCommissionRates(uplineLevel);
-        const secondaryRate = commissionRates.secondary || 0;
         
-        console.log(`📊 Upline Level ${level}: ${uplineLevel}, Secondary Rate: ${secondaryRate}%`);
+        // ============ NEW SECONDARY COMMISSION LOGIC ============
+        // Secondary = Primary(currentLevel) - Primary(previousLevel)
+        const primaryCurrent = getPrimaryCommission(uplineLevel);
+        const primaryPrevious = getPrimaryCommission(currentLevel);
+        const secondaryRate = Math.max(0, primaryCurrent - primaryPrevious);
+        
+        console.log(`📊 Upline Level ${level}: ${uplineLevel}, Current Primary: ${primaryCurrent}%, Previous Primary: ${primaryPrevious}%, Secondary Rate: ${secondaryRate}%`);
         
         if (secondaryRate > 0) {
           const commissionAmount = (registrationAmount * secondaryRate) / 100;
@@ -320,7 +332,7 @@ export const CommissionService = {
             currentId,
             commissionAmount,
             'secondary_commission',
-            `Secondary commission (Level ${level}) - ${secondaryRate}%`,
+            `Secondary commission (Level ${level}) - ${secondaryRate}% difference`,
             newMemberId
           );
           
@@ -330,14 +342,20 @@ export const CommissionService = {
             name: uplineData.fullName || uplineData.name || 'Unknown',
             amount: commissionAmount,
             percentage: secondaryRate,
-            title: uplineData.levelTitle || uplineLevel
+            title: uplineData.levelTitle || uplineLevel,
+            currentLevel: uplineLevel,
+            primaryRate: primaryCurrent,
+            previousRate: primaryPrevious
           });
           
-          console.log(`✅ Secondary commission level ${level}: ₹${commissionAmount} to ${uplineData.fullName || uplineData.name}`);
+          console.log(`✅ Secondary commission level ${level}: ₹${commissionAmount} (${secondaryRate}%) to ${uplineData.fullName || uplineData.name}`);
+        } else {
+          console.log(`⚠️ No secondary commission for level ${level} (${secondaryRate}%)`);
         }
         
         // Move to next upline
         currentId = uplineData.sponsorId;
+        currentLevel = uplineLevel; // Update for next iteration
         level++;
         
       } catch (error) {
@@ -380,7 +398,7 @@ export const CommissionService = {
   },
 
   // ============================================================
-  // 6. GET COMMISSION SUMMARY FOR A USER
+  // 6. GET COMMISSION SUMMARY FOR A USER (UPDATED)
   // ============================================================
   async getCommissionSummary(userId) {
     try {
@@ -389,49 +407,58 @@ export const CommissionService = {
       const q = query(
         collection(db, 'walletTransactions'),
         where('userId', '==', userId),
-        where('type', 'in', ['direct_commission', 'secondary_commission'])
+        where('type', 'in', ['primary_commission', 'secondary_commission', 'donation_commission'])
       );
       
       const querySnapshot = await getDocs(q);
-      let totalDirect = 0;
+      let totalPrimary = 0;
       let totalSecondary = 0;
-      let countDirect = 0;
+      let totalDonation = 0;
+      let countPrimary = 0;
       let countSecondary = 0;
+      let countDonation = 0;
       
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        if (data.type === 'direct_commission') {
-          totalDirect += data.amount || 0;
-          countDirect++;
+        if (data.type === 'primary_commission') {
+          totalPrimary += data.amount || 0;
+          countPrimary++;
         } else if (data.type === 'secondary_commission') {
           totalSecondary += data.amount || 0;
           countSecondary++;
+        } else if (data.type === 'donation_commission') {
+          totalDonation += data.amount || 0;
+          countDonation++;
         }
       });
       
-      console.log(`✅ Commission summary: Direct: ₹${totalDirect}, Secondary: ₹${totalSecondary}`);
+      console.log(`✅ Commission summary: Primary: ₹${totalPrimary}, Secondary: ₹${totalSecondary}, Donation: ₹${totalDonation}`);
       
       return {
-        totalDirect,
+        totalPrimary,
         totalSecondary,
-        countDirect,
+        totalDonation,
+        countPrimary,
         countSecondary,
-        totalEarned: totalDirect + totalSecondary
+        countDonation,
+        totalEarned: totalPrimary + totalSecondary + totalDonation
       };
     } catch (error) {
       console.error('❌ Error getting commission summary:', error);
       return {
-        totalDirect: 0,
+        totalPrimary: 0,
         totalSecondary: 0,
-        countDirect: 0,
+        totalDonation: 0,
+        countPrimary: 0,
         countSecondary: 0,
+        countDonation: 0,
         totalEarned: 0
       };
     }
   },
 
   // ============================================================
-  // 7. GET COMMISSION HISTORY (ADMIN)
+  // 7. GET COMMISSION HISTORY (ADMIN) - UPDATED
   // ============================================================
   async getAllCommissionTransactions(limit = 100) {
     try {
@@ -439,7 +466,7 @@ export const CommissionService = {
       
       const q = query(
         collection(db, 'walletTransactions'),
-        where('type', 'in', ['direct_commission', 'secondary_commission']),
+        where('type', 'in', ['primary_commission', 'secondary_commission', 'donation_commission']),
         orderBy('createdAt', 'desc'),
         limit(limit)
       );
@@ -562,7 +589,7 @@ export const CommissionService = {
   },
 
   // ============================================================
-  // 10. GET PENDING COMMISSIONS FOR A USER
+  // 10. GET PENDING COMMISSIONS FOR A USER (UPDATED)
   // ============================================================
   async getPendingCommissions(userId) {
     try {
@@ -571,7 +598,7 @@ export const CommissionService = {
       const q = query(
         collection(db, 'walletTransactions'),
         where('userId', '==', userId),
-        where('type', 'in', ['direct_commission', 'secondary_commission']),
+        where('type', 'in', ['primary_commission', 'secondary_commission', 'donation_commission']),
         where('status', '==', 'pending')
       );
       

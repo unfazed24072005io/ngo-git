@@ -31,7 +31,7 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { Fonts } from '../../config/fonts';
-import { getLevelDetails, getCommissionRates, LEVELS, getLevelByMemberCount } from '../../config/commissionLevels';
+import { getLevelDetails, getPrimaryCommission, getSecondaryCommission, LEVELS, getLevelByMemberCount } from '../../config/commissionLevels';
 import { WalletService } from '../../services/WalletService';
 import { CommissionService } from '../../services/CommissionService';
 import { useLanguage } from '../../context/LanguageContext';
@@ -66,10 +66,10 @@ export default function WorkingMemberCommission({ navigation }) {
     total: t('common.total') || 'Total',
     
     // Commission Types
-    directCommission: t('commission.directCommission') || 'Direct Commission',
+    primaryCommission: t('commission.primaryCommission') || 'Primary Commission',
     secondaryCommission: t('commission.secondaryCommission') || 'Secondary Commission',
     donationCommission: t('commission.donationCommission') || 'Donation Commission',
-    direct: t('commission.direct') || 'Direct',
+    primary: t('commission.primary') || 'Primary',
     secondary: t('commission.secondary') || 'Secondary',
     donations: t('commission.donations') || 'Donations',
     
@@ -80,7 +80,7 @@ export default function WorkingMemberCommission({ navigation }) {
     transactions: t('commission.transactions') || 'Transactions',
     
     // Summary
-    directCommissionsLabel: t('commission.directCommission') || 'Direct Commissions',
+    primaryCommissionsLabel: t('commission.primaryCommission') || 'Primary Commissions',
     secondaryCommissionsLabel: t('commission.secondaryCommission') || 'Secondary Commissions',
     transactionsCount: '{count} transactions',
     
@@ -108,6 +108,9 @@ export default function WorkingMemberCommission({ navigation }) {
     created: t('common.created') || 'Created',
     reference: 'Reference',
     memberDonation: 'Member Donation',
+    differenceBased: 'Difference-based (Primary Difference)',
+    primaryRate: 'Primary Rate',
+    secondaryRate: 'Secondary Rate (Difference)',
     
     // Share
     myCommissionReport: 'My Commission Report',
@@ -128,6 +131,9 @@ export default function WorkingMemberCommission({ navigation }) {
     // Status
     paidStatusLabel: t('commission.paid') || 'Paid',
     pendingStatusLabel: t('commission.pending') || 'Pending',
+    
+    // Difference
+    differenceLabel: 'Difference from previous level',
   };
 
   const [commissions, setCommissions] = useState([]);
@@ -149,10 +155,10 @@ export default function WorkingMemberCommission({ navigation }) {
   const [donationCommissionTotal, setDonationCommissionTotal] = useState(0);
   const [donationCommissionCount, setDonationCommissionCount] = useState(0);
   const [commissionSummary, setCommissionSummary] = useState({
-    directTotal: 0,
+    primaryTotal: 0,
     secondaryTotal: 0,
     donationTotal: 0,
-    directCount: 0,
+    primaryCount: 0,
     secondaryCount: 0,
     donationCount: 0,
     thisMonth: 0,
@@ -215,7 +221,7 @@ export default function WorkingMemberCommission({ navigation }) {
     const q = query(
       collection(db, 'walletTransactions'),
       where('userId', '==', userId),
-      where('type', 'in', ['direct_commission', 'secondary_commission']),
+      where('type', 'in', ['primary_commission', 'secondary_commission']),
       orderBy('createdAt', 'desc')
     );
 
@@ -224,9 +230,9 @@ export default function WorkingMemberCommission({ navigation }) {
       let total = 0;
       let pending = 0;
       let paid = 0;
-      let directTotal = 0;
+      let primaryTotal = 0;
       let secondaryTotal = 0;
-      let directCount = 0;
+      let primaryCount = 0;
       let secondaryCount = 0;
       
       snapshot.forEach((doc) => {
@@ -238,11 +244,11 @@ export default function WorkingMemberCommission({ navigation }) {
         const commission = { 
           id: doc.id, 
           ...data,
-          title: data.type === 'direct_commission' ? translations.directCommission : translations.secondaryCommission,
+          title: data.type === 'primary_commission' ? translations.primaryCommission : translations.secondaryCommission,
           description: data.description || '',
           status: data.status || 'pending',
           amount: data.amount || 0,
-          type: data.type === 'direct_commission' ? 'direct' : 'secondary',
+          type: data.type === 'primary_commission' ? 'primary' : 'secondary',
           createdAt: createdAt,
           date: createdAt,
           isDonation: isDonation
@@ -257,9 +263,9 @@ export default function WorkingMemberCommission({ navigation }) {
           pending += data.amount || 0;
         }
         
-        if (data.type === 'direct_commission') {
-          directTotal += data.amount || 0;
-          directCount++;
+        if (data.type === 'primary_commission') {
+          primaryTotal += data.amount || 0;
+          primaryCount++;
         } else if (data.type === 'secondary_commission') {
           secondaryTotal += data.amount || 0;
           secondaryCount++;
@@ -272,9 +278,9 @@ export default function WorkingMemberCommission({ navigation }) {
       setPaidCommission(paid);
       setCommissionSummary(prev => ({
         ...prev,
-        directTotal,
+        primaryTotal,
         secondaryTotal,
-        directCount,
+        primaryCount,
         secondaryCount
       }));
       setLoading(false);
@@ -333,7 +339,7 @@ export default function WorkingMemberCommission({ navigation }) {
       const q = query(
         collection(db, 'walletTransactions'),
         where('userId', '==', userId),
-        where('type', 'in', ['direct_commission', 'secondary_commission']),
+        where('type', 'in', ['primary_commission', 'secondary_commission']),
         where('status', 'in', ['completed', 'paid'])
       );
 
@@ -375,14 +381,14 @@ export default function WorkingMemberCommission({ navigation }) {
   };
 
   const getCommissionTypeColor = (type) => {
-    if (type === 'direct') return '#8b5cf6';
+    if (type === 'primary') return '#8b5cf6';
     if (type === 'secondary') return '#10b981';
     if (type === 'donation') return '#f59e0b';
     return '#6b7280';
   };
 
   const getCommissionTypeIcon = (type) => {
-    if (type === 'direct') return 'person-add';
+    if (type === 'primary') return 'person-add';
     if (type === 'secondary') return 'share';
     if (type === 'donation') return 'volunteer-activism';
     return 'attach-money';
@@ -398,8 +404,8 @@ export default function WorkingMemberCommission({ navigation }) {
       );
     }
 
-    if (filterType === 'direct') {
-      filtered = filtered.filter(c => c.type === 'direct' && !c.isDonation);
+    if (filterType === 'primary') {
+      filtered = filtered.filter(c => c.type === 'primary' && !c.isDonation);
     } else if (filterType === 'secondary') {
       filtered = filtered.filter(c => c.type === 'secondary');
     } else if (filterType === 'donation') {
@@ -425,7 +431,7 @@ export default function WorkingMemberCommission({ navigation }) {
         `📈 ${translations.thisMonth}: ₹${monthlyEarnings.toLocaleString()}\n` +
         `⏳ ${translations.pending}: ₹${pendingCommission.toLocaleString()}\n` +
         `✅ ${translations.paid}: ₹${paidCommission.toLocaleString()}\n` +
-        `📋 ${translations.direct}: ₹${commissionSummary.directTotal.toLocaleString()} (${commissionSummary.directCount} txns)\n` +
+        `📋 ${translations.primary}: ₹${commissionSummary.primaryTotal.toLocaleString()} (${commissionSummary.primaryCount} txns)\n` +
         `🔄 ${translations.secondary}: ₹${commissionSummary.secondaryTotal.toLocaleString()} (${commissionSummary.secondaryCount} txns)\n` +
         `❤️ ${translations.donationCommission}: ₹${commissionSummary.donationTotal.toLocaleString()} (${commissionSummary.donationCount} txns)\n\n` +
         translations.keepReferring;
@@ -456,7 +462,7 @@ export default function WorkingMemberCommission({ navigation }) {
     const type = isDonation ? 'donation' : item.type;
     const color = getCommissionTypeColor(type);
     const icon = getCommissionTypeIcon(type);
-    const isDirect = item.type === 'direct' && !isDonation;
+    const isPrimary = item.type === 'primary' && !isDonation;
     const isPaid = item.status === 'paid' || item.status === 'completed';
     
     let levelDetails = null;
@@ -466,9 +472,17 @@ export default function WorkingMemberCommission({ navigation }) {
       levelName = levelDetails?.title || '';
     }
 
-    let title = isDirect ? translations.directCommission : translations.secondaryCommission;
+    let title = isPrimary ? translations.primaryCommission : translations.secondaryCommission;
     if (isDonation) {
       title = translations.donationCommission;
+    }
+
+    // Get primary and secondary rates for display
+    let primaryRate = 0;
+    let secondaryRate = 0;
+    if (item.levelId && !isDonation) {
+      primaryRate = getPrimaryCommission(item.levelId);
+      secondaryRate = getSecondaryCommission(item.levelId);
     }
 
     return (
@@ -487,10 +501,10 @@ export default function WorkingMemberCommission({ navigation }) {
           <View style={styles.commissionInfo}>
             <Text style={styles.commissionTitle}>
               {title}
-              {item.level && !isDonation ? ` (L${item.level})` : ''}
+              {item.level && !isDonation ? ` (${translations.level} ${item.level})` : ''}
             </Text>
             <Text style={styles.commissionDescription} numberOfLines={1}>
-              {item.description || (isDirect ? translations.memberRegistration : isDonation ? translations.donationCommissionLabel : translations.uplineReferral)}
+              {item.description || (isPrimary ? translations.memberRegistration : isDonation ? translations.donationCommissionLabel : translations.uplineReferral)}
             </Text>
           </View>
           <View style={[styles.commissionStatus, { backgroundColor: isPaid ? '#10b981' : '#f59e0b' }]}>
@@ -507,7 +521,7 @@ export default function WorkingMemberCommission({ navigation }) {
             </Text>
             {levelName && !isDonation && (
               <Text style={styles.commissionLevel}>
-                {levelName} {item.percentage ? `(${item.percentage}%)` : ''}
+                {translations.primary}: {primaryRate}% | {translations.secondary}: {secondaryRate}%
               </Text>
             )}
             {isDonation && (
@@ -531,12 +545,16 @@ export default function WorkingMemberCommission({ navigation }) {
     const type = isDonation ? 'donation' : selectedCommission.type;
     const color = getCommissionTypeColor(type);
     const icon = getCommissionTypeIcon(type);
-    const isDirect = selectedCommission.type === 'direct' && !isDonation;
+    const isPrimary = selectedCommission.type === 'primary' && !isDonation;
     const isPaid = selectedCommission.status === 'paid' || selectedCommission.status === 'completed';
 
     let levelDetails = null;
+    let primaryRate = 0;
+    let secondaryRate = 0;
     if (selectedCommission.levelId && !isDonation) {
       levelDetails = getLevelDetails(selectedCommission.levelId);
+      primaryRate = getPrimaryCommission(selectedCommission.levelId);
+      secondaryRate = getSecondaryCommission(selectedCommission.levelId);
     }
 
     return (
@@ -563,7 +581,7 @@ export default function WorkingMemberCommission({ navigation }) {
                 <View style={styles.detailTitleContainer}>
                   <Text style={styles.detailTitle}>
                     {isDonation ? translations.donationCommission : 
-                     isDirect ? translations.directCommission : `${translations.secondaryCommission}${selectedCommission.level ? ` (${translations.level} ${selectedCommission.level})` : ''}`}
+                     isPrimary ? translations.primaryCommission : `${translations.secondaryCommission}${selectedCommission.level ? ` (${translations.level} ${selectedCommission.level})` : ''}`}
                   </Text>
                   <View style={[styles.detailStatus, { backgroundColor: isPaid ? '#10b981' : '#f59e0b' }]}>
                     <Text style={styles.detailStatusText}>
@@ -579,7 +597,7 @@ export default function WorkingMemberCommission({ navigation }) {
                 <View style={styles.breakdownRow}>
                   <Text style={styles.breakdownLabel}>{translations.type}</Text>
                   <Text style={styles.breakdownValue}>
-                    {isDonation ? translations.donation : isDirect ? translations.direct : translations.secondary}
+                    {isDonation ? translations.donations : isPrimary ? translations.primary : translations.secondary}
                   </Text>
                 </View>
                 
@@ -592,9 +610,15 @@ export default function WorkingMemberCommission({ navigation }) {
                       </Text>
                     </View>
                     <View style={styles.breakdownRow}>
-                      <Text style={styles.breakdownLabel}>{translations.commissionRate}</Text>
+                      <Text style={styles.breakdownLabel}>{translations.primaryRate}</Text>
                       <Text style={styles.breakdownValue}>
-                        {isDirect ? levelDetails.directCommission : levelDetails.secondaryCommission}%
+                        {primaryRate}%
+                      </Text>
+                    </View>
+                    <View style={styles.breakdownRow}>
+                      <Text style={styles.breakdownLabel}>{translations.secondaryRate}</Text>
+                      <Text style={styles.breakdownValue}>
+                        {secondaryRate}% ({translations.differenceLabel})
                       </Text>
                     </View>
                   </>
@@ -611,6 +635,13 @@ export default function WorkingMemberCommission({ navigation }) {
                   <View style={styles.breakdownRow}>
                     <Text style={styles.breakdownLabel}>{translations.appliedRate}</Text>
                     <Text style={styles.breakdownValue}>{selectedCommission.percentage}%</Text>
+                  </View>
+                )}
+                
+                {selectedCommission.previousRate !== undefined && !isDonation && (
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Previous Level Rate</Text>
+                    <Text style={styles.breakdownValue}>{selectedCommission.previousRate}%</Text>
                   </View>
                 )}
                 
@@ -812,11 +843,11 @@ export default function WorkingMemberCommission({ navigation }) {
       {/* Commission Summary */}
       <View style={styles.summaryContainer}>
         <SummaryCard 
-          title={translations.directCommissionsLabel} 
-          value={commissionSummary.directTotal} 
+          title={translations.primaryCommissionsLabel} 
+          value={commissionSummary.primaryTotal} 
           icon="person-add" 
           color="#8b5cf6"
-          subtitle={translations.transactionsCount.replace('{count}', commissionSummary.directCount)}
+          subtitle={translations.transactionsCount.replace('{count}', commissionSummary.primaryCount)}
         />
         <SummaryCard 
           title={translations.secondaryCommissionsLabel} 
@@ -838,12 +869,12 @@ export default function WorkingMemberCommission({ navigation }) {
             <Text style={[styles.filterChipText, filterType === 'all' && styles.filterChipTextActive]}>{translations.all}</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.filterChip, filterType === 'direct' && styles.filterChipActive]}
-            onPress={() => setFilterType('direct')}
+            style={[styles.filterChip, filterType === 'primary' && styles.filterChipActive]}
+            onPress={() => setFilterType('primary')}
             activeOpacity={0.7}
           >
-            <MaterialIcons name="person-add" size={12} color={filterType === 'direct' ? '#ffffff' : '#6b7280'} />
-            <Text style={[styles.filterChipText, filterType === 'direct' && styles.filterChipTextActive]}>{translations.direct}</Text>
+            <MaterialIcons name="person-add" size={12} color={filterType === 'primary' ? '#ffffff' : '#6b7280'} />
+            <Text style={[styles.filterChipText, filterType === 'primary' && styles.filterChipTextActive]}>{translations.primary}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.filterChip, filterType === 'secondary' && styles.filterChipActive]}

@@ -1016,18 +1016,7 @@ export default function HomeScreen({ navigation }) {
           ))}
         </View>
 
-        {/* Reviews Bar */}
-        <View style={styles.reviewsBar}>
-          <View style={styles.reviewsContent}>
-            <View style={styles.reviewsLeft}>
-              <Text style={styles.reviewsLabel}>{t('home.reviews') || 'Reviews'}</Text>
-              <View style={styles.ratingContainer}>
-                <MaterialIcons name="star" size={18} color="#fbbf24" />
-                <Text style={styles.ratingText}>{companyData?.averageRating || '4.8'}</Text>
-              </View>
-            </View>
-          </View>
-        </View>
+        
 
         {/* Donate Button */}
         <View style={styles.donateButtonContainer}>
@@ -2180,7 +2169,7 @@ const styles = StyleSheet.create({
   },
   orgName: {
     fontFamily: Fonts.Bold,
-    fontSize: 22,
+    fontSize: 16,
     color: '#1f2937',
     paddingHorizontal: 16,
     paddingTop: 8,
@@ -2194,7 +2183,7 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontFamily: Fonts.Regular,
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
   },
   tabsContainer: {
@@ -2258,7 +2247,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   donateButtonContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 4,
   },
@@ -2267,14 +2256,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: 13,
     borderRadius: 12,
     gap: 10,
-    shadowColor: '#FF7722',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
   },
   donateButtonText: {
     fontFamily: Fonts.Bold,

@@ -11,6 +11,7 @@ import {
   Modal,
   Alert,
   Share,
+FlatList,
   ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -22,7 +23,7 @@ import {
   getLevelDetails, 
   getLevelProgress,
   isEligibleForPromotion,
-  getPromotionRequirements 
+  getPromotionRequirements,
 } from '../../config/commissionLevels';
 import { WalletService } from '../../services/WalletService';
 import { CommissionService } from '../../services/CommissionService';
@@ -56,13 +57,25 @@ const getLevelColor = (levelId) => {
   return colors[levelId] || '#8b5cf6';
 };
 
+// Helper to get level label
+const getLevelLabel = (levelId, dynamicLevels = []) => {
+  if (dynamicLevels && dynamicLevels.length > 0) {
+    const dynamicLevel = dynamicLevels.find(l => l.id === levelId);
+    if (dynamicLevel) {
+      return dynamicLevel.name || levelId;
+    }
+  }
+  const details = getLevelDetails(levelId);
+  return details?.title || levelId;
+};
+
 export default function WorkingMemberDashboard({ navigation }) {
   const { t, counter } = useLanguage();
   
   // Force re-render when language changes
   const renderKey = `working-dashboard-${counter}`;
 
-  // Get translations - EVERY SINGLE TEXT STRING is mapped to a translation key
+  // Get translations
   const translations = {
     // Common
     loading: t('common.loading') || 'Loading...',
@@ -158,6 +171,14 @@ export default function WorkingMemberDashboard({ navigation }) {
     collapseHint: 'Tap to collapse',
     viewAllMembers: 'View All Members',
     levelLabel: 'Level',
+    directChild: 'Direct',
+    indirectChild: 'Indirect',
+    totalMembersInDownline: 'Total Members',
+    you: 'You',
+    root: 'Root',
+    level: 'Level',
+    member: 'Member',
+    children: 'Children',
   };
 
   const [userData, setUserData] = useState(null);
@@ -165,6 +186,10 @@ export default function WorkingMemberDashboard({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [fabModalVisible, setFabModalVisible] = useState(false);
+const [selectedNodeMembers, setSelectedNodeMembers] = useState([]);
+const [selectedNodeName, setSelectedNodeName] = useState('');
+const [nodeMembersModalVisible, setNodeMembersModalVisible] = useState(false);
+const [loadingNodeMembers, setLoadingNodeMembers] = useState(false);
   const [pendingApplications, setPendingApplications] = useState(0);
   const [levelDetails, setLevelDetails] = useState(null);
   const [levelProgress, setLevelProgress] = useState(null);
@@ -185,11 +210,65 @@ export default function WorkingMemberDashboard({ navigation }) {
   const [referredMembers, setReferredMembers] = useState([]);
   const [loadingReferred, setLoadingReferred] = useState(false);
 
-  // ============ NEW: Downline State ============
+  // ============ DOWNLINE STATE ============
   const [downlineData, setDownlineData] = useState([]);
   const [loadingDownline, setLoadingDownline] = useState(false);
-  const [expandedDownline, setExpandedDownline] = useState({});
+  const [dynamicLevels, setDynamicLevels] = useState([]);
+  const [downlineStats, setDownlineStats] = useState({
+    total: 0,
+    direct: 0,
+    indirect: 0,
+    workingMembers: 0,
+    registeredMembers: 0,
+    maxDepth: 0
+  });
 
+  // Fetch dynamic levels on mount
+  useEffect(() => {
+    fetchDynamicLevels();
+  }, []);
+
+  const fetchDynamicLevels = async () => {
+    try {
+      const settingsRef = doc(db, 'settings', 'commission');
+      const settingsSnap = await getDoc(settingsRef);
+      if (settingsSnap.exists()) {
+        const settingsData = settingsSnap.data();
+        if (settingsData.levels) {
+          setDynamicLevels(settingsData.levels);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching dynamic levels:', error);
+    }
+  };
+const fetchNodeDirectMembers = async (nodeId, nodeName) => {
+  setLoadingNodeMembers(true);
+  setSelectedNodeName(nodeName);
+  try {
+    // Query users where registeredBy === nodeId (direct members registered by this node)
+    const membersQuery = query(
+      collection(db, 'users'),
+      where('registeredBy', '==', nodeId),
+      where('role', 'in', ['member', 'general', 'user'])
+    );
+    const membersSnap = await getDocs(membersQuery);
+    const membersList = [];
+    membersSnap.forEach((doc) => {
+      membersList.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    setSelectedNodeMembers(membersList);
+    setNodeMembersModalVisible(true);
+  } catch (error) {
+    console.error('Error fetching node members:', error);
+    Alert.alert('Error', 'Failed to load members');
+  } finally {
+    setLoadingNodeMembers(false);
+  }
+};
   useEffect(() => {
     fetchUserData();
     setupRealtimeListener();
@@ -198,179 +277,435 @@ export default function WorkingMemberDashboard({ navigation }) {
     fetchPendingApplications();
     fetchPromotionProgress();
     fetchReferredMembers();
-    fetchDownlineData(); // ✅ Fetch downline data
+    fetchDownlineData();
   }, []);
+const NodeMembersModal = () => (
+  <Modal
+    animationType="slide"
+    transparent={true}
+    visible={nodeMembersModalVisible}
+    onRequestClose={() => setNodeMembersModalVisible(false)}
+  >
+    <View style={styles.modalOverlay}>
+      <View style={styles.nodeMembersModalContainer}>
+        <View style={styles.nodeMembersModalHeader}>
+          <View>
+            <Text style={styles.nodeMembersModalTitle}>Direct Members</Text>
+            <Text style={styles.nodeMembersModalSubtitle}>
+              {selectedNodeName || 'Member'} has registered {selectedNodeMembers.length} members
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => setNodeMembersModalVisible(false)}>
+            <MaterialIcons name="close" size={24} color="#6B7280" />
+          </TouchableOpacity>
+        </View>
 
-  // ============ FETCH DOWNLINE DATA ============
+        {loadingNodeMembers ? (
+          <View style={styles.nodeMembersLoading}>
+            <ActivityIndicator size="large" color="#8b5cf6" />
+            <Text style={styles.nodeMembersLoadingText}>Loading members...</Text>
+          </View>
+        ) : selectedNodeMembers.length === 0 ? (
+          <View style={styles.nodeMembersEmpty}>
+            <MaterialIcons name="people-outline" size={50} color="#d1d5db" />
+            <Text style={styles.nodeMembersEmptyTitle}>No Direct Members</Text>
+            <Text style={styles.nodeMembersEmptySubtext}>
+              {selectedNodeName || 'This member'} hasn't registered any direct members yet
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={selectedNodeMembers}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <View style={styles.nodeMemberItem}>
+                <View style={styles.nodeMemberAvatar}>
+                  <Text style={styles.nodeMemberAvatarText}>
+                    {item.fullName?.charAt(0)?.toUpperCase() || '?'}
+                  </Text>
+                </View>
+                <View style={styles.nodeMemberInfo}>
+                  <Text style={styles.nodeMemberName}>{item.fullName || 'Unknown'}</Text>
+                  <Text style={styles.nodeMemberDetails}>
+                    {item.phone || item.email || 'No contact'}
+                  </Text>
+                  <View style={styles.nodeMemberMeta}>
+                    <View style={[
+                      styles.nodeMemberStatus,
+                      { backgroundColor: item.status === 'active' ? '#d1fae5' : '#fee2e2' }
+                    ]}>
+                      <Text style={[
+                        styles.nodeMemberStatusText,
+                        { color: item.status === 'active' ? '#10b981' : '#ef4444' }
+                      ]}>
+                        {item.status || 'inactive'}
+                      </Text>
+                    </View>
+                    {item.level && (
+                      <Text style={styles.nodeMemberLevel}>
+                        Level {item.level}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color="#d1d5db" />
+              </View>
+            )}
+            contentContainerStyle={styles.nodeMembersList}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+
+        <TouchableOpacity 
+          style={styles.nodeMembersCloseButton}
+          onPress={() => setNodeMembersModalVisible(false)}
+        >
+          <Text style={styles.nodeMembersCloseButtonText}>Close</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </Modal>
+);
+
+  // ============ FETCH DOWNLINE DATA (VISUAL TREE) ============
   const fetchDownlineData = async () => {
-    const auth = getAuthInstance();
-    const userId = auth.currentUser?.uid;
-    if (!userId) return;
+  const auth = getAuthInstance();
+  const userId = auth.currentUser?.uid;
+  if (!userId) return;
 
-    setLoadingDownline(true);
-    try {
-      // 1. Get ALL users who were registered by this user (direct referrals)
-      const usersQuery = query(
-        collection(db, 'users'),
-        where('registeredBy', '==', userId)
-      );
-      const usersSnap = await getDocs(usersQuery);
-      
-      const downline = [];
+  setLoadingDownline(true);
+  try {
+    // Get ALL users
+    const usersQuery = query(
+      collection(db, 'users'),
+      where('role', 'in', ['working', 'workingMember'])
+    );
+    const usersSnap = await getDocs(usersQuery);
+    
+    // Build a map of all users
+    const userMap = {};
+    usersSnap.forEach((doc) => {
+      userMap[doc.id] = {
+        id: doc.id,
+        ...doc.data()
+      };
+    });
 
-      for (const userDoc of usersSnap.docs) {
-        const userData = userDoc.data();
-        const userId = userDoc.id;
-        
-        // Check if this user is a working member
-        const isWorkingMember = userData.role === 'working' || userData.role === 'workingMember';
-        
-        // Get members registered by this user
-        const membersQuery = query(
-          collection(db, 'users'),
-          where('registeredBy', '==', userId)
-        );
-        const membersSnap = await getDocs(membersQuery);
-        const membersList = [];
-        membersSnap.forEach((doc) => {
-          membersList.push({
-            id: doc.id,
-            ...doc.data()
-          });
-        });
-
-        downline.push({
-          id: userId,
-          ...userData,
-          isWorkingMember: isWorkingMember,
-          registeredMembers: membersList,
-          memberCount: membersList.length
-        });
-      }
-
-      // Sort: Working members first, then by member count
-      downline.sort((a, b) => {
-        if (a.isWorkingMember && !b.isWorkingMember) return -1;
-        if (!a.isWorkingMember && b.isWorkingMember) return 1;
-        return b.memberCount - a.memberCount;
-      });
-
-      setDownlineData(downline);
-    } catch (error) {
-      console.error('Error fetching downline data:', error);
-    } finally {
+    // Get current user data
+    const currentUser = userMap[userId] || userData;
+    if (!currentUser) {
+      setDownlineData([]);
       setLoadingDownline(false);
+      return;
     }
-  };
 
-  const toggleExpand = (userId) => {
-    setExpandedDownline(prev => ({
+    // Get levels for sorting
+    const levelsToUse = dynamicLevels.length > 0 ? dynamicLevels : getDefaultLevels();
+
+    // Build the complete tree with current user as root
+    const buildTree = (parentId, depth = 0, maxDepth = 0) => {
+      const children = [];
+      for (const [id, data] of Object.entries(userMap)) {
+        if (data.parentId === parentId) {
+          // Count direct members registered by this user
+          const directMemberCount = Object.values(userMap).filter(
+            u => u.registeredBy === id && (u.role === 'member' || u.role === 'general' || u.role === 'user')
+          ).length;
+
+          const childNode = {
+            id: id,
+            ...data,
+            depth: depth + 1,
+            isWorkingMember: data.role === 'working' || data.role === 'workingMember',
+            levelName: getLevelLabel(data.level, levelsToUse),
+            levelColor: getLevelColor(data.level),
+            levelBadge: getLevelBadge(data.level),
+            directMemberCount: directMemberCount,
+            children: buildTree(id, depth + 1),
+            childrenCount: Object.values(userMap).filter(u => u.parentId === id).length
+          };
+          children.push(childNode);
+          maxDepth = Math.max(maxDepth, childNode.depth);
+        }
+      }
+      // Sort by level
+      children.sort((a, b) => {
+        const aIndex = levelsToUse.findIndex(l => l.id === a.level);
+        const bIndex = levelsToUse.findIndex(l => l.id === b.level);
+        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+      });
+      return children;
+    };
+
+    const tree = buildTree(userId, 0);
+
+    // Also count direct members for the root user
+    const rootDirectMemberCount = Object.values(userMap).filter(
+      u => u.registeredBy === userId && (u.role === 'member' || u.role === 'general' || u.role === 'user')
+    ).length;
+
+    // Calculate stats
+    const allNodes = [];
+    const flattenTree = (nodes) => {
+      for (const node of nodes) {
+        allNodes.push(node);
+        if (node.children && node.children.length > 0) {
+          flattenTree(node.children);
+        }
+      }
+    };
+    flattenTree(tree);
+
+    const directCount = tree.length;
+    const indirectCount = allNodes.length - directCount;
+    const workingMembersCount = allNodes.filter(n => n.isWorkingMember).length;
+    const maxDepth = allNodes.reduce((max, n) => Math.max(max, n.depth || 0), 0);
+
+    setDownlineStats({
+      total: allNodes.length,
+      direct: directCount,
+      indirect: indirectCount,
+      workingMembers: workingMembersCount,
+      registeredMembers: allNodes.length - workingMembersCount,
+      maxDepth: maxDepth
+    });
+
+    // Store root direct member count in userData for display
+    setUserData(prev => ({
       ...prev,
-      [userId]: !prev[userId]
+      directMemberCount: rootDirectMemberCount
     }));
+
+    setDownlineData(tree);
+  } catch (error) {
+    console.error('Error fetching downline data:', error);
+  } finally {
+    setLoadingDownline(false);
+  }
+};
+
+  const getDefaultLevels = () => {
+    return [
+      { id: 'I', name: 'Customer', directCommission: 25, secondaryCommission: 10, donationsRequiredForPromotion: 10000 },
+      { id: 'II', name: 'Executive', directCommission: 35, secondaryCommission: 5, donationsRequiredForPromotion: 25000 },
+      { id: 'III', name: 'Manager', directCommission: 40, secondaryCommission: 2.5, donationsRequiredForPromotion: 50000 },
+      { id: 'IV', name: 'Coordinator', directCommission: 42.5, secondaryCommission: 1.25, donationsRequiredForPromotion: 100000 },
+      { id: 'V', name: 'Guide', directCommission: 43.75, secondaryCommission: 1.25, donationsRequiredForPromotion: 250000 },
+      { id: 'VI', name: 'Leader', directCommission: 44.5, secondaryCommission: 0.75, donationsRequiredForPromotion: 500000 },
+      { id: 'VII', name: 'Crown', directCommission: 45, secondaryCommission: 0.50, donationsRequiredForPromotion: Infinity }
+    ];
   };
 
-  // ============ DOWNLINE RENDER COMPONENT ============
-  const DownlineSection = () => {
+  // ============ VISUAL TREE RENDER COMPONENT ============
+  const VisualTree = () => {
     if (loadingDownline) {
       return (
-        <View style={styles.downlineLoadingContainer}>
-          <ActivityIndicator size="small" color="#8b5cf6" />
-          <Text style={styles.downlineLoadingText}>Loading downline...</Text>
+        <View style={styles.treeLoadingContainer}>
+          <ActivityIndicator size="large" color="#8b5cf6" />
+          <Text style={styles.treeLoadingText}>Loading downline...</Text>
         </View>
       );
     }
 
     if (downlineData.length === 0) {
       return (
-        <View style={styles.downlineEmptyContainer}>
-          <MaterialIcons name="people-outline" size={40} color="#d1d5db" />
-          <Text style={styles.downlineEmptyText}>{translations.noDownline}</Text>
-          <Text style={styles.downlineEmptySubtext}>Share your referral code to build your network</Text>
+        <View style={styles.treeEmptyContainer}>
+          <MaterialIcons name="account-tree" size={50} color="#d1d5db" />
+          <Text style={styles.treeEmptyTitle}>No Downline Members</Text>
+          <Text style={styles.treeEmptySubtext}>Members assigned under you will appear here as a tree</Text>
         </View>
       );
     }
 
-    return (
-      <View style={styles.downlineContainer}>
-        {downlineData.map((item) => (
-          <View key={item.id} style={styles.downlineCard}>
-            {/* Downline User Header */}
-            <TouchableOpacity 
-              style={styles.downlineHeader}
-              onPress={() => toggleExpand(item.id)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.downlineHeaderLeft}>
-                <View style={[
-                  styles.downlineAvatar,
-                  { backgroundColor: item.isWorkingMember ? '#8b5cf615' : '#10b98115' }
-                ]}>
-                  <Text style={[
-                    styles.downlineAvatarText,
-                    { color: item.isWorkingMember ? '#8b5cf6' : '#10b981' }
-                  ]}>
-                    {item.fullName?.charAt(0)?.toUpperCase() || '?'}
-                  </Text>
-                </View>
-                <View>
-                  <Text style={styles.downlineName} numberOfLines={1}>
-                    {item.fullName || item.name || 'Unknown'}
-                  </Text>
-                  <View style={styles.downlineMeta}>
-                    {item.isWorkingMember && (
-                      <View style={styles.downlineWorkingBadge}>
-                        <MaterialIcons name="star" size={10} color="#8b5cf6" />
-                        <Text style={styles.downlineWorkingText}>Working</Text>
-                      </View>
-                    )}
-                    <Text style={styles.downlineLevel}>
-                      {translations.levelLabel} {item.level || 'I'}
-                    </Text>
-                    <Text style={styles.downlineMemberCount}>
-                      👤 {item.memberCount} {translations.registeredMembers}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <View style={styles.downlineHeaderRight}>
-                <MaterialIcons 
-                  name={expandedDownline[item.id] ? 'expand-less' : 'expand-more'} 
-                  size={24} 
-                  color="#6b7280" 
-                />
-              </View>
-            </TouchableOpacity>
+    // Render a single node with its children
+    const renderTreeNode = (node, isRoot = false) => {
+      const hasChildren = node.children && node.children.length > 0;
+      const isDirect = node.depth === 1;
+      const levelColor = node.levelColor || getLevelColor(node.level);
+      
+      return (
+        <View key={node.id} style={styles.treeNodeContainer}>
+          {/* Node Card */}
+          <TouchableOpacity 
+  style={[
+    styles.treeNodeCard,
+    isRoot && styles.treeNodeRoot,
+    isDirect && !isRoot && styles.treeNodeDirect,
+    node.isWorkingMember && !isRoot && styles.treeNodeWorking
+  ]}
+  onPress={() => {
+    // Don't fetch for root node (current user)
+    if (!isRoot) {
+      fetchNodeDirectMembers(node.id, node.fullName || node.name || 'Unknown');
+    } else {
+      // For root node, show the user's own direct members
+      fetchNodeDirectMembers(node.id, 'You');
+    }
+  }}
+  activeOpacity={0.7}
+>
+  {/* Rest of the node content remains the same */}
+  <View style={styles.treeNodeLeft}>
+    {/* Level Badge */}
+    <View style={[
+      styles.treeNodeLevelBadge,
+      { backgroundColor: levelColor + '20' }
+    ]}>
+      <Text style={[styles.treeNodeLevelText, { color: levelColor }]}>
+        {node.levelName || node.level || 'I'}
+      </Text>
+    </View>
 
-            {/* Expanded Registered Members */}
-            {expandedDownline[item.id] && (
-              <View style={styles.downlineMembersContainer}>
-                {item.registeredMembers.length > 0 ? (
-                  item.registeredMembers.map((member, index) => (
-                    <View key={member.id || index} style={styles.downlineMemberItem}>
-                      <View style={styles.downlineMemberIcon}>
-                        <MaterialIcons name="person" size={14} color="#6b7280" />
-                      </View>
-                      <View style={styles.downlineMemberInfo}>
-                        <Text style={styles.downlineMemberName} numberOfLines={1}>
-                          {member.fullName || member.name || 'Unknown'}
-                        </Text>
-                        <Text style={styles.downlineMemberDetails} numberOfLines={1}>
-                          {member.phone || member.email || 'N/A'} • {member.role || 'Member'}
-                        </Text>
-                      </View>
-                      <Text style={styles.downlineMemberDate}>
-                        {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'N/A'}
-                      </Text>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={styles.downlineNoMembers}>No registered members yet</Text>
-                )}
-              </View>
-            )}
+    {/* Avatar */}
+    <View style={[
+      styles.treeNodeAvatar,
+      { backgroundColor: isRoot ? '#8b5cf6' : (node.isWorkingMember ? '#8b5cf615' : '#10b98115') }
+    ]}>
+      <Text style={[
+        styles.treeNodeAvatarText,
+        { color: isRoot ? '#ffffff' : (node.isWorkingMember ? '#8b5cf6' : '#10b981') }
+      ]}>
+        {node.fullName?.charAt(0)?.toUpperCase() || '?'}
+      </Text>
+    </View>
+
+    {/* Member Info */}
+    <View style={styles.treeNodeInfo}>
+      <View style={styles.treeNodeNameRow}>
+        <Text style={[
+          styles.treeNodeName,
+          isRoot && styles.treeNodeNameRoot
+        ]} numberOfLines={1}>
+          {isRoot ? translations.you : (node.fullName || node.name || 'Unknown')}
+        </Text>
+        {isRoot && (
+          <View style={styles.treeNodeRootBadge}>
+            <Text style={styles.treeNodeRootBadgeText}>Root</Text>
           </View>
-        ))}
+        )}
+        {isDirect && !isRoot && (
+          <View style={styles.treeNodeDirectBadge}>
+            <Text style={styles.treeNodeDirectBadgeText}>Direct</Text>
+          </View>
+        )}
+      </View>
+      <View style={styles.treeNodeMeta}>
+        {node.isWorkingMember && (
+          <View style={styles.treeNodeWorkingBadge}>
+            <MaterialIcons name="star" size={10} color="#8b5cf6" />
+            <Text style={styles.treeNodeWorkingText}>Working</Text>
+          </View>
+        )}
+        <Text style={styles.treeNodeLevel}>
+          {translations.level} {node.level || 'I'}
+        </Text>
+        {hasChildren && (
+          <View style={styles.treeNodeChildCount}>
+            <MaterialIcons name="people" size={12} color="#8b5cf6" />
+            <Text style={styles.treeNodeChildCountText}>{node.children.length}</Text>
+          </View>
+        )}
+        {/* Show direct member count */}
+        {node.directMemberCount !== undefined && node.directMemberCount > 0 && (
+          <View style={styles.treeNodeDirectMemberBadge}>
+            <MaterialIcons name="person-add" size={10} color="#f59e0b" />
+            <Text style={styles.treeNodeDirectMemberBadgeText}>{node.directMemberCount}</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  </View>
+
+  {/* Right Section - Status */}
+  <View style={styles.treeNodeRight}>
+    <View style={[
+      styles.treeNodeStatus,
+      { backgroundColor: node.status === 'active' ? '#d1fae5' : '#fee2e2' }
+    ]}>
+      <View style={[
+        styles.treeNodeStatusDot,
+        { backgroundColor: node.status === 'active' ? '#10b981' : '#ef4444' }
+      ]} />
+      <Text style={[
+        styles.treeNodeStatusText,
+        { color: node.status === 'active' ? '#10b981' : '#ef4444' }
+      ]}>
+        {node.status || 'inactive'}
+      </Text>
+    </View>
+    {/* Show tap hint */}
+    {!isRoot && (
+      <Text style={styles.treeNodeTapHint}>Tap to view members</Text>
+    )}
+  </View>
+</TouchableOpacity>
+
+
+          {/* Children with connecting lines */}
+          {hasChildren && (
+            <View style={styles.treeNodeChildrenContainer}>
+              {/* Vertical line going down from parent */}
+              <View style={styles.treeConnectorLine} />
+              
+              {/* Horizontal line connecting children */}
+              <View style={styles.treeConnectorHorizontal} />
+              
+              {/* Render each child */}
+              {node.children.map((child, index) => (
+                <View key={child.id} style={styles.treeNodeChildWrapper}>
+                  {/* Vertical line from horizontal to child */}
+                  <View style={styles.treeConnectorVertical} />
+                  {renderTreeNode(child, false)}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      );
+    };
+
+    // Root node - current user
+    const rootNode = {
+      id: userData?.id || 'root',
+      fullName: userData?.fullName || 'You',
+      level: userData?.level || 'I',
+      levelName: levelDetails?.title || getLevelLabel(userData?.level, dynamicLevels),
+      levelColor: levelDetails?.color || getLevelColor(userData?.level),
+      levelBadge: levelDetails?.badge || getLevelBadge(userData?.level),
+      isWorkingMember: true,
+      status: userData?.status || 'active',
+      children: downlineData,
+      childrenCount: downlineData.length,
+      depth: 0
+    };
+
+    return (
+      <View style={styles.visualTreeContainer}>
+        <View style={styles.treeStatsBar}>
+          <View style={styles.treeStatItem}>
+            <Text style={styles.treeStatNumber}>{downlineStats.total}</Text>
+            <Text style={styles.treeStatLabel}>Total</Text>
+          </View>
+          <View style={styles.treeStatDivider} />
+          <View style={styles.treeStatItem}>
+            <Text style={[styles.treeStatNumber, { color: '#10b981' }]}>{downlineStats.direct}</Text>
+            <Text style={styles.treeStatLabel}>Direct</Text>
+          </View>
+          <View style={styles.treeStatDivider} />
+          <View style={styles.treeStatItem}>
+            <Text style={[styles.treeStatNumber, { color: '#94a3b8' }]}>{downlineStats.indirect}</Text>
+            <Text style={styles.treeStatLabel}>Indirect</Text>
+          </View>
+          <View style={styles.treeStatDivider} />
+          <View style={styles.treeStatItem}>
+            <Text style={[styles.treeStatNumber, { color: '#f59e0b' }]}>{downlineStats.maxDepth}</Text>
+            <Text style={styles.treeStatLabel}>Depth</Text>
+          </View>
+        </View>
+
+        <View style={styles.treeRootContainer}>
+          {renderTreeNode(rootNode, true)}
+        </View>
       </View>
     );
   };
@@ -485,7 +820,6 @@ export default function WorkingMemberDashboard({ navigation }) {
 
   const fetchReferredMembers = async () => {
     const auth = getAuthInstance();
-
     const userId = auth.currentUser?.uid;
     if (!userId) return;
     
@@ -523,8 +857,7 @@ export default function WorkingMemberDashboard({ navigation }) {
 
   const fetchUserData = async () => {
     try {
-    const auth = getAuthInstance();
-
+      const auth = getAuthInstance();
       const userId = auth.currentUser?.uid;
       if (!userId) return;
       
@@ -537,7 +870,6 @@ export default function WorkingMemberDashboard({ navigation }) {
         setReferralCode(data.referralCode || '');
         
         const level = data.level || 'I';
-        console.log('🔍 Current Level:', level);
         
         try {
           const settingsRef = doc(db, 'settings', 'commission');
@@ -546,10 +878,8 @@ export default function WorkingMemberDashboard({ navigation }) {
           
           if (settingsSnap.exists()) {
             const settingsData = settingsSnap.data();
-            console.log('🔍 Settings Data:', settingsData);
             if (settingsData.levels) {
               dynamicLevels = settingsData.levels;
-              console.log('🔍 Dynamic Levels:', dynamicLevels);
             }
           }
           
@@ -560,8 +890,6 @@ export default function WorkingMemberDashboard({ navigation }) {
           
           if (dynamicLevels) {
             const levelData = dynamicLevels.find(l => l.id === level);
-            console.log('🔍 Level Data Found:', levelData);
-            
             if (levelData) {
               details = {
                 ...levelData,
@@ -570,14 +898,10 @@ export default function WorkingMemberDashboard({ navigation }) {
                 color: getLevelColor(level)
               };
               const currentIndex = dynamicLevels.findIndex(l => l.id === level);
-              console.log('🔍 Current Index:', currentIndex);
-              
               if (currentIndex !== -1 && currentIndex < dynamicLevels.length - 1) {
                 nextLevelData = dynamicLevels[currentIndex + 1];
                 nextLevelId = nextLevelData.id;
                 nextLevelMinDonations = levelData.donationsRequiredForPromotion || 0;
-                console.log('🔍 Next Level Data:', nextLevelData);
-                console.log('🔍 Donations Required for Promotion:', nextLevelMinDonations);
               }
             } else {
               details = getLevelDetails(level);
@@ -603,8 +927,6 @@ export default function WorkingMemberDashboard({ navigation }) {
           
           const donations = await CommissionService.getTotalDonationsByMember(userId);
           setTotalDonations(donations);
-          console.log('🔍 Total Donations:', donations);
-          console.log('🔍 Next Level Min Donations (final):', nextLevelMinDonations);
           
           const progress = {
             progress: nextLevelMinDonations > 0 ? Math.min((donations / nextLevelMinDonations) * 100, 100) : 100,
@@ -614,7 +936,6 @@ export default function WorkingMemberDashboard({ navigation }) {
             donationProgress: nextLevelMinDonations > 0 ? (donations / nextLevelMinDonations) * 100 : 100,
             requiredDonations: nextLevelMinDonations
           };
-          console.log('🔍 Progress Object:', progress);
           setLevelProgress(progress);
           
           const isEligible = nextLevelMinDonations > 0 && donations >= nextLevelMinDonations;
@@ -647,8 +968,7 @@ export default function WorkingMemberDashboard({ navigation }) {
 
   const fetchPromotionProgress = async () => {
     try {
-    const auth = getAuthInstance();
-
+      const auth = getAuthInstance();
       const userId = auth.currentUser?.uid;
       if (!userId) return;
       
@@ -663,8 +983,7 @@ export default function WorkingMemberDashboard({ navigation }) {
 
   const fetchPendingApplications = async () => {
     try {
-    const auth = getAuthInstance();
-
+      const auth = getAuthInstance();
       const userId = auth.currentUser?.uid;
       if (!userId) return;
 
@@ -682,8 +1001,7 @@ export default function WorkingMemberDashboard({ navigation }) {
 
   const fetchStats = async () => {
     try {
-    const auth = getAuthInstance();
-
+      const auth = getAuthInstance();
       const userId = auth.currentUser?.uid;
       if (!userId) return;
 
@@ -733,8 +1051,7 @@ export default function WorkingMemberDashboard({ navigation }) {
 
   const fetchRecentActivities = async () => {
     try {
-    const auth = getAuthInstance();
-
+      const auth = getAuthInstance();
       const userId = auth.currentUser?.uid;
       if (!userId) return;
 
@@ -774,8 +1091,7 @@ export default function WorkingMemberDashboard({ navigation }) {
   };
 
   const handleGenerateReferral = async () => {
-  const auth = getAuthInstance();
-
+    const auth = getAuthInstance();
     const userId = auth.currentUser?.uid;
     if (!userId) return;
     
@@ -820,13 +1136,14 @@ export default function WorkingMemberDashboard({ navigation }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    await fetchDynamicLevels();
     await fetchUserData();
     await fetchStats();
     await fetchRecentActivities();
     await fetchPendingApplications();
     await fetchPromotionProgress();
     await fetchReferredMembers();
-    await fetchDownlineData(); // ✅ Refresh downline
+    await fetchDownlineData();
     setRefreshing(false);
   };
 
@@ -1235,23 +1552,22 @@ export default function WorkingMemberDashboard({ navigation }) {
         {/* Wallet Card */}
         <WalletCard />
 
-        {/* ============ NEW: DOWNLINE SECTION ============ */}
-        <View style={styles.downlineSection}>
-          <View style={styles.downlineSectionHeader}>
-            <View style={styles.downlineSectionLeft}>
-              <MaterialIcons name="account-tree" size={22} color="#8b5cf6" />
-              <Text style={styles.downlineSectionTitle}>{translations.downlineTitle}</Text>
+        {/* ============ VISUAL TREE SECTION ============ */}
+        <View style={styles.treeSection}>
+          <View style={styles.treeSectionHeader}>
+            <View style={styles.treeSectionLeft}>
+              <Text style={styles.treeSectionTitle}>{translations.downlineTitle}</Text>
             </View>
-            <Text style={styles.downlineSectionSubtitle}>
-              {downlineData.filter(m => m.isWorkingMember).length} {translations.workingMembers}
+            <Text style={styles.treeSectionSubtitle}>
+              {downlineStats.workingMembers} {translations.workingMembers}
             </Text>
           </View>
-          <DownlineSection />
+          <VisualTree />
         </View>
 
         <View style={styles.recentSection}>
           <View style={styles.recentHeader}>
-            <Text style={styles.recentTitle}>📋 My Referred Members</Text>
+            <Text style={styles.recentTitle}>My Referred Members</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Members')} activeOpacity={0.7}>
               <Text style={styles.viewAllText}>{translations.viewAll}</Text>
             </TouchableOpacity>
@@ -1466,6 +1782,7 @@ export default function WorkingMemberDashboard({ navigation }) {
 
       {/* Referral Modal */}
       <ReferralModal />
+ <NodeMembersModal />
     </View>
   );
 }
@@ -2192,30 +2509,30 @@ const styles = StyleSheet.create({
     height: 20,
   },
 
-  // ============ DOWNLINE STYLES ============
-  downlineSection: {
+  // ============ VISUAL TREE STYLES ============
+  treeSection: {
     paddingHorizontal: 16,
     marginBottom: 16,
   },
-  downlineSectionHeader: {
+  treeSectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-  downlineSectionLeft: {
+  treeSectionLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  downlineSectionTitle: {
+  treeSectionTitle: {
     fontFamily: Fonts.SemiBold,
     fontSize: 18,
     color: '#1f2937',
     includeFontPadding: false,
     textAlignVertical: 'center',
   },
-  downlineSectionSubtitle: {
+  treeSectionSubtitle: {
     fontFamily: Fonts.Regular,
     fontSize: 12,
     color: '#6b7280',
@@ -2223,133 +2540,269 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
 
-  downlineContainer: {
-    gap: 10,
-  },
-  downlineCard: {
+  // Tree Container
+  visualTreeContainer: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
+    padding: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  downlineHeader: {
+
+  // Stats Bar
+  treeStatsBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 14,
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    justifyContent: 'space-around',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
-  downlineHeaderLeft: {
-    flexDirection: 'row',
+  treeStatItem: {
     alignItems: 'center',
-    gap: 12,
     flex: 1,
   },
-  downlineAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  treeStatNumber: {
+    fontFamily: Fonts.Bold,
+    fontSize: 16,
+    color: '#1f2937',
+  },
+  treeStatLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 9,
+    color: '#6b7280',
+    marginTop: 1,
+  },
+  treeStatDivider: {
+    width: 1,
+    backgroundColor: '#e5e7eb',
+  },
+
+  // Root Container
+  treeRootContainer: {
+    paddingVertical: 4,
+  },
+
+  // Tree Node
+  treeNodeContainer: {
+    alignItems: 'center',
+    width: '100%',
+  },
+
+  treeNodeCard: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  backgroundColor: '#ffffff',
+  borderRadius: 12,
+  padding: 14,
+  width: '100%',
+  borderWidth: 1,
+  borderColor: '#e5e7eb',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.06,
+  shadowRadius: 4,
+  elevation: 2,
+  minHeight: 70,
+},
+treeNodeRoot: {
+  backgroundColor: '#f9fafb',
+  borderColor: '#e5e7eb',
+  borderWidth: 1,
+  shadowColor: '#000',
+  shadowOpacity: 0.06,
+  shadowRadius: 4,
+  elevation: 2,
+},
+  treeNodeDirect: {
+    backgroundColor: '#f0fdf4',
+  },
+  treeNodeWorking: {
+    backgroundColor: '#f5f3ff',
+  },
+
+  treeNodeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+
+  treeNodeLevelBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    minWidth: 45,
+    alignItems: 'center',
+  },
+  treeNodeLevelText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 9,
+  },
+
+  treeNodeAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  downlineAvatarText: {
+  treeNodeAvatarText: {
     fontFamily: Fonts.Bold,
-    fontSize: 18,
+    fontSize: 16,
   },
-  downlineName: {
+
+  treeNodeInfo: {
+    flex: 1,
+  },
+  treeNodeNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexWrap: 'wrap',
+  },
+  treeNodeName: {
     fontFamily: Fonts.SemiBold,
-    fontSize: 15,
-    color: '#1f2937',
+    fontSize: 13,
+    color: '#000000',
   },
-  downlineMeta: {
+  treeNodeNameRoot: {
+    color: '#000000',
+    fontSize: 14,
+  },
+
+  treeNodeRootBadge: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  treeNodeRootBadgeText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 8,
+    color: '#ffffff',
+  },
+
+  treeNodeDirectBadge: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  treeNodeDirectBadgeText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 7,
+    color: '#ffffff',
+  },
+
+  treeNodeMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 2,
+    gap: 4,
+    marginTop: 1,
   },
-  downlineWorkingBadge: {
+  treeNodeWorkingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#8b5cf615',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
     borderRadius: 4,
     gap: 2,
   },
-  downlineWorkingText: {
+  treeNodeWorkingText: {
     fontFamily: Fonts.SemiBold,
-    fontSize: 9,
+    fontSize: 7,
     color: '#8b5cf6',
   },
-  downlineLevel: {
+  treeNodeLevel: {
     fontFamily: Fonts.Regular,
-    fontSize: 10,
+    fontSize: 8,
     color: '#6b7280',
   },
-  downlineMemberCount: {
-    fontFamily: Fonts.Regular,
-    fontSize: 10,
-    color: '#6b7280',
-  },
-  downlineHeaderRight: {
-    paddingLeft: 8,
-  },
-
-  downlineMembersContainer: {
-    paddingHorizontal: 14,
-    paddingBottom: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-  },
-  downlineMemberItem: {
+  treeNodeChildCount: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    backgroundColor: '#8b5cf615',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 8,
+    gap: 2,
   },
-  
-  downlineMemberIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#f3f4f6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  downlineMemberInfo: {
-    flex: 1,
-  },
-  downlineMemberName: {
+  treeNodeChildCountText: {
     fontFamily: Fonts.SemiBold,
-    fontSize: 13,
-    color: '#1f2937',
+    fontSize: 8,
+    color: '#8b5cf6',
   },
-  downlineMemberDetails: {
-    fontFamily: Fonts.Regular,
-    fontSize: 11,
-    color: '#6b7280',
+
+  treeNodeRight: {
+    alignItems: 'flex-end',
   },
-  downlineMemberDate: {
-    fontFamily: Fonts.Regular,
-    fontSize: 10,
-    color: '#9ca3af',
+  treeNodeStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 3,
   },
-  downlineNoMembers: {
-    fontFamily: Fonts.Regular,
-    fontSize: 12,
-    color: '#9ca3af',
-    textAlign: 'center',
-    paddingVertical: 10,
+  treeNodeStatusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
-  downlineLoadingContainer: {
+  treeNodeStatusText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 7,
+  },
+
+  // Tree Connectors
+  treeNodeChildrenContainer: {
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 2,
+    position: 'relative',
+  },
+
+  treeConnectorLine: {
+    width: 2,
+    height: 12,
+    backgroundColor: '#d1d5db',
+    marginVertical: 2,
+  },
+
+  treeConnectorHorizontal: {
+    width: '80%',
+    height: 2,
+    backgroundColor: '#d1d5db',
+    marginVertical: 2,
+    alignSelf: 'center',
+  },
+
+  treeNodeChildWrapper: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+
+  treeConnectorVertical: {
+    width: 2,
+    height: 10,
+    backgroundColor: '#d1d5db',
+    marginBottom: 2,
+  },
+
+  // Loading & Empty States
+  treeLoadingContainer: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 30,
@@ -2357,13 +2810,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
-  downlineLoadingText: {
+  treeLoadingText: {
     fontFamily: Fonts.Regular,
     fontSize: 13,
     color: '#6b7280',
     marginTop: 8,
   },
-  downlineEmptyContainer: {
+
+  treeEmptyContainer: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 30,
@@ -2371,13 +2825,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
-  downlineEmptyText: {
+  treeEmptyTitle: {
     fontFamily: Fonts.SemiBold,
-    fontSize: 14,
+    fontSize: 15,
     color: '#1f2937',
     marginTop: 8,
   },
-  downlineEmptySubtext: {
+  treeEmptySubtext: {
     fontFamily: Fonts.Regular,
     fontSize: 12,
     color: '#9ca3af',
@@ -2402,6 +2856,157 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
   },
+nodeMembersModalContainer: {
+  backgroundColor: '#ffffff',
+  borderTopLeftRadius: 24,
+  borderTopRightRadius: 24,
+  padding: 20,
+  paddingBottom: 40,
+  maxHeight: '80%',
+  marginTop: 'auto',
+  minHeight: 300,
+},
+nodeMembersModalHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+  marginBottom: 16,
+  paddingBottom: 12,
+  borderBottomWidth: 1,
+  borderBottomColor: '#f3f4f6',
+},
+nodeMembersModalTitle: {
+  fontFamily: Fonts.Bold,
+  fontSize: 18,
+  color: '#1f2937',
+},
+nodeMembersModalSubtitle: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+  marginTop: 2,
+},
+nodeMembersLoading: {
+  paddingVertical: 40,
+  alignItems: 'center',
+},
+nodeMembersLoadingText: {
+  fontFamily: Fonts.Regular,
+  fontSize: 13,
+  color: '#6b7280',
+  marginTop: 8,
+},
+nodeMembersEmpty: {
+  paddingVertical: 40,
+  alignItems: 'center',
+},
+nodeMembersEmptyTitle: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 16,
+  color: '#1f2937',
+  marginTop: 8,
+},
+nodeMembersEmptySubtext: {
+  fontFamily: Fonts.Regular,
+  fontSize: 13,
+  color: '#9ca3af',
+  marginTop: 4,
+  textAlign: 'center',
+},
+nodeMembersList: {
+  paddingBottom: 8,
+},
+nodeMemberItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#f9fafb',
+  padding: 12,
+  borderRadius: 10,
+  marginBottom: 8,
+  borderWidth: 1,
+  borderColor: '#f3f4f6',
+},
+nodeMemberAvatar: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: '#8b5cf615',
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginRight: 12,
+},
+nodeMemberAvatarText: {
+  fontFamily: Fonts.Bold,
+  fontSize: 16,
+  color: '#8b5cf6',
+},
+nodeMemberInfo: {
+  flex: 1,
+},
+nodeMemberName: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 14,
+  color: '#1f2937',
+},
+nodeMemberDetails: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+  marginTop: 1,
+},
+nodeMemberMeta: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  marginTop: 2,
+},
+nodeMemberStatus: {
+  paddingHorizontal: 8,
+  paddingVertical: 2,
+  borderRadius: 8,
+},
+nodeMemberStatusText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 10,
+},
+nodeMemberLevel: {
+  fontFamily: Fonts.Regular,
+  fontSize: 10,
+  color: '#6b7280',
+},
+nodeMembersCloseButton: {
+  backgroundColor: '#f3f4f6',
+  paddingVertical: 12,
+  borderRadius: 8,
+  alignItems: 'center',
+  marginTop: 12,
+},
+nodeMembersCloseButtonText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 14,
+  color: '#6b7280',
+},
+treeNodeTapHint: {
+  fontFamily: Fonts.Regular,
+  fontSize: 7,
+  color: '#9ca3af',
+  marginTop: 2,
+  textAlign: 'center',
+},
+treeNodeDirectMemberBadge: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#fef3c7',
+  paddingHorizontal: 5,
+  paddingVertical: 1,
+  borderRadius: 8,
+  gap: 2,
+},
+treeNodeDirectMemberBadgeText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 8,
+  color: '#f59e0b',
+},
   modalTitle: {
     fontFamily: Fonts.Bold,
     fontSize: 20,

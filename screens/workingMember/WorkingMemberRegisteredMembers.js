@@ -19,7 +19,11 @@ import { Fonts } from '../../config/fonts';
 import { LevelUpdateService } from '../../services/LevelUpdateService';
 import { getLevelDetails } from '../../config/commissionLevels';
 import { useLanguage } from '../../context/LanguageContext';
+import { Dimensions } from 'react-native';
 
+// Add this line after your imports
+const { width, height } = Dimensions.get('window');
+const isSmallDevice = width < 375;
 export default function WorkingMemberRegisteredMembers({ navigation }) {
   const { t, counter } = useLanguage();
   
@@ -147,6 +151,25 @@ export default function WorkingMemberRegisteredMembers({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
+// Add these state variables with your other useState declarations
+
+const [registerLoading, setRegisterLoading] = useState(false);
+const [step, setStep] = useState(1);
+const [showDatePicker, setShowDatePicker] = useState(false);
+const [showPassword, setShowPassword] = useState(false);
+const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+const [registrationMethod, setRegistrationMethod] = useState('email');
+
+const [registerData, setRegisterData] = useState({
+  fullName: '',
+  email: '',
+  phone: '',
+  password: '',
+  confirmPassword: '',
+  gender: '',
+  dob: '',
+  address: '',
+});
   const [userData, setUserData] = useState(null);
   const [stats, setStats] = useState({
     total: 0,
@@ -159,8 +182,7 @@ export default function WorkingMemberRegisteredMembers({ navigation }) {
 
   // Register Member Modal States
   const [registerModalVisible, setRegisterModalVisible] = useState(false);
-  const [step, setStep] = useState(1);
-  const [registerLoading, setRegisterLoading] = useState(false);
+ 
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -1247,53 +1269,432 @@ export default function WorkingMemberRegisteredMembers({ navigation }) {
       />
 
       {/* Register Member Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={registerModalVisible}
-        onRequestClose={() => {
-          if (!registerLoading) {
-            setRegisterModalVisible(false);
-            setStep(1);
-          }
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView 
-            style={{ flex: 1, justifyContent: 'center' }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+<Modal
+  animationType="slide"
+  transparent={true}
+  visible={registerModalVisible}
+  onRequestClose={() => {
+    if (!registerLoading) {
+      setRegisterModalVisible(false);
+      setStep(1);
+    }
+  }}
+>
+  <View style={styles.modalOverlay}>
+    <KeyboardAvoidingView 
+      style={{ flex: 1, justifyContent: 'center' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <View style={styles.modalContent}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle} numberOfLines={1}>{translations.registerNewMember}</Text>
+          <TouchableOpacity 
+            onPress={() => {
+              if (!registerLoading) {
+                setRegisterModalVisible(false);
+                setStep(1);
+              }
+            }}
+            activeOpacity={0.7}
           >
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle} numberOfLines={1}>{translations.registerNewMember}</Text>
-                <TouchableOpacity 
-                  onPress={() => {
-                    if (!registerLoading) {
-                      setRegisterModalVisible(false);
-                      setStep(1);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <MaterialIcons name="close" size={24} color="#6b7280" />
-                </TouchableOpacity>
+            <MaterialIcons name="close" size={24} color="#6b7280" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Progress Bar */}
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressText}>{translations.step} {step} {translations.of} {getTotalSteps()}</Text>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: `${(step / getTotalSteps()) * 100}%` }]} />
+          </View>
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Step 1: Personal Information */}
+          {step === 1 && (
+            <View style={styles.stepContainer}>
+              <Text style={styles.stepTitle}>{translations.personalInformation}</Text>
+              
+              {/* Full Name */}
+              <View style={styles.formField}>
+                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                  {translations.fullName} *
+                </Text>
+                <TextInput
+                  style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                  value={registerData.fullName}
+                  onChangeText={(text) => setRegisterData({ ...registerData, fullName: text })}
+                  placeholder={translations.enterFullName}
+                  placeholderTextColor="#9ca3af"
+                  editable={!registerLoading}
+                />
               </View>
 
-              {/* Progress Bar */}
-              <View style={styles.progressContainer}>
-                <Text style={styles.progressText}>{translations.step} {step} {translations.of} {getTotalSteps()}</Text>
-                <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: `${(step / getTotalSteps()) * 100}%` }]} />
+              {/* Phone */}
+              <View style={styles.formField}>
+                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                  {translations.phone} *
+                </Text>
+                <TextInput
+                  style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                  value={registerData.phone}
+                  onChangeText={(text) => setRegisterData({ ...registerData, phone: text })}
+                  placeholder={translations.enterPhone}
+                  placeholderTextColor="#9ca3af"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  editable={!registerLoading}
+                />
+              </View>
+
+              {/* Email */}
+              <View style={styles.formField}>
+                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                  {translations.email}
+                </Text>
+                <TextInput
+                  style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                  value={registerData.email}
+                  onChangeText={(text) => setRegisterData({ ...registerData, email: text })}
+                  placeholder={translations.enterEmail}
+                  placeholderTextColor="#9ca3af"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!registerLoading}
+                />
+              </View>
+
+              {/* Gender */}
+              <View style={styles.formField}>
+                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                  {translations.gender}
+                </Text>
+                <View style={styles.genderContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.genderOption,
+                      registerData.gender === 'male' && styles.genderOptionActive
+                    ]}
+                    onPress={() => setRegisterData({ ...registerData, gender: 'male' })}
+                    disabled={registerLoading}
+                  >
+                    <MaterialIcons 
+                      name="male" 
+                      size={20} 
+                      color={registerData.gender === 'male' ? '#ffffff' : '#6b7280'} 
+                    />
+                    <Text style={[
+                      styles.genderOptionText,
+                      registerData.gender === 'male' && styles.genderOptionTextActive
+                    ]}>
+                      {translations.male}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.genderOption,
+                      registerData.gender === 'female' && styles.genderOptionActive
+                    ]}
+                    onPress={() => setRegisterData({ ...registerData, gender: 'female' })}
+                    disabled={registerLoading}
+                  >
+                    <MaterialIcons 
+                      name="female" 
+                      size={20} 
+                      color={registerData.gender === 'female' ? '#ffffff' : '#6b7280'} 
+                    />
+                    <Text style={[
+                      styles.genderOptionText,
+                      registerData.gender === 'female' && styles.genderOptionTextActive
+                    ]}>
+                      {translations.female}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.genderOption,
+                      registerData.gender === 'other' && styles.genderOptionActive
+                    ]}
+                    onPress={() => setRegisterData({ ...registerData, gender: 'other' })}
+                    disabled={registerLoading}
+                  >
+                    <MaterialIcons 
+                      name="person" 
+                      size={20} 
+                      color={registerData.gender === 'other' ? '#ffffff' : '#6b7280'} 
+                    />
+                    <Text style={[
+                      styles.genderOptionText,
+                      registerData.gender === 'other' && styles.genderOptionTextActive
+                    ]}>
+                      {translations.other}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {getStepContent()}
-              </ScrollView>
+              {/* Date of Birth */}
+              <View style={styles.formField}>
+                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                  {translations.dateOfBirth}
+                </Text>
+                <TouchableOpacity
+                  style={styles.datePickerButton}
+                  onPress={() => setShowDatePicker(true)}
+                  disabled={registerLoading}
+                >
+                  <MaterialIcons name="calendar-today" size={20} color="#6b7280" />
+                  <Text style={[
+                    styles.datePickerText,
+                    registerData.dob ? styles.datePickerTextSelected : null
+                  ]}>
+                    {registerData.dob || translations.selectDate}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {showDatePicker && (
+                <DateTimePicker
+                  value={registerData.dob ? new Date(registerData.dob) : new Date(2000, 0, 1)}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(event, selectedDate) => {
+                    setShowDatePicker(false);
+                    if (selectedDate) {
+                      const formattedDate = selectedDate.toISOString().split('T')[0];
+                      setRegisterData({ ...registerData, dob: formattedDate });
+                    }
+                  }}
+                />
+              )}
+
+              {/* Address */}
+              <View style={styles.formField}>
+                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                  {translations.address}
+                </Text>
+                <TextInput
+                  style={[styles.formInput, styles.formTextArea, { fontSize: isSmallDevice ? 13 : 14 }]}
+                  value={registerData.address}
+                  onChangeText={(text) => setRegisterData({ ...registerData, address: text })}
+                  placeholder={translations.enterAddress}
+                  placeholderTextColor="#9ca3af"
+                  multiline
+                  numberOfLines={2}
+                  editable={!registerLoading}
+                />
+              </View>
             </View>
-          </KeyboardAvoidingView>
+          )}
+
+          {/* Step 2: Account Details */}
+          {step === 2 && (
+            <View style={styles.stepContainer}>
+              <Text style={styles.stepTitle}>{translations.accountDetails}</Text>
+              
+              {/* Email or Phone for login */}
+              <View style={styles.formField}>
+                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                  {registrationMethod === 'email' ? translations.email : translations.phone} *
+                </Text>
+                <TextInput
+                  style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                  value={registrationMethod === 'email' ? registerData.email : registerData.phone}
+                  onChangeText={(text) => {
+                    if (registrationMethod === 'email') {
+                      setRegisterData({ ...registerData, email: text });
+                    } else {
+                      setRegisterData({ ...registerData, phone: text });
+                    }
+                  }}
+                  placeholder={registrationMethod === 'email' ? translations.enterEmail : translations.enterPhone}
+                  placeholderTextColor="#9ca3af"
+                  keyboardType={registrationMethod === 'email' ? 'email-address' : 'phone-pad'}
+                  autoCapitalize="none"
+                  editable={!registerLoading}
+                />
+              </View>
+
+              {/* Password Field with Show/Hide */}
+              <View style={styles.formField}>
+                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                  {translations.password} * ({translations.minChars})
+                </Text>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={[styles.passwordInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                    value={registerData.password}
+                    onChangeText={(text) => setRegisterData({ ...registerData, password: text })}
+                    placeholder={translations.enterPassword}
+                    placeholderTextColor="#9ca3af"
+                    secureTextEntry={!showPassword}
+                    editable={!registerLoading}
+                  />
+                  <TouchableOpacity 
+                    style={styles.eyeButton}
+                    onPress={() => setShowPassword(!showPassword)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons 
+                      name={showPassword ? "visibility" : "visibility-off"} 
+                      size={22} 
+                      color="#6b7280" 
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Confirm Password Field with Show/Hide */}
+              <View style={styles.formField}>
+                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                  {translations.confirmPassword} *
+                </Text>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={[styles.passwordInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                    value={registerData.confirmPassword}
+                    onChangeText={(text) => setRegisterData({ ...registerData, confirmPassword: text })}
+                    placeholder={translations.confirmPassword}
+                    placeholderTextColor="#9ca3af"
+                    secureTextEntry={!showConfirmPassword}
+                    editable={!registerLoading}
+                  />
+                  <TouchableOpacity 
+                    style={styles.eyeButton}
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons 
+                      name={showConfirmPassword ? "visibility" : "visibility-off"} 
+                      size={22} 
+                      color="#6b7280" 
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              
+              {/* Password Match Indicator */}
+              {registerData.password && registerData.confirmPassword && (
+                <View style={styles.passwordMatchContainer}>
+                  <MaterialIcons 
+                    name={registerData.password === registerData.confirmPassword ? "check-circle" : "error"} 
+                    size={18} 
+                    color={registerData.password === registerData.confirmPassword ? "#10b981" : "#ef4444"} 
+                  />
+                  <Text style={[
+                    styles.passwordMatchText,
+                    registerData.password === registerData.confirmPassword ? styles.passwordMatchSuccess : styles.passwordMatchError
+                  ]}>
+                    {registerData.password === registerData.confirmPassword 
+                      ? translations.passwordsMatch 
+                      : translations.passwordsDoNotMatch}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Step 3: Review & Submit */}
+          {step === 3 && (
+            <View style={styles.stepContainer}>
+              <Text style={styles.stepTitle}>{translations.reviewAndSubmit}</Text>
+              
+              <View style={styles.reviewCard}>
+                <Text style={styles.reviewSectionTitle}>{translations.personalInformation}</Text>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>{translations.fullName}</Text>
+                  <Text style={styles.reviewValue}>{registerData.fullName || translations.notProvided}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>{translations.phone}</Text>
+                  <Text style={styles.reviewValue}>{registerData.phone || translations.notProvided}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>{translations.email}</Text>
+                  <Text style={styles.reviewValue}>{registerData.email || translations.notProvided}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>{translations.gender}</Text>
+                  <Text style={styles.reviewValue}>
+                    {registerData.gender ? translations[registerData.gender] || registerData.gender : translations.notProvided}
+                  </Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>{translations.dateOfBirth}</Text>
+                  <Text style={styles.reviewValue}>{registerData.dob || translations.notProvided}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>{translations.address}</Text>
+                  <Text style={styles.reviewValue}>{registerData.address || translations.notProvided}</Text>
+                </View>
+              </View>
+
+              <View style={styles.reviewCard}>
+                <Text style={styles.reviewSectionTitle}>{translations.accountDetails}</Text>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>{translations.loginId}</Text>
+                  <Text style={styles.reviewValue}>
+                    {registrationMethod === 'email' ? registerData.email : registerData.phone}
+                  </Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>{translations.password}</Text>
+                  <Text style={styles.reviewValue}>••••••••</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>{translations.registrationMethod}</Text>
+                  <Text style={styles.reviewValue}>
+                    {registrationMethod === 'email' ? translations.email : translations.phone}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Navigation Buttons */}
+        <View style={styles.modalButtons}>
+          {step > 1 && (
+            <TouchableOpacity
+              style={[styles.modalButton, styles.modalButtonSecondary]}
+              onPress={() => setStep(step - 1)}
+              disabled={registerLoading}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.modalButtonTextSecondary}>{translations.back}</Text>
+            </TouchableOpacity>
+          )}
+          
+          <TouchableOpacity
+            style={[
+              styles.modalButton,
+              styles.modalButtonPrimary,
+              registerLoading && styles.modalButtonDisabled
+            ]}
+            onPress={() => {
+              if (step === getTotalSteps()) {
+                handleRegisterMember();
+              } else {
+                setStep(step + 1);
+              }
+            }}
+            disabled={registerLoading}
+            activeOpacity={0.7}
+          >
+            {registerLoading ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Text style={styles.modalButtonTextPrimary}>
+                {step === getTotalSteps() ? translations.submit : translations.next}
+              </Text>
+            )}
+          </TouchableOpacity>
         </View>
-      </Modal>
+      </View>
+    </KeyboardAvoidingView>
+  </View>
+</Modal>
     </View>
   );
 }
@@ -1788,6 +2189,518 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 5,
+  },
+passwordContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  borderWidth: 1,
+  borderColor: '#e5e7eb',
+  borderRadius: 8,
+  backgroundColor: '#f9fafb',
+},
+passwordInput: {
+  flex: 1,
+  padding: 10,
+  fontFamily: Fonts.Regular,
+  color: '#1f2937',
+},
+eyeButton: {
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+passwordRequirements: {
+  marginTop: 8,
+  padding: 12,
+  backgroundColor: '#f9fafb',
+  borderRadius: 8,
+  borderWidth: 1,
+  borderColor: '#e5e7eb',
+},
+passwordRequirementsTitle: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 12,
+  color: '#6b7280',
+  marginBottom: 6,
+},
+passwordRequirementItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  marginVertical: 2,
+},
+passwordRequirementText: {
+  fontFamily: Fonts.Regular,
+  fontSize: 11,
+  color: '#6b7280',
+},
+passwordRequirementMet: {
+  color: '#10b981',
+},
+passwordMatchContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  marginTop: 8,
+  padding: 8,
+  borderRadius: 8,
+},
+passwordMatchText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 12,
+},
+passwordMatchSuccess: {
+  color: '#10b981',
+},
+passwordMatchError: {
+  color: '#ef4444',
+},
+
+  // Container
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+
+  // Header
+  headerCard: {
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    marginBottom: 16,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  headerTitle: {
+    fontFamily: Fonts.Bold,
+    fontSize: 20,
+    color: '#ffffff',
+  },
+  addButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 8,
+    borderRadius: 20,
+  },
+
+  // Stats
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  statCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statNumber: {
+    fontFamily: Fonts.Bold,
+    fontSize: 22,
+    color: '#1f2937',
+  },
+  statLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+
+  // Member List
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  },
+  memberCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  memberAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#8b5cf615',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  memberAvatarText: {
+    fontFamily: Fonts.Bold,
+    fontSize: 20,
+    color: '#8b5cf6',
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 16,
+    color: '#1f2937',
+  },
+  memberDetails: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  memberStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  memberStatusText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 10,
+  },
+
+  // ============ MODAL STYLES ============
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 20,
+    width: '100%',
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontFamily: Fonts.Bold,
+    fontSize: 20,
+    color: '#1f2937',
+    flex: 1,
+  },
+
+  // Progress Bar
+  progressContainer: {
+    marginBottom: 16,
+  },
+  progressText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#8b5cf6',
+    borderRadius: 2,
+  },
+
+  // Steps
+  stepContainer: {
+    paddingBottom: 16,
+  },
+  stepTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 16,
+    color: '#1f2937',
+    marginBottom: 16,
+  },
+
+  // Form Fields
+  formField: {
+    marginBottom: 14,
+  },
+  formLabel: {
+    fontFamily: Fonts.SemiBold,
+    color: '#374151',
+    marginBottom: 4,
+  },
+  formInput: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    fontFamily: Fonts.Regular,
+    color: '#1f2937',
+  },
+  formTextArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+
+  // Password Fields
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    backgroundColor: '#f9fafb',
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 12,
+    fontFamily: Fonts.Regular,
+    color: '#1f2937',
+  },
+  eyeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Password Requirements
+  passwordRequirements: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  passwordRequirementsTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 6,
+  },
+  passwordRequirementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 2,
+  },
+  passwordRequirementText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  passwordRequirementMet: {
+    color: '#10b981',
+  },
+
+  // Password Match
+  passwordMatchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 8,
+  },
+  passwordMatchText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+  },
+  passwordMatchSuccess: {
+    color: '#10b981',
+  },
+  passwordMatchError: {
+    color: '#ef4444',
+  },
+
+  // Gender Options
+  genderContainer: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  genderOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+    gap: 6,
+  },
+  genderOptionActive: {
+    backgroundColor: '#8b5cf6',
+    borderColor: '#8b5cf6',
+  },
+  genderOptionText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  genderOptionTextActive: {
+    color: '#ffffff',
+  },
+
+  // Date Picker
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    gap: 10,
+  },
+  datePickerText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#9ca3af',
+    flex: 1,
+  },
+  datePickerTextSelected: {
+    color: '#1f2937',
+  },
+
+  // Review Section
+  reviewCard: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  reviewSectionTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#1f2937',
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    paddingBottom: 6,
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  reviewLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#6b7280',
+    flex: 1,
+  },
+  reviewValue: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 13,
+    color: '#1f2937',
+    flex: 1,
+    textAlign: 'right',
+  },
+
+  // Modal Buttons
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#8b5cf6',
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  modalButtonDisabled: {
+    opacity: 0.6,
+  },
+  modalButtonTextPrimary: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#ffffff',
+  },
+  modalButtonTextSecondary: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#6b7280',
+  },
+
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyStateText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 16,
+    color: '#1f2937',
+    marginTop: 12,
+  },
+  emptyStateSubtext: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+  },
+  loadingText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 8,
+  },
+
+  // Bottom spacing
+  bottomSpacing: {
+    height: 20,
   },
   buttonText: {
     fontFamily: Fonts.SemiBold,

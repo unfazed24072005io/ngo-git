@@ -20,7 +20,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { db, getAuthInstance } from '../../config/firebase';
 import { 
-  createUserWithEmailAndPassword  // ✅ ADD THIS
+  createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { 
   collection, 
@@ -144,70 +144,78 @@ export default function WorkingMemberManagement() {
   const [workingMembers, setWorkingMembers] = useState([]);
   const [filteredMembers, setFilteredMembers] = useState([]);
   const [search, setSearch] = useState('');
-// Add with other state declarations
-const [assignModalVisible, setAssignModalVisible] = useState(false);
-const [selectedMemberForAssign, setSelectedMemberForAssign] = useState(null);
-const [availableSubMembers, setAvailableSubMembers] = useState([]);
-const [selectedSubMemberId, setSelectedSubMemberId] = useState(null);
-const [selectedSubMemberName, setSelectedSubMemberName] = useState('');
-const [searchSubMember, setSearchSubMember] = useState('');
+  const [assignModalVisible, setAssignModalVisible] = useState(false);
+  const [selectedMemberForAssign, setSelectedMemberForAssign] = useState(null);
+  const [availableSubMembers, setAvailableSubMembers] = useState([]);
+  const [selectedSubMemberId, setSelectedSubMemberId] = useState(null);
+  const [selectedSubMemberName, setSelectedSubMemberName] = useState('');
+  const [searchSubMember, setSearchSubMember] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
-// Refs for capturing views
-const idCardRef = useRef(null);
-const certificateRefs = useRef({});
+const [showPassword, setShowPassword] = useState(false);
+  const [memberHierarchy, setMemberHierarchy] = useState([]);
+  const [loadingHierarchy, setLoadingHierarchy] = useState(false);
+  
+  // Refs for capturing views
+  const idCardRef = useRef(null);
+  const certificateRefs = useRef({});
 
-// Download states
-const [memberCertificates, setMemberCertificates] = useState([]);
-const [downloading, setDownloading] = useState(false);
-const [downloadingCertId, setDownloadingCertId] = useState(null);
-const [selectedMemberForDownload, setSelectedMemberForDownload] = useState(null);
-const [downloadModalVisible, setDownloadModalVisible] = useState(false);
+  // Download states
+  const [memberCertificates, setMemberCertificates] = useState([]);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadingCertId, setDownloadingCertId] = useState(null);
+  const [selectedMemberForDownload, setSelectedMemberForDownload] = useState(null);
+  const [downloadModalVisible, setDownloadModalVisible] = useState(false);
 
-const isWeb = Platform.OS === 'web';
-// Add these with your other state declarations
-const [addMemberModalVisible, setAddMemberModalVisible] = useState(false);
-const [dynamicLevels, setDynamicLevels] = useState([]);
-const [newMemberData, setNewMemberData] = useState({
-  fullName: '',
-  email: '',
-  phone: '',
-  password: '',
-  address: '',
-  village: '',
-  postOffice: '',
-  thana: '',
-  district: '',
-  state: '',
-  pinCode: '',
-  gender: '',
-  dob: '',
-  aadharNumber: '',
-  level: 'I',
-  status: 'active',
-  role: 'working',
-  profilePhoto: null,
-  parentId: '', // ✅ Add parent ID
-});
-const [savingMember, setSavingMember] = useState(false);
+  const isWeb = Platform.OS === 'web';
+  // Add these with your other state declarations
+  const [addMemberModalVisible, setAddMemberModalVisible] = useState(false);
+  const [dynamicLevels, setDynamicLevels] = useState([]);
+  const [newMemberData, setNewMemberData] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    password: '',
+    address: '',
+    village: '',
+    postOffice: '',
+    thana: '',
+    district: '',
+    state: '',
+    pinCode: '',
+    gender: '',
+    dob: '',
+    aadharNumber: '',
+    level: 'I',
+    status: 'active',
+    role: 'working',
+    profilePhoto: null,
+    parentId: '',
+  });
+  const [savingMember, setSavingMember] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
+// Add these with your other state declarations (around line 100-120)
+const [selectedNodeMembers, setSelectedNodeMembers] = useState([]);
+const [selectedNodeName, setSelectedNodeName] = useState('');
+const [nodeMembersModalVisible, setNodeMembersModalVisible] = useState(false);
+const [loadingNodeMembers, setLoadingNodeMembers] = useState(false);
   const [filterLevel, setFilterLevel] = useState('All');
-// Add with other state declarations
-// Add with other state declarations
-const [parentMemberId, setParentMemberId] = useState(null);
-
-const [parentMemberName, setParentMemberName] = useState('');
-const [showParentSelector, setShowParentSelector] = useState(false);
-const [availableParents, setAvailableParents] = useState([]);
-const [searchParent, setSearchParent] = useState('');
-const [registrationMethod, setRegistrationMethod] = useState('email'); // 'email' or 'phone'
-const [showRegistrationMethodModal, setShowRegistrationMethodModal] = useState(false);
-const [referralModalVisible, setReferralModalVisible] = useState(false);
-const [selectedMemberForReferral, setSelectedMemberForReferral] = useState(null);
-const [referralCode, setReferralCode] = useState('');
-const [generatingReferral, setGeneratingReferral] = useState(false);
+  const [parentMemberId, setParentMemberId] = useState(null);
+// Add this with your other state declarations
+const [loadingDirectMembers, setLoadingDirectMembers] = useState(false);
+  const [parentMemberName, setParentMemberName] = useState('');
+const [directMembersData, setDirectMembersData] = useState([]);
+  const [showParentSelector, setShowParentSelector] = useState(false);
+  const [availableParents, setAvailableParents] = useState([]);
+  const [searchParent, setSearchParent] = useState('');
+  const [registrationMethod, setRegistrationMethod] = useState('email');
+  const [showRegistrationMethodModal, setShowRegistrationMethodModal] = useState(false);
+  const [referralModalVisible, setReferralModalVisible] = useState(false);
+  const [selectedMemberForReferral, setSelectedMemberForReferral] = useState(null);
+  const [referralCode, setReferralCode] = useState('');
+  const [generatingReferral, setGeneratingReferral] = useState(false);
   const [promotionModalVisible, setPromotionModalVisible] = useState(false);
   const [commissionModalVisible, setCommissionModalVisible] = useState(false);
   const [commissionHistoryModalVisible, setCommissionHistoryModalVisible] = useState(false);
@@ -230,431 +238,215 @@ const [generatingReferral, setGeneratingReferral] = useState(false);
     description: '',
     status: 'pending'
   });
-
+const fetchDirectMembersData = async (memberIds) => {
+  setLoadingDirectMembers(true);
+  console.log('🔍 fetchDirectMembersData called with IDs:', memberIds);
+  
+  if (!memberIds || memberIds.length === 0) {
+    console.log('❌ No member IDs provided');
+    setDirectMembersData([]);
+    setLoadingDirectMembers(false);
+    return;
+  }
+  
+  try {
+    const members = [];
+    for (const id of memberIds) {
+      console.log(`🔍 Fetching member with ID: ${id}`);
+      const docRef = doc(db, 'users', id);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        // Only add if NOT a working member
+        if (data.role !== 'working' && data.role !== 'workingMember') {
+          console.log(`✅ Found member: ${data.fullName || 'Unknown'}`, data);
+          members.push({ id, ...data });
+        } else {
+          console.log(`⏭️ Skipping working member: ${data.fullName}`);
+        }
+      } else {
+        console.log(`❌ No member found with ID: ${id}`);
+        // Try to find in workingMembers as fallback
+        const found = workingMembers.find(m => m.id === id);
+        if (found) {
+          // Only add if NOT a working member
+          if (found.role !== 'working' && found.role !== 'workingMember') {
+            console.log(`✅ Found in workingMembers: ${found.fullName}`);
+            members.push(found);
+          }
+        }
+      }
+    }
+    console.log(`📊 Total members fetched: ${members.length}`);
+    setDirectMembersData(members);
+  } catch (error) {
+    console.error('❌ Error fetching direct members:', error);
+  } finally {
+    setLoadingDirectMembers(false);
+  }
+};
   useEffect(() => {
     fetchDynamicLevels();
     setupRealtimeListener();
   }, []);
 
-  const fetchDynamicLevels = async () => {
-  try {
-    const settingsRef = doc(db, 'settings', 'commission');
-    const settingsSnap = await getDoc(settingsRef);
-    if (settingsSnap.exists()) {
-      const settingsData = settingsSnap.data();
-      if (settingsData.levels) {
-        setDynamicLevels(settingsData.levels);
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching dynamic levels:', error);
-  }
-};
-const fetchMemberCertificates = async (memberId) => {
-  try {
-    const certQuery = query(
-      collection(db, 'certificates'),
-      where('memberId', '==', memberId),
-      where('status', '==', 'issued')
-    );
-    const certSnap = await getDocs(certQuery);
-    const certList = [];
-    certSnap.forEach((doc) => {
-      certList.push({ id: doc.id, ...doc.data() });
-    });
-    setMemberCertificates(certList);
-  } catch (error) {
-    console.error('Error fetching certificates:', error);
-    setMemberCertificates([]);
-  }
-};
-// Fetch available members who can be parents (level higher than selected)
-// Fetch available members who can be parents (level HIGHER than selected)
-const fetchAvailableParents = async (selectedLevel) => {
-  if (!selectedLevel) return;
-  
-  try {
-    const levelsToUse = dynamicLevels.length > 0 ? dynamicLevels : getDefaultLevels();
-    const selectedLevelIndex = levelsToUse.findIndex(l => l.id === selectedLevel);
-    
-    // ✅ Parents must be at HIGHER levels (higher index = higher level)
-    const parentLevels = levelsToUse.filter((l, index) => index > selectedLevelIndex);
-    const parentLevelIds = parentLevels.map(l => l.id);
-    
-    if (parentLevelIds.length === 0) {
-      setAvailableParents([]);
-      return;
-    }
-    
-    const q = query(
-      collection(db, 'users'),
-      where('role', 'in', ['working', 'workingMember']),
-      where('status', '==', 'active')
-    );
-    const snapshot = await getDocs(q);
-    const parents = [];
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      if (parentLevelIds.includes(data.level)) {
-        parents.push({
-          id: doc.id,
-          fullName: data.fullName || data.name || 'Unknown',
-          level: data.level,
-          levelName: getLevelLabel(data.level),
-          phone: data.phone || '',
-          email: data.email || '',
-        });
-      }
-    });
-    setAvailableParents(parents);
-  } catch (error) {
-    console.error('Error fetching parents:', error);
-  }
-};
-// Add this function with other functions
-const generateReferralCode = () => {
-  // Generate a random 8-character alphanumeric code
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-};
-
-const handleGenerateReferral = async () => {
-  if (!selectedMemberForReferral) return;
-  
-  setGeneratingReferral(true);
-  try {
-    // ✅ Always generate a new code
-    const newCode = generateReferralCode();
-    setReferralCode(newCode);
-    
-    // ✅ Save to Firestore
-    await updateDoc(doc(db, 'users', selectedMemberForReferral.id), {
-      referralCode: newCode,
-      referralCodeGeneratedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
-    
-    Alert.alert(
-      'Success', 
-      `Referral code generated for ${selectedMemberForReferral.fullName}\n\nCode: ${newCode}`
-    );
-    
-    // ✅ Refresh the list to show updated data
-    onRefresh();
-    
-  } catch (error) {
-    console.error('Error generating referral code:', error);
-    Alert.alert('Error', 'Failed to generate referral code. Please try again.');
-  } finally {
-    setGeneratingReferral(false);
-  }
-};
-// ============ DOWNLOAD FUNCTIONS ============
-
-const downloadIDCard = async (member) => {
-  if (!idCardRef.current) {
-    Alert.alert('Error', 'ID Card not ready');
-    return;
-  }
-
-  setDownloading(true);
-  try {
-    const uri = await ViewShot.captureRef(idCardRef, {
-      format: 'png',
-      quality: 0.9,
-      width: 800,
-      height: 600,
-    });
-
-    const fileName = `ID_Card_${member.fullName || 'Member'}_${Date.now()}.png`;
-    
-    if (isWeb) {
-      const link = document.createElement('a');
-      link.href = uri;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      Alert.alert('Success', 'ID Card downloaded successfully!');
-    } else {
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'image/png',
-          dialogTitle: 'Save ID Card',
-        });
-      } else {
-        const newPath = FileSystem.documentDirectory + fileName;
-        await FileSystem.copyAsync({ from: uri, to: newPath });
-        await Sharing.shareAsync(newPath);
-      }
-      Alert.alert('Success', 'ID Card downloaded successfully!');
-    }
-  } catch (error) {
-    console.error('Error downloading ID Card:', error);
-    Alert.alert('Error', 'Failed to download ID Card. Please try again.');
-  } finally {
-    setDownloading(false);
-  }
-};
-
-const downloadCertificate = async (cert, index) => {
-  const refKey = `cert_${cert.id || index}`;
-  const certRef = certificateRefs.current[refKey];
-  
-  if (!certRef) {
-    Alert.alert('Error', 'Certificate not ready');
-    return;
-  }
-
-  setDownloadingCertId(cert.id || index);
-  try {
-    const uri = await ViewShot.captureRef(certRef, {
-      format: 'png',
-      quality: 0.9,
-      width: 800,
-      height: 500,
-    });
-
-    const fileName = `Certificate_${cert.title || 'Certificate'}_${Date.now()}.png`;
-    
-    if (isWeb) {
-      const link = document.createElement('a');
-      link.href = uri;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      Alert.alert('Success', 'Certificate downloaded successfully!');
-    } else {
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'image/png',
-          dialogTitle: 'Save Certificate',
-        });
-      } else {
-        const newPath = FileSystem.documentDirectory + fileName;
-        await FileSystem.copyAsync({ from: uri, to: newPath });
-        await Sharing.shareAsync(newPath);
-      }
-      Alert.alert('Success', 'Certificate downloaded successfully!');
-    }
-  } catch (error) {
-    console.error('Error downloading certificate:', error);
-    Alert.alert('Error', 'Failed to download certificate. Please try again.');
-  } finally {
-    setDownloadingCertId(null);
-  }
-};
-
-const openDownloadModal = (member) => {
-  setSelectedMemberForDownload(member);
-  // ✅ Load the referral code from the member data
-  setReferralCode(member.referralCode || '');
-  fetchMemberCertificates(member.id);
-  setDownloadModalVisible(true);
-};
-// Render ID Card Component
-const renderIDCard = (member) => (
-  <ViewShot ref={idCardRef} options={{ format: 'png', quality: 0.9 }}>
-    <View style={styles.idCard}>
-      {/* Background Watermark */}
-      <View style={styles.watermarkContainer}>
-        <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
-          <Defs>
-            <Pattern id="watermark" patternUnits="userSpaceOnUse" width={100} height={100}>
-              <SvgImage
-                href={require('../../assets/watermark.png')}
-                width={100}
-                height={100}
-                opacity={0.08}
-              />
-            </Pattern>
-          </Defs>
-          <Rect width="100%" height="100%" fill="url(#watermark)" />
-        </Svg>
-      </View>
-
-      <View style={styles.idCardTopSection}>
-        <View style={styles.idCardLeftLogo}>
-          <Image 
-            source={{ uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR7cLJLLXgddsZygiRpdvi-NzOpYcooRXCS7kd9BK6Fcg&s=10' }}
-            style={styles.idCardLogoImage}
-            resizeMode="contain"
-          />
-        </View>
-        <View style={styles.idCardCenterTitle}>
-          <Text style={styles.idCardMainTitle}>कबीर सत धर्म फाउंडेशन (ट्रस्ट)</Text>
-          <Text style={styles.idCardSubTitle}>भारत सरकार द्वारा मान्यता प्राप्त</Text>
-          <Text style={styles.idCardRegNo}>पंजीकरण संख्या: U8550BR2024NPL067466</Text>
-        </View>
-        <View style={styles.idCardRightLogo}>
-          <Image 
-            source={{ uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRkyFSf2hPLbia_p0WxL6wQmoXFPTGlaWahT0DXI8nJjQ&s=10' }}
-            style={styles.idCardLogoImage}
-            resizeMode="contain"
-          />
-        </View>
-      </View>
-
-      <View style={styles.idCardIdentityTitle}>
-        <Text style={styles.idCardIdentityText}>पहचान पत्र</Text>
-      </View>
-
-      <View style={styles.idCardBody}>
-        <View style={styles.idCardLeftFields}>
-          <View style={styles.idCardField}>
-            <Text style={styles.idCardFieldLabel}>नाम :</Text>
-            <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.fullName || translations.nA}</Text>
-          </View>
-          <View style={styles.idCardField}>
-            <Text style={styles.idCardFieldLabel}>पिता/पति का नाम :</Text>
-            <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.fatherName || translations.nA}</Text>
-          </View>
-          <View style={styles.idCardField}>
-            <Text style={styles.idCardFieldLabel}>जन्म तिथि :</Text>
-            <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.dob || translations.nA}</Text>
-          </View>
-          <View style={styles.idCardField}>
-            <Text style={styles.idCardFieldLabel}>आधार संख्या :</Text>
-            <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.aadharNumber || translations.nA}</Text>
-          </View>
-          <View style={styles.idCardField}>
-            <Text style={styles.idCardFieldLabel}>सदस्यता स्थिति :</Text>
-            <Text style={[styles.idCardFieldValue, styles.idCardStatusValue]} numberOfLines={1}>
-              {member.status === 'active' ? 'सक्रिय' : member.status || translations.nA}
-            </Text>
-          </View>
-          <View style={styles.idCardField}>
-            <Text style={styles.idCardFieldLabel}>मोबाइल नंबर :</Text>
-            <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.phone || translations.nA}</Text>
-          </View>
-          <View style={styles.idCardField}>
-            <Text style={styles.idCardFieldLabel}>पता :</Text>
-            <Text style={styles.idCardFieldValue} numberOfLines={2}>{member.address || translations.nA}</Text>
-          </View>
-        </View>
-
-        <View style={styles.idCardRightPhoto}>
-          <View style={styles.idCardPhotoWrapper}>
-            {member.profilePhoto ? (
-              <Image source={{ uri: member.profilePhoto }} style={styles.idCardPhoto} />
-            ) : (
-              <View style={styles.idCardPhotoPlaceholder}>
-                <MaterialIcons name="person" size={60} color="#8b5cf6" />
-              </View>
-            )}
-          </View>
-          <Text style={styles.idCardPhotoLabel}>फोटो</Text>
-        </View>
-      </View>
-
-      <View style={styles.idCardFooter}>
-        <Text style={styles.idCardFooterText}>प्रबंधक</Text>
-        <View style={styles.idCardFooterCenter}>
-          <View style={styles.idCardSignatureLine} />
-          <Text style={styles.idCardSignatureLabel}>सदस्य हस्ताक्षर</Text>
-        </View>
-        <Text style={styles.idCardFooterText}>सचिव</Text>
-      </View>
-    </View>
-  </ViewShot>
-);
-
-// Render Certificate Item
-const renderCertificateItem = (cert, index) => {
-  const refKey = `cert_${cert.id || index}`;
-  return (
-    <View key={index} style={styles.certItemWrapper}>
-      <ViewShot 
-        ref={ref => certificateRefs.current[refKey] = ref}
-        options={{ format: 'png', quality: 0.9 }}
-      >
-        <View style={styles.certItem}>
-          <View style={[styles.certItemIcon, { backgroundColor: getCertificateColor(cert.type) + '15' }]}>
-            <MaterialIcons name={getCertificateIcon(cert.type)} size={16} color={getCertificateColor(cert.type)} />
-          </View>
-          <View style={styles.certItemContent}>
-            <Text style={styles.certItemTitle} numberOfLines={1}>{cert.title || getCertificateTypeLabel(cert.type)}</Text>
-            <View style={styles.certItemMeta}>
-              <Text style={styles.certItemType} numberOfLines={1}>{getCertificateTypeLabel(cert.type)}</Text>
-              <Text style={styles.certItemDate} numberOfLines={1}>
-                {cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString() : translations.nA}
-              </Text>
-            </View>
-          </View>
-          {cert.amount && (
-            <Text style={styles.certItemAmount} numberOfLines={1}>₹{cert.amount}</Text>
-          )}
-        </View>
-      </ViewShot>
+  // ============ FETCH HIERARCHY FUNCTION ============
+  const fetchMemberHierarchy = async (memberId) => {
+    try {
+      const hierarchy = [];
+      const visited = new Set();
       
-      <TouchableOpacity 
-        style={styles.certDownloadButton}
-        onPress={() => downloadCertificate(cert, index)}
-        disabled={downloadingCertId === (cert.id || index)}
-        activeOpacity={0.7}
-      >
-        <MaterialIcons 
-          name={downloadingCertId === (cert.id || index) ? "hourglass-empty" : "download"} 
-          size={14} 
-          color="#8b5cf6" 
-        />
-        <Text style={styles.certDownloadText}>
-          {downloadingCertId === (cert.id || index) ? 'Downloading...' : 'Download'}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-};
-const getCertificateColor = (type) => {
-  switch(type) {
-    case 'donation': return '#ef4444';
-    case 'membership': return '#8b5cf6';
-    case 'volunteer': return '#10b981';
-    default: return '#f59e0b';
+      // Start with the current member
+      const memberRef = doc(db, 'users', memberId);
+      const memberDoc = await getDoc(memberRef);
+      
+      if (!memberDoc.exists()) {
+        return [];
+      }
+      
+      const memberData = memberDoc.data();
+      const rootMember = {
+        id: memberId,
+        fullName: memberData.fullName || 'Unknown',
+        level: memberData.level,
+        levelName: getLevelLabel(memberData.level),
+        isCurrent: true,
+        phone: memberData.phone || '',
+        email: memberData.email || '',
+        status: memberData.status || 'inactive',
+        childrenIds: memberData.childrenIds || [],
+        depth: 0,
+        parentId: memberData.parentId || null
+      };
+      
+      hierarchy.push(rootMember);
+      visited.add(memberId);
+      
+      // Recursively fetch children (downline)
+      const fetchChildren = async (parentId, depth) => {
+        const q = query(
+          collection(db, 'users'),
+          where('parentId', '==', parentId),
+          where('role', 'in', ['working', 'workingMember'])
+        );
+        const snapshot = await getDocs(q);
+        
+        const children = [];
+        for (const doc of snapshot.docs) {
+          const data = doc.data();
+          if (!visited.has(doc.id)) {
+            const child = {
+              id: doc.id,
+              fullName: data.fullName || 'Unknown',
+              level: data.level,
+              levelName: getLevelLabel(data.level),
+              isCurrent: false,
+              phone: data.phone || '',
+              email: data.email || '',
+              status: data.status || 'inactive',
+              childrenIds: data.childrenIds || [],
+              depth: depth + 1,
+              parentId: parentId
+            };
+            children.push(child);
+            visited.add(doc.id);
+          }
+        }
+        
+        // Sort children by level (lower level first)
+        const levelsToUse = dynamicLevels.length > 0 ? dynamicLevels : getDefaultLevels();
+        children.sort((a, b) => {
+          const aIndex = levelsToUse.findIndex(l => l.id === a.level);
+          const bIndex = levelsToUse.findIndex(l => l.id === b.level);
+          return aIndex - bIndex;
+        });
+        
+        // Add children and recursively fetch their children
+        for (const child of children) {
+          hierarchy.push(child);
+          await fetchChildren(child.id, child.depth);
+        }
+      };
+      
+      await fetchChildren(memberId, 0);
+      
+      // Sort by depth
+      hierarchy.sort((a, b) => {
+        if (a.isCurrent) return -1;
+        if (b.isCurrent) return 1;
+        return (a.depth || 0) - (b.depth || 0);
+      });
+      
+      return hierarchy;
+      
+    } catch (error) {
+      console.error('Error fetching hierarchy:', error);
+      return [];
+    }
+  };
+
+  // ============ LOAD HIERARCHY FUNCTION ============
+  // ============ LOAD HIERARCHY FUNCTION (ENHANCED) ============
+const loadMemberHierarchy = async (member) => {
+  setLoadingHierarchy(true);
+  try {
+    const hierarchy = await fetchMemberHierarchy(member.id);
+    
+    // Enhance each member in hierarchy with their children count
+    const enhancedHierarchy = await Promise.all(
+      hierarchy.map(async (item) => {
+        if (!item.isCurrent) {
+          const children = await fetchSubMembersForHierarchy(item.id);
+          return {
+            ...item,
+            children: children,
+            childrenCount: children.length
+          };
+        }
+        return item;
+      })
+    );
+    
+    setMemberHierarchy(enhancedHierarchy);
+  } catch (error) {
+    console.error('Error loading hierarchy:', error);
+    setMemberHierarchy([]);
+  } finally {
+    setLoadingHierarchy(false);
   }
 };
 
-const getCertificateIcon = (type) => {
-  switch(type) {
-    case 'donation': return 'favorite';
-    case 'membership': return 'verified';
-    case 'volunteer': return 'handshake';
-    default: return 'verified';
-  }
-};
-// Fetch members who can be assigned under this member (lower levels)
-// Fetch members who can be assigned under this member (LOWER levels)
-const fetchAvailableSubMembers = async (parentLevel) => {
-  if (!parentLevel) return;
-  
-  try {
-    const levelsToUse = dynamicLevels.length > 0 ? dynamicLevels : getDefaultLevels();
-    const parentLevelIndex = levelsToUse.findIndex(l => l.id === parentLevel);
+  // ============ FETCH AVAILABLE SUB-MEMBERS (ONLY EXACTLY ONE LEVEL BELOW) ============
+  const fetchAvailableSubMembers = async (parentLevel) => {
+    if (!parentLevel) return;
     
-    // ✅ Sub-members must be at LOWER levels (lower index = lower level)
-    const subLevels = levelsToUse.filter((l, index) => index < parentLevelIndex);
-    const subLevelIds = subLevels.map(l => l.id);
-    
-    if (subLevelIds.length === 0) {
-      setAvailableSubMembers([]);
-      return;
-    }
-    
-    const q = query(
-      collection(db, 'users'),
-      where('role', 'in', ['working', 'workingMember']),
-      where('status', '==', 'active')
-    );
-    const snapshot = await getDocs(q);
-    const subMembers = [];
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      if (subLevelIds.includes(data.level)) {
+    try {
+      const levelsToUse = dynamicLevels.length > 0 ? dynamicLevels : getDefaultLevels();
+      const parentLevelIndex = levelsToUse.findIndex(l => l.id === parentLevel);
+      
+      // ✅ ONLY get members at EXACTLY ONE LEVEL BELOW (index - 1)
+      const subLevelIndex = parentLevelIndex - 1;
+      
+      // If parent is at the lowest level, no one can be assigned below
+      if (subLevelIndex < 0) {
+        setAvailableSubMembers([]);
+        return;
+      }
+      
+      const subLevel = levelsToUse[subLevelIndex];
+      const subLevelId = subLevel.id;
+      
+      const q = query(
+        collection(db, 'users'),
+        where('role', 'in', ['working', 'workingMember']),
+        where('status', '==', 'active'),
+        where('level', '==', subLevelId)
+      );
+      const snapshot = await getDocs(q);
+      const subMembers = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        // Only show members without a parent
         if (!data.parentId) {
           subMembers.push({
             id: doc.id,
@@ -665,302 +457,769 @@ const fetchAvailableSubMembers = async (parentLevel) => {
             email: data.email || '',
           });
         }
-      }
-    });
-    setAvailableSubMembers(subMembers);
-  } catch (error) {
-    console.error('Error fetching sub-members:', error);
-  }
-};
-// Assign a sub-member to the selected parent
-const handleAssignMember = async () => {
-  if (!selectedMemberForAssign || !selectedSubMemberId) {
-    Alert.alert('Error', 'Please select a member to assign');
-    return;
-  }
-
-  setSavingMember(true);
-  try {
-    // Update the sub-member's parent
-    const subMemberRef = doc(db, 'users', selectedSubMemberId);
-    await updateDoc(subMemberRef, {
-      parentId: selectedMemberForAssign.id,
-      parentName: selectedMemberForAssign.fullName,
-      updatedAt: new Date().toISOString()
-    });
-
-    // Update the parent's children list
-    const parentRef = doc(db, 'users', selectedMemberForAssign.id);
-    const parentDoc = await getDoc(parentRef);
-    if (parentDoc.exists()) {
-      const parentData = parentDoc.data();
-      const currentChildren = parentData.childrenIds || [];
-      if (!currentChildren.includes(selectedSubMemberId)) {
-        await updateDoc(parentRef, {
-          childrenIds: [...currentChildren, selectedSubMemberId],
-          updatedAt: new Date().toISOString()
-        });
-      }
+      });
+      setAvailableSubMembers(subMembers);
+    } catch (error) {
+      console.error('Error fetching sub-members:', error);
     }
+  };
 
-    Alert.alert(
-      'Success',
-      `${selectedSubMemberName} has been assigned under ${selectedMemberForAssign.fullName}`
-    );
-    
-    setAssignModalVisible(false);
-    setSelectedMemberForAssign(null);
-    setSelectedSubMemberId(null);
-    setSelectedSubMemberName('');
-    setAvailableSubMembers([]);
-    onRefresh();
-    
-  } catch (error) {
-    console.error('Error assigning member:', error);
-    Alert.alert('Error', 'Failed to assign member. Please try again.');
-  } finally {
-    setSavingMember(false);
-  }
-};
-// Unassign a sub-member from parent
-const handleUnassignMember = async (memberId) => {
-  Alert.alert(
-    'Unassign Member',
-    'Are you sure you want to remove this member from their parent?',
-    [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Unassign',
-        style: 'destructive',
-        onPress: async () => {
-          setSavingMember(true);
-          try {
-            const memberRef = doc(db, 'users', memberId);
-            const memberDoc = await getDoc(memberRef);
-            if (memberDoc.exists()) {
-              const memberData = memberDoc.data();
-              const parentId = memberData.parentId;
-              
-              // Remove parent from member
-              await updateDoc(memberRef, {
-                parentId: null,
-                parentName: null,
-                updatedAt: new Date().toISOString()
-              });
-
-              // Remove member from parent's children list
-              if (parentId) {
-                const parentRef = doc(db, 'users', parentId);
-                const parentDoc = await getDoc(parentRef);
-                if (parentDoc.exists()) {
-                  const parentData = parentDoc.data();
-                  const currentChildren = parentData.childrenIds || [];
-                  const updatedChildren = currentChildren.filter(id => id !== memberId);
-                  await updateDoc(parentRef, {
-                    childrenIds: updatedChildren,
-                    updatedAt: new Date().toISOString()
-                  });
-                }
-              }
-            }
-
-            Alert.alert('Success', 'Member unassigned successfully');
-            onRefresh();
-            
-          } catch (error) {
-            console.error('Error unassigning member:', error);
-            Alert.alert('Error', 'Failed to unassign member');
-          } finally {
-            setSavingMember(false);
-          }
+  const fetchDynamicLevels = async () => {
+    try {
+      const settingsRef = doc(db, 'settings', 'commission');
+      const settingsSnap = await getDoc(settingsRef);
+      if (settingsSnap.exists()) {
+        const settingsData = settingsSnap.data();
+        if (settingsData.levels) {
+          setDynamicLevels(settingsData.levels);
         }
       }
-    ]
-  );
-};
-const getCertificateTypeLabel = (type) => {
-  switch(type) {
-    case 'donation': return 'Donation';
-    case 'membership': return 'Membership';
-    case 'volunteer': return 'Volunteer';
-    default: return 'Certificate';
-  }
-};
-// Add this function
-const handleAddWorkingMember = async () => {
-  // Validate required fields
-  if (!newMemberData.fullName.trim()) {
-    Alert.alert('Error', 'Full Name is required');
-    return;
-  }
+    } catch (error) {
+      console.error('Error fetching dynamic levels:', error);
+    }
+  };
+
+  const fetchMemberCertificates = async (memberId) => {
+    try {
+      const certQuery = query(
+        collection(db, 'certificates'),
+        where('memberId', '==', memberId),
+        where('status', '==', 'issued')
+      );
+      const certSnap = await getDocs(certQuery);
+      const certList = [];
+      certSnap.forEach((doc) => {
+        certList.push({ id: doc.id, ...doc.data() });
+      });
+      setMemberCertificates(certList);
+    } catch (error) {
+      console.error('Error fetching certificates:', error);
+      setMemberCertificates([]);
+    }
+  };
+
+  const fetchAvailableParents = async (selectedLevel) => {
+    if (!selectedLevel) return;
+    
+    try {
+      const levelsToUse = dynamicLevels.length > 0 ? dynamicLevels : getDefaultLevels();
+      const selectedLevelIndex = levelsToUse.findIndex(l => l.id === selectedLevel);
+      
+      const parentLevels = levelsToUse.filter((l, index) => index > selectedLevelIndex);
+      const parentLevelIds = parentLevels.map(l => l.id);
+      
+      if (parentLevelIds.length === 0) {
+        setAvailableParents([]);
+        return;
+      }
+      
+      const q = query(
+        collection(db, 'users'),
+        where('role', 'in', ['working', 'workingMember']),
+        where('status', '==', 'active')
+      );
+      const snapshot = await getDocs(q);
+      const parents = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (parentLevelIds.includes(data.level)) {
+          parents.push({
+            id: doc.id,
+            fullName: data.fullName || data.name || 'Unknown',
+            level: data.level,
+            levelName: getLevelLabel(data.level),
+            phone: data.phone || '',
+            email: data.email || '',
+          });
+        }
+      });
+      setAvailableParents(parents);
+    } catch (error) {
+      console.error('Error fetching parents:', error);
+    }
+  };
+
+  const generateReferralCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
+  const handleGenerateReferral = async () => {
+    if (!selectedMemberForReferral) return;
+    
+    setGeneratingReferral(true);
+    try {
+      const newCode = generateReferralCode();
+      setReferralCode(newCode);
+      
+      await updateDoc(doc(db, 'users', selectedMemberForReferral.id), {
+        referralCode: newCode,
+        referralCodeGeneratedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      
+      Alert.alert(
+        'Success', 
+        `Referral code generated for ${selectedMemberForReferral.fullName}\n\nCode: ${newCode}`
+      );
+      
+      onRefresh();
+      
+    } catch (error) {
+      console.error('Error generating referral code:', error);
+      Alert.alert('Error', 'Failed to generate referral code. Please try again.');
+    } finally {
+      setGeneratingReferral(false);
+    }
+  };
+
+  // ============ DOWNLOAD FUNCTIONS ============
+const fetchNodeDirectMembers = async (nodeId, nodeName) => {
+  console.log('🔍 fetchNodeDirectMembers called for:', nodeName, 'ID:', nodeId);
+  setLoadingNodeMembers(true);
+  setSelectedNodeName(nodeName || 'Member');
   
-  // Validate email or phone based on registration method
-  if (registrationMethod === 'email') {
-    if (!newMemberData.email.trim()) {
-      Alert.alert('Error', 'Email is required');
-      return;
-    }
-    if (!newMemberData.password || newMemberData.password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
-  } else {
-    if (!newMemberData.phone.trim()) {
-      Alert.alert('Error', 'Phone number is required');
-      return;
-    }
-    if (!newMemberData.password || newMemberData.password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
-  }
-
-  setSavingMember(true);
   try {
-    const auth = getAuthInstance();
-    let userCredential;
-    
-    if (registrationMethod === 'email') {
-      // Create with email and password
-      userCredential = await createUserWithEmailAndPassword(
-        auth,
-        newMemberData.email.trim(),
-        newMemberData.password
+    // First, try to find direct members from the registeredMembersList
+    if (selectedMember && selectedMember.registeredMembersList) {
+      // Filter out working members
+      const directMembers = selectedMember.registeredMembersList.filter(
+        m => m.registeredBy === nodeId && m.role !== 'working' && m.role !== 'workingMember'
       );
-    } else {
-      // Create with phone and password
-      // Note: Firebase Auth requires phone number with country code
-      const phoneNumber = `+91${newMemberData.phone.trim()}`;
-      userCredential = await createUserWithEmailAndPassword(
-        auth,
-        `${phoneNumber}@phone.auth`, // Firebase needs email format for phone auth
-        newMemberData.password
-      );
+      if (directMembers.length > 0) {
+        console.log('✅ Found direct members from registeredMembersList:', directMembers.length);
+        setSelectedNodeMembers(directMembers);
+        setNodeMembersModalVisible(true);
+        setLoadingNodeMembers(false);
+        return;
+      }
     }
+
+    // If not found, query Firestore
+    const membersQuery = query(
+      collection(db, 'users'),
+      where('registeredBy', '==', nodeId)
+    );
+    const membersSnap = await getDocs(membersQuery);
+    const membersList = [];
+    membersSnap.forEach((doc) => {
+      const data = doc.data();
+      // Filter out working members in JavaScript
+      if (data.role !== 'working' && data.role !== 'workingMember') {
+        console.log('✅ Found member:', data.fullName, 'Role:', data.role);
+        membersList.push({
+          id: doc.id,
+          ...data
+        });
+      } else {
+        console.log('⏭️ Skipping working member:', data.fullName);
+      }
+    });
     
-    const userId = userCredential.user.uid;
+    console.log('📊 Total members fetched:', membersList.length);
+    setSelectedNodeMembers(membersList);
+    setNodeMembersModalVisible(true);
+  } catch (error) {
+    console.error('❌ Error fetching node members:', error);
+    Alert.alert('Error', 'Failed to load members');
+  } finally {
+    setLoadingNodeMembers(false);
+  }
+};
+  const downloadIDCard = async (member) => {
+    if (!idCardRef.current) {
+      Alert.alert('Error', 'ID Card not ready');
+      return;
+    }
 
-    // Get level details for commission rates
-    const selectedLevel = dynamicLevels.find(l => l.id === newMemberData.level) || { directCommission: 25, secondaryCommission: 10 };
+    setDownloading(true);
+    try {
+      const uri = await ViewShot.captureRef(idCardRef, {
+        format: 'png',
+        quality: 0.9,
+        width: 800,
+        height: 600,
+      });
 
-    // Save user data to Firestore
-    const userData = {
-      fullName: newMemberData.fullName.trim(),
-      email: registrationMethod === 'email' ? newMemberData.email.trim().toLowerCase() : '',
-      phone: newMemberData.phone.trim(),
-      address: newMemberData.address.trim(),
-      village: newMemberData.village,
-      postOffice: newMemberData.postOffice,
-      thana: newMemberData.thana,
-      district: newMemberData.district,
-      state: newMemberData.state,
-      pinCode: newMemberData.pinCode,
-      gender: newMemberData.gender,
-      dob: newMemberData.dob,
-      aadharNumber: newMemberData.aadharNumber,
-      level: newMemberData.level,
-      directCommission: selectedLevel.directCommission || 25,
-      secondaryCommission: selectedLevel.secondaryCommission || 10,
-      role: 'working',
-      status: 'active',
-      profilePhoto: newMemberData.profilePhoto || null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      directReferrals: [],
-      registeredBy: auth.currentUser?.uid || 'admin',
-      promotionPending: false,
-      walletCreated: false,
-      // ✅ Add parent relationship
-      parentId: parentMemberId || null,
-      parentName: parentMemberName || null,
-      registrationMethod: registrationMethod,
-    };
+      const fileName = `ID_Card_${member.fullName || 'Member'}_${Date.now()}.png`;
+      
+      if (isWeb) {
+        const link = document.createElement('a');
+        link.href = uri;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        Alert.alert('Success', 'ID Card downloaded successfully!');
+      } else {
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'image/png',
+            dialogTitle: 'Save ID Card',
+          });
+        } else {
+          const newPath = FileSystem.documentDirectory + fileName;
+          await FileSystem.copyAsync({ from: uri, to: newPath });
+          await Sharing.shareAsync(newPath);
+        }
+        Alert.alert('Success', 'ID Card downloaded successfully!');
+      }
+    } catch (error) {
+      console.error('Error downloading ID Card:', error);
+      Alert.alert('Error', 'Failed to download ID Card. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
-    await setDoc(doc(db, 'users', userId), userData);
+  const downloadCertificate = async (cert, index) => {
+    const refKey = `cert_${cert.id || index}`;
+    const certRef = certificateRefs.current[refKey];
+    
+    if (!certRef) {
+      Alert.alert('Error', 'Certificate not ready');
+      return;
+    }
 
-    // ✅ Update parent's children list
-    if (parentMemberId) {
-      try {
-        const parentRef = doc(db, 'users', parentMemberId);
-        const parentDoc = await getDoc(parentRef);
-        if (parentDoc.exists()) {
-          const parentData = parentDoc.data();
-          const currentChildren = parentData.childrenIds || [];
+    setDownloadingCertId(cert.id || index);
+    try {
+      const uri = await ViewShot.captureRef(certRef, {
+        format: 'png',
+        quality: 0.9,
+        width: 800,
+        height: 500,
+      });
+
+      const fileName = `Certificate_${cert.title || 'Certificate'}_${Date.now()}.png`;
+      
+      if (isWeb) {
+        const link = document.createElement('a');
+        link.href = uri;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        Alert.alert('Success', 'Certificate downloaded successfully!');
+      } else {
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'image/png',
+            dialogTitle: 'Save Certificate',
+          });
+        } else {
+          const newPath = FileSystem.documentDirectory + fileName;
+          await FileSystem.copyAsync({ from: uri, to: newPath });
+          await Sharing.shareAsync(newPath);
+        }
+        Alert.alert('Success', 'Certificate downloaded successfully!');
+      }
+    } catch (error) {
+      console.error('Error downloading certificate:', error);
+      Alert.alert('Error', 'Failed to download certificate. Please try again.');
+    } finally {
+      setDownloadingCertId(null);
+    }
+  };
+
+  const openDownloadModal = (member) => {
+    setSelectedMemberForDownload(member);
+    setReferralCode(member.referralCode || '');
+    fetchMemberCertificates(member.id);
+    setDownloadModalVisible(true);
+  };
+
+  // Render ID Card Component
+  const renderIDCard = (member) => (
+    <ViewShot ref={idCardRef} options={{ format: 'png', quality: 0.9 }}>
+      <View style={styles.idCard}>
+        <View style={styles.watermarkContainer}>
+          <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
+            <Defs>
+              <Pattern id="watermark" patternUnits="userSpaceOnUse" width={100} height={100}>
+                <SvgImage
+                  href={require('../../assets/watermark.png')}
+                  width={100}
+                  height={100}
+                  opacity={0.08}
+                />
+              </Pattern>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#watermark)" />
+          </Svg>
+        </View>
+
+        <View style={styles.idCardTopSection}>
+          <View style={styles.idCardLeftLogo}>
+            <Image 
+              source={{ uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR7cLJLLXgddsZygiRpdvi-NzOpYcooRXCS7kd9BK6Fcg&s=10' }}
+              style={styles.idCardLogoImage}
+              resizeMode="contain"
+            />
+          </View>
+          <View style={styles.idCardCenterTitle}>
+            <Text style={styles.idCardMainTitle}>कबीर सत धर्म फाउंडेशन (ट्रस्ट)</Text>
+            <Text style={styles.idCardSubTitle}>भारत सरकार द्वारा मान्यता प्राप्त</Text>
+            <Text style={styles.idCardRegNo}>पंजीकरण संख्या: U8550BR2024NPL067466</Text>
+          </View>
+          <View style={styles.idCardRightLogo}>
+            <Image 
+              source={{ uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRkyFSf2hPLbia_p0WxL6wQmoXFPTGlaWahT0DXI8nJjQ&s=10' }}
+              style={styles.idCardLogoImage}
+              resizeMode="contain"
+            />
+          </View>
+        </View>
+
+        <View style={styles.idCardIdentityTitle}>
+          <Text style={styles.idCardIdentityText}>पहचान पत्र</Text>
+        </View>
+
+        <View style={styles.idCardBody}>
+          <View style={styles.idCardLeftFields}>
+            <View style={styles.idCardField}>
+              <Text style={styles.idCardFieldLabel}>नाम :</Text>
+              <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.fullName || translations.nA}</Text>
+            </View>
+            <View style={styles.idCardField}>
+              <Text style={styles.idCardFieldLabel}>पिता/पति का नाम :</Text>
+              <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.fatherName || translations.nA}</Text>
+            </View>
+            <View style={styles.idCardField}>
+              <Text style={styles.idCardFieldLabel}>जन्म तिथि :</Text>
+              <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.dob || translations.nA}</Text>
+            </View>
+            <View style={styles.idCardField}>
+              <Text style={styles.idCardFieldLabel}>आधार संख्या :</Text>
+              <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.aadharNumber || translations.nA}</Text>
+            </View>
+            <View style={styles.idCardField}>
+              <Text style={styles.idCardFieldLabel}>सदस्यता स्थिति :</Text>
+              <Text style={[styles.idCardFieldValue, styles.idCardStatusValue]} numberOfLines={1}>
+                {member.status === 'active' ? 'सक्रिय' : member.status || translations.nA}
+              </Text>
+            </View>
+            <View style={styles.idCardField}>
+              <Text style={styles.idCardFieldLabel}>मोबाइल नंबर :</Text>
+              <Text style={styles.idCardFieldValue} numberOfLines={1}>{member.phone || translations.nA}</Text>
+            </View>
+            <View style={styles.idCardField}>
+              <Text style={styles.idCardFieldLabel}>पता :</Text>
+              <Text style={styles.idCardFieldValue} numberOfLines={2}>{member.address || translations.nA}</Text>
+            </View>
+          </View>
+
+          <View style={styles.idCardRightPhoto}>
+            <View style={styles.idCardPhotoWrapper}>
+              {member.profilePhoto ? (
+                <Image source={{ uri: member.profilePhoto }} style={styles.idCardPhoto} />
+              ) : (
+                <View style={styles.idCardPhotoPlaceholder}>
+                  <MaterialIcons name="person" size={60} color="#8b5cf6" />
+                </View>
+              )}
+            </View>
+            <Text style={styles.idCardPhotoLabel}>फोटो</Text>
+          </View>
+        </View>
+
+        <View style={styles.idCardFooter}>
+          <Text style={styles.idCardFooterText}>प्रबंधक</Text>
+          <View style={styles.idCardFooterCenter}>
+            <View style={styles.idCardSignatureLine} />
+            <Text style={styles.idCardSignatureLabel}>सदस्य हस्ताक्षर</Text>
+          </View>
+          <Text style={styles.idCardFooterText}>सचिव</Text>
+        </View>
+      </View>
+    </ViewShot>
+  );
+
+  // Render Certificate Item
+  const renderCertificateItem = (cert, index) => {
+    const refKey = `cert_${cert.id || index}`;
+    return (
+      <View key={index} style={styles.certItemWrapper}>
+        <ViewShot 
+          ref={ref => certificateRefs.current[refKey] = ref}
+          options={{ format: 'png', quality: 0.9 }}
+        >
+          <View style={styles.certItem}>
+            <View style={[styles.certItemIcon, { backgroundColor: getCertificateColor(cert.type) + '15' }]}>
+              <MaterialIcons name={getCertificateIcon(cert.type)} size={16} color={getCertificateColor(cert.type)} />
+            </View>
+            <View style={styles.certItemContent}>
+              <Text style={styles.certItemTitle} numberOfLines={1}>{cert.title || getCertificateTypeLabel(cert.type)}</Text>
+              <View style={styles.certItemMeta}>
+                <Text style={styles.certItemType} numberOfLines={1}>{getCertificateTypeLabel(cert.type)}</Text>
+                <Text style={styles.certItemDate} numberOfLines={1}>
+                  {cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString() : translations.nA}
+                </Text>
+              </View>
+            </View>
+            {cert.amount && (
+              <Text style={styles.certItemAmount} numberOfLines={1}>₹{cert.amount}</Text>
+            )}
+          </View>
+        </ViewShot>
+        
+        <TouchableOpacity 
+          style={styles.certDownloadButton}
+          onPress={() => downloadCertificate(cert, index)}
+          disabled={downloadingCertId === (cert.id || index)}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons 
+            name={downloadingCertId === (cert.id || index) ? "hourglass-empty" : "download"} 
+            size={14} 
+            color="#8b5cf6" 
+          />
+          <Text style={styles.certDownloadText}>
+            {downloadingCertId === (cert.id || index) ? 'Downloading...' : 'Download'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const getCertificateColor = (type) => {
+    switch(type) {
+      case 'donation': return '#ef4444';
+      case 'membership': return '#8b5cf6';
+      case 'volunteer': return '#10b981';
+      default: return '#f59e0b';
+    }
+  };
+
+  const getCertificateIcon = (type) => {
+    switch(type) {
+      case 'donation': return 'favorite';
+      case 'membership': return 'verified';
+      case 'volunteer': return 'handshake';
+      default: return 'verified';
+    }
+  };
+// ============ FETCH AVAILABLE SUB-MEMBERS (FOR HIERARCHY VIEW) ============
+const fetchSubMembersForHierarchy = async (parentId) => {
+  try {
+    const q = query(
+      collection(db, 'users'),
+      where('parentId', '==', parentId),
+      where('role', 'in', ['working', 'workingMember'])
+    );
+    const snapshot = await getDocs(q);
+    const subMembers = [];
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      // Fetch children of this sub-member
+      const childrenQuery = query(
+        collection(db, 'users'),
+        where('parentId', '==', doc.id),
+        where('role', 'in', ['working', 'workingMember'])
+      );
+      const childrenSnap = await getDocs(childrenQuery);
+      const childrenList = [];
+      childrenSnap.forEach((childDoc) => {
+        childrenList.push({
+          id: childDoc.id,
+          ...childDoc.data()
+        });
+      });
+
+      subMembers.push({
+        id: doc.id,
+        ...data,
+        children: childrenList,
+        childrenCount: childrenList.length
+      });
+    }
+    return subMembers;
+  } catch (error) {
+    console.error('Error fetching sub-members for hierarchy:', error);
+    return [];
+  }
+};
+  const getCertificateTypeLabel = (type) => {
+    switch(type) {
+      case 'donation': return 'Donation';
+      case 'membership': return 'Membership';
+      case 'volunteer': return 'Volunteer';
+      default: return 'Certificate';
+    }
+  };
+
+  // Assign a sub-member to the selected parent
+  const handleAssignMember = async () => {
+    if (!selectedMemberForAssign || !selectedSubMemberId) {
+      Alert.alert('Error', 'Please select a member to assign');
+      return;
+    }
+
+    setSavingMember(true);
+    try {
+      const subMemberRef = doc(db, 'users', selectedSubMemberId);
+      await updateDoc(subMemberRef, {
+        parentId: selectedMemberForAssign.id,
+        parentName: selectedMemberForAssign.fullName,
+        updatedAt: new Date().toISOString()
+      });
+
+      const parentRef = doc(db, 'users', selectedMemberForAssign.id);
+      const parentDoc = await getDoc(parentRef);
+      if (parentDoc.exists()) {
+        const parentData = parentDoc.data();
+        const currentChildren = parentData.childrenIds || [];
+        if (!currentChildren.includes(selectedSubMemberId)) {
           await updateDoc(parentRef, {
-            childrenIds: [...currentChildren, userId],
+            childrenIds: [...currentChildren, selectedSubMemberId],
             updatedAt: new Date().toISOString()
           });
         }
-      } catch (error) {
-        console.error('Error updating parent children:', error);
+      }
+
+      Alert.alert(
+        'Success',
+        `${selectedSubMemberName} has been assigned under ${selectedMemberForAssign.fullName}`
+      );
+      
+      setAssignModalVisible(false);
+      setSelectedMemberForAssign(null);
+      setSelectedSubMemberId(null);
+      setSelectedSubMemberName('');
+      setAvailableSubMembers([]);
+      onRefresh();
+      
+    } catch (error) {
+      console.error('Error assigning member:', error);
+      Alert.alert('Error', 'Failed to assign member. Please try again.');
+    } finally {
+      setSavingMember(false);
+    }
+  };
+
+  // Unassign a sub-member from parent
+  const handleUnassignMember = async (memberId) => {
+    Alert.alert(
+      'Unassign Member',
+      'Are you sure you want to remove this member from their parent?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unassign',
+          style: 'destructive',
+          onPress: async () => {
+            setSavingMember(true);
+            try {
+              const memberRef = doc(db, 'users', memberId);
+              const memberDoc = await getDoc(memberRef);
+              if (memberDoc.exists()) {
+                const memberData = memberDoc.data();
+                const parentId = memberData.parentId;
+                
+                await updateDoc(memberRef, {
+                  parentId: null,
+                  parentName: null,
+                  updatedAt: new Date().toISOString()
+                });
+
+                if (parentId) {
+                  const parentRef = doc(db, 'users', parentId);
+                  const parentDoc = await getDoc(parentRef);
+                  if (parentDoc.exists()) {
+                    const parentData = parentDoc.data();
+                    const currentChildren = parentData.childrenIds || [];
+                    const updatedChildren = currentChildren.filter(id => id !== memberId);
+                    await updateDoc(parentRef, {
+                      childrenIds: updatedChildren,
+                      updatedAt: new Date().toISOString()
+                    });
+                  }
+                }
+              }
+
+              Alert.alert('Success', 'Member unassigned successfully');
+              onRefresh();
+              
+            } catch (error) {
+              console.error('Error unassigning member:', error);
+              Alert.alert('Error', 'Failed to unassign member');
+            } finally {
+              setSavingMember(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleAddWorkingMember = async () => {
+    if (!newMemberData.fullName.trim()) {
+      Alert.alert('Error', 'Full Name is required');
+      return;
+    }
+    
+    if (registrationMethod === 'email') {
+      if (!newMemberData.email.trim()) {
+        Alert.alert('Error', 'Email is required');
+        return;
+      }
+      if (!newMemberData.password || newMemberData.password.length < 6) {
+        Alert.alert('Error', 'Password must be at least 6 characters');
+        return;
+      }
+    } else {
+      if (!newMemberData.phone.trim()) {
+        Alert.alert('Error', 'Phone number is required');
+        return;
+      }
+      if (!newMemberData.password || newMemberData.password.length < 6) {
+        Alert.alert('Error', 'Password must be at least 6 characters');
+        return;
       }
     }
 
-    // Create wallet
-    await setDoc(doc(db, 'wallets', userId), {
-      balance: 0,
-      totalEarned: 0,
-      pendingCommission: 0,
-      totalWithdrawn: 0,
-      pendingWithdrawals: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
+    setSavingMember(true);
+    try {
+      const auth = getAuthInstance();
+      let userCredential;
+      
+      if (registrationMethod === 'email') {
+        userCredential = await createUserWithEmailAndPassword(
+          auth,
+          newMemberData.email.trim(),
+          newMemberData.password
+        );
+      } else {
+        const phoneNumber = `+91${newMemberData.phone.trim()}`;
+        userCredential = await createUserWithEmailAndPassword(
+          auth,
+          `${phoneNumber}@phone.auth`,
+          newMemberData.password
+        );
+      }
+      
+      const userId = userCredential.user.uid;
 
-    Alert.alert(
-      'Success',
-      `Working member "${newMemberData.fullName}" added successfully!${parentMemberName ? `\nAttached to: ${parentMemberName}` : ''}`
-    );
-    
-    setAddMemberModalVisible(false);
+      const selectedLevel = dynamicLevels.find(l => l.id === newMemberData.level) || { directCommission: 25, secondaryCommission: 10 };
+
+      const userData = {
+        fullName: newMemberData.fullName.trim(),
+        email: registrationMethod === 'email' ? newMemberData.email.trim().toLowerCase() : '',
+        phone: newMemberData.phone.trim(),
+        address: newMemberData.address.trim(),
+        village: newMemberData.village,
+        postOffice: newMemberData.postOffice,
+        thana: newMemberData.thana,
+        district: newMemberData.district,
+        state: newMemberData.state,
+        pinCode: newMemberData.pinCode,
+        gender: newMemberData.gender,
+        dob: newMemberData.dob,
+        aadharNumber: newMemberData.aadharNumber,
+        level: newMemberData.level,
+        directCommission: selectedLevel.directCommission || 25,
+        secondaryCommission: selectedLevel.secondaryCommission || 10,
+        role: 'working',
+        status: 'active',
+        profilePhoto: newMemberData.profilePhoto || null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        directReferrals: [],
+        registeredBy: auth.currentUser?.uid || 'admin',
+        promotionPending: false,
+        walletCreated: false,
+        parentId: parentMemberId || null,
+        parentName: parentMemberName || null,
+        registrationMethod: registrationMethod,
+      };
+
+      await setDoc(doc(db, 'users', userId), userData);
+
+      if (parentMemberId) {
+        try {
+          const parentRef = doc(db, 'users', parentMemberId);
+          const parentDoc = await getDoc(parentRef);
+          if (parentDoc.exists()) {
+            const parentData = parentDoc.data();
+            const currentChildren = parentData.childrenIds || [];
+            await updateDoc(parentRef, {
+              childrenIds: [...currentChildren, userId],
+              updatedAt: new Date().toISOString()
+            });
+          }
+        } catch (error) {
+          console.error('Error updating parent children:', error);
+        }
+      }
+
+      await setDoc(doc(db, 'wallets', userId), {
+        balance: 0,
+        totalEarned: 0,
+        pendingCommission: 0,
+        totalWithdrawn: 0,
+        pendingWithdrawals: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      Alert.alert(
+        'Success',
+        `Working member "${newMemberData.fullName}" added successfully!${parentMemberName ? `\nAttached to: ${parentMemberName}` : ''}`
+      );
+      
+      setAddMemberModalVisible(false);
+      setParentMemberId(null);
+      setParentMemberName('');
+      resetNewMemberForm();
+      onRefresh();
+      
+    } catch (error) {
+      console.error('Error adding working member:', error);
+      let errorMessage = 'Failed to add working member';
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'Email already registered. Please use a different email.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email format.';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak. Use at least 6 characters.';
+      } else if (error.code === 'auth/phone-number-already-exists') {
+        errorMessage = 'Phone number already registered.';
+      }
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setSavingMember(false);
+    }
+  };
+
+  const resetNewMemberForm = () => {
+    setNewMemberData({
+      fullName: '',
+      email: '',
+      phone: '',
+      password: '',
+      address: '',
+      village: '',
+      postOffice: '',
+      thana: '',
+      district: '',
+      state: '',
+      pinCode: '',
+      gender: '',
+      dob: '',
+      aadharNumber: '',
+      level: 'I',
+      status: 'active',
+      role: 'working',
+      profilePhoto: null,
+      parentId: '',
+    });
     setParentMemberId(null);
     setParentMemberName('');
-    resetNewMemberForm();
-    onRefresh();
-    
-  } catch (error) {
-    console.error('Error adding working member:', error);
-    let errorMessage = 'Failed to add working member';
-    if (error.code === 'auth/email-already-in-use') {
-      errorMessage = 'Email already registered. Please use a different email.';
-    } else if (error.code === 'auth/invalid-email') {
-      errorMessage = 'Invalid email format.';
-    } else if (error.code === 'auth/weak-password') {
-      errorMessage = 'Password is too weak. Use at least 6 characters.';
-    } else if (error.code === 'auth/phone-number-already-exists') {
-      errorMessage = 'Phone number already registered.';
-    }
-    Alert.alert('Error', errorMessage);
-  } finally {
-    setSavingMember(false);
-  }
-};
-const resetNewMemberForm = () => {
-  setNewMemberData({
-    fullName: '',
-    email: '',
-    phone: '',
-    password: '',
-    address: '',
-    village: '',
-    postOffice: '',
-    thana: '',
-    district: '',
-    state: '',
-    pinCode: '',
-    gender: '',
-    dob: '',
-    aadharNumber: '',
-    level: 'I',
-    status: 'active',
-    role: 'working',
-    profilePhoto: null,
-    parentId: '',
-  });
-  setParentMemberId(null);
-  setParentMemberName('');
-  setSearchParent('');
-};
+    setSearchParent('');
+  };
 
   const setupRealtimeListener = () => {
     const q = query(
@@ -1089,31 +1348,29 @@ const resetNewMemberForm = () => {
   };
 
   const applyFilters = (data, searchText, status, level) => {
-  let filtered = data;
+    let filtered = data;
 
-  if (searchText) {
-    filtered = filtered.filter(member =>
-      member.fullName?.toLowerCase().includes(searchText.toLowerCase()) ||
-      member.email?.toLowerCase().includes(searchText.toLowerCase()) ||
-      member.levelTitle?.toLowerCase().includes(searchText.toLowerCase())
-    );
-  }
+    if (searchText) {
+      filtered = filtered.filter(member =>
+        member.fullName?.toLowerCase().includes(searchText.toLowerCase()) ||
+        member.email?.toLowerCase().includes(searchText.toLowerCase()) ||
+        member.levelTitle?.toLowerCase().includes(searchText.toLowerCase())
+      );
+    }
 
-  if (status !== 'all') {
-    filtered = filtered.filter(member => member.status === status);
-  }
+    if (status !== 'all') {
+      filtered = filtered.filter(member => member.status === status);
+    }
 
-  // ✅ Filter by level name (dynamic)
-  if (level !== 'All') {
-    filtered = filtered.filter(member => {
-      // Get the level name from dynamic levels or fallback
-      const levelName = getLevelLabel(member.level);
-      return levelName.toLowerCase() === level.toLowerCase();
-    });
-  }
+    if (level !== 'All') {
+      filtered = filtered.filter(member => {
+        const levelName = getLevelLabel(member.level);
+        return levelName.toLowerCase() === level.toLowerCase();
+      });
+    }
 
-  setFilteredMembers(filtered);
-};
+    setFilteredMembers(filtered);
+  };
 
   const handleSearch = (text) => {
     setSearch(text);
@@ -1126,9 +1383,10 @@ const resetNewMemberForm = () => {
   };
 
   const handleFilterLevel = (levelName) => {
-  setFilterLevel(levelName);
-  applyFilters(workingMembers, search, filterStatus, levelName);
-};
+    setFilterLevel(levelName);
+    applyFilters(workingMembers, search, filterStatus, levelName);
+  };
+
   const handleStatusUpdate = async (id, status) => {
     try {
       await updateDoc(doc(db, 'users', id), { 
@@ -1142,51 +1400,51 @@ const resetNewMemberForm = () => {
   };
 
   const handlePromotion = async () => {
-  if (!promotionData.memberId || !promotionData.newLevel) {
-    Alert.alert(translations.error, 'Please select a level');
-    return;
-  }
+    if (!promotionData.memberId || !promotionData.newLevel) {
+      Alert.alert(translations.error, 'Please select a level');
+      return;
+    }
 
-  try {
-    const auth = getAuthInstance(); // ✅ Moved OUTSIDE the object
-    
-    const memberRef = doc(db, 'users', promotionData.memberId);
-    
-    await runTransaction(db, async (transaction) => {
-      const memberDoc = await transaction.get(memberRef);
-      if (!memberDoc.exists()) {
-        throw new Error('Member not found');
-      }
+    try {
+      const auth = getAuthInstance();
+      
+      const memberRef = doc(db, 'users', promotionData.memberId);
+      
+      await runTransaction(db, async (transaction) => {
+        const memberDoc = await transaction.get(memberRef);
+        if (!memberDoc.exists()) {
+          throw new Error('Member not found');
+        }
 
-      transaction.update(memberRef, {
-        level: promotionData.newLevel,
-        promotionPending: false,
-        promotionDate: Timestamp.now(),
-        updatedAt: Timestamp.now()
+        transaction.update(memberRef, {
+          level: promotionData.newLevel,
+          promotionPending: false,
+          promotionDate: Timestamp.now(),
+          updatedAt: Timestamp.now()
+        });
+
+        const promotionRef = doc(collection(db, 'promotions'));
+        transaction.set(promotionRef, {
+          memberId: promotionData.memberId,
+          memberName: promotionData.memberName,
+          fromLevel: promotionData.currentLevel,
+          toLevel: promotionData.newLevel,
+          date: Timestamp.now(),
+          approvedBy: auth.currentUser?.uid,
+          approvedByName: auth.currentUser?.displayName || 'Admin'
+        });
       });
 
-      const promotionRef = doc(collection(db, 'promotions'));
-      transaction.set(promotionRef, {
-        memberId: promotionData.memberId,
-        memberName: promotionData.memberName,
-        fromLevel: promotionData.currentLevel,
-        toLevel: promotionData.newLevel,
-        date: Timestamp.now(),
-        approvedBy: auth.currentUser?.uid,        // ✅ Now works
-        approvedByName: auth.currentUser?.displayName || 'Admin'  // ✅ Now works
-      });
-    });
-
-    const levelDetails = getLevelDetails(promotionData.newLevel);
-    Alert.alert(translations.success, translations.promotionSuccess
-      .replace('{name}', promotionData.memberName)
-      .replace('{level}', levelDetails?.title || promotionData.newLevel));
-    setPromotionModalVisible(false);
-    onRefresh();
-  } catch (error) {
-    Alert.alert(translations.error, error.message);
-  }
-};
+      const levelDetails = getLevelDetails(promotionData.newLevel);
+      Alert.alert(translations.success, translations.promotionSuccess
+        .replace('{name}', promotionData.memberName)
+        .replace('{level}', levelDetails?.title || promotionData.newLevel));
+      setPromotionModalVisible(false);
+      onRefresh();
+    } catch (error) {
+      Alert.alert(translations.error, error.message);
+    }
+  };
 
   const handleAddCommission = async () => {
     if (!commissionData.memberId || !commissionData.amount) {
@@ -1273,12 +1531,12 @@ const resetNewMemberForm = () => {
   };
 
   const getFilterCount = (levelName) => {
-  if (levelName === 'All') return workingMembers.length;
-  return workingMembers.filter(m => {
-    const memberLevelName = getLevelLabel(m.level);
-    return memberLevelName.toLowerCase() === levelName.toLowerCase();
-  }).length;
-};
+    if (levelName === 'All') return workingMembers.length;
+    return workingMembers.filter(m => {
+      const memberLevelName = getLevelLabel(m.level);
+      return memberLevelName.toLowerCase() === levelName.toLowerCase();
+    }).length;
+  };
 
   const getStatusCount = (status) => {
     if (status === 'all') return workingMembers.length;
@@ -1322,27 +1580,25 @@ const resetNewMemberForm = () => {
   };
 
   const getLevelLabel = (levelId) => {
-  // First check dynamic levels from Firestore
-  if (dynamicLevels && dynamicLevels.length > 0) {
-    const dynamicLevel = dynamicLevels.find(l => l.id === levelId);
-    if (dynamicLevel) {
-      return dynamicLevel.name || levelId;
+    if (dynamicLevels && dynamicLevels.length > 0) {
+      const dynamicLevel = dynamicLevels.find(l => l.id === levelId);
+      if (dynamicLevel) {
+        return dynamicLevel.name || levelId;
+      }
     }
-  }
-  // Fallback to hardcoded levels
-  const details = getLevelDetails(levelId);
-  return details?.title || levelId;
-};
+    const details = getLevelDetails(levelId);
+    return details?.title || levelId;
+  };
 
   const StatCard = ({ label, count, icon, color, active, onPress }) => (
-  <TouchableOpacity 
-    style={[styles.statCard, active && styles.statCardActive]} 
-    onPress={onPress}
-  >
-    <Text style={styles.statType}>{label}</Text>
-    <Text style={[styles.statCount, { color }]}>{count}</Text>
-  </TouchableOpacity>
-);
+    <TouchableOpacity 
+      style={[styles.statCard, active && styles.statCardActive]} 
+      onPress={onPress}
+    >
+      <Text style={styles.statType}>{label}</Text>
+      <Text style={[styles.statCount, { color }]}>{count}</Text>
+    </TouchableOpacity>
+  );
 
   const StatusFilterChip = ({ label, count, active, onPress }) => (
     <TouchableOpacity
@@ -1369,13 +1625,16 @@ const resetNewMemberForm = () => {
 
     return (
       <TouchableOpacity 
-        style={styles.memberCard}
-        onPress={() => {
-          setSelectedMember(member);
-          setDetailModalVisible(true);
-        }}
-        activeOpacity={0.7}
-      >
+  style={styles.memberCard}
+  onPress={() => {
+    console.log('👆 Member clicked:', member.fullName, 'Direct referrals:', member.directReferrals);
+    setSelectedMember(member);
+    loadMemberHierarchy(member);
+    fetchDirectMembersData(member.directReferrals || []);
+    setDetailModalVisible(true);
+  }}
+  activeOpacity={0.7}
+>
         <View style={styles.cardHeader}>
           <View style={styles.memberInfo}>
             <View style={styles.avatarContainer}>
@@ -1485,42 +1744,39 @@ const resetNewMemberForm = () => {
             <MaterialIcons name="history" size={isSmallDevice ? 10 : 14} color="#ffffff" />
             <Text style={[styles.actionButtonText, { fontSize: isSmallDevice ? 7 : 9 }]}>{translations.history}</Text>
           </TouchableOpacity>
-<TouchableOpacity 
-  style={[styles.actionButton, styles.referralButton]}
-  onPress={() => {
-    setSelectedMemberForReferral(member);
-    setReferralCode(member.referralCode || ''); // ✅ Load existing code
-    setReferralModalVisible(true);
-  }}
-  activeOpacity={0.7}
->
-  <MaterialIcons name="share" size={isSmallDevice ? 10 : 14} color="#ffffff" />
-  <Text style={[styles.actionButtonText, { fontSize: isSmallDevice ? 7 : 9 }]}>Referral</Text>
-</TouchableOpacity>
-{/* Add this button in the cardActions section */}
-<TouchableOpacity 
-  style={[styles.actionButton, styles.assignButton]}
-  onPress={() => {
-    setSelectedMemberForAssign(member);
-    fetchAvailableSubMembers(member.level);
-    setSelectedSubMemberId(null);
-    setSelectedSubMemberName('');
-    setAssignModalVisible(true);
-  }}
->
-  <MaterialIcons name="group-add" size={isSmallDevice ? 10 : 14} color="#ffffff" />
-  <Text style={[styles.actionButtonText, { fontSize: isSmallDevice ? 7 : 9 }]}>Assign</Text>
-</TouchableOpacity>
-<TouchableOpacity 
-  style={[styles.actionButton, styles.downloadButton]}
-  onPress={() => openDownloadModal(member)}
-  activeOpacity={0.7}
->
-
-
-  <MaterialIcons name="download" size={isSmallDevice ? 10 : 14} color="#ffffff" />
-  <Text style={[styles.actionButtonText, { fontSize: isSmallDevice ? 7 : 9 }]}>Download</Text>
-</TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.referralButton]}
+            onPress={() => {
+              setSelectedMemberForReferral(member);
+              setReferralCode(member.referralCode || '');
+              setReferralModalVisible(true);
+            }}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="share" size={isSmallDevice ? 10 : 14} color="#ffffff" />
+            <Text style={[styles.actionButtonText, { fontSize: isSmallDevice ? 7 : 9 }]}>Referral</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.assignButton]}
+            onPress={() => {
+              setSelectedMemberForAssign(member);
+              fetchAvailableSubMembers(member.level);
+              setSelectedSubMemberId(null);
+              setSelectedSubMemberName('');
+              setAssignModalVisible(true);
+            }}
+          >
+            <MaterialIcons name="group-add" size={isSmallDevice ? 10 : 14} color="#ffffff" />
+            <Text style={[styles.actionButtonText, { fontSize: isSmallDevice ? 7 : 9 }]}>Assign</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.downloadButton]}
+            onPress={() => openDownloadModal(member)}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="download" size={isSmallDevice ? 10 : 14} color="#ffffff" />
+            <Text style={[styles.actionButtonText, { fontSize: isSmallDevice ? 7 : 9 }]}>Download</Text>
+          </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.actionButton, styles.walletButton]}
             onPress={() => viewWallet(member)}
@@ -1569,6 +1825,7 @@ const resetNewMemberForm = () => {
             style={[styles.actionButton, styles.viewButton]}
             onPress={() => {
               setSelectedMember(member);
+              loadMemberHierarchy(member);
               setDetailModalVisible(true);
             }}
           >
@@ -1579,7 +1836,126 @@ const resetNewMemberForm = () => {
       </TouchableOpacity>
     );
   };
+// Add this component with your other modal components (around line 1200-1300)
+const NodeMembersModal = () => {
+  // Get display members - filter out working members
+  const getDisplayMembers = () => {
+    // If we have selectedNodeMembers (from query), filter them
+    if (selectedNodeMembers.length > 0) {
+      return selectedNodeMembers.filter(m => 
+        m.role !== 'working' && m.role !== 'workingMember'
+      );
+    }
+    
+    // Fallback to registeredMembersList from selectedMember
+    if (selectedMember?.registeredMembersList) {
+      return selectedMember.registeredMembersList.filter(m => 
+        m.role !== 'working' && m.role !== 'workingMember'
+      );
+    }
+    
+    return [];
+  };
 
+  const displayMembers = getDisplayMembers();
+  const totalCount = displayMembers.length;
+
+  return (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={nodeMembersModalVisible}
+      onRequestClose={() => setNodeMembersModalVisible(false)}
+    >
+      <View style={styles.modalContainer}>
+        <View style={styles.nodeMembersModalContent}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
+                Direct Members
+              </Text>
+              <Text style={[styles.nodeMembersModalSubtitle, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                {selectedNodeName || 'Member'} has registered {totalCount} members
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setNodeMembersModalVisible(false)}>
+              <MaterialIcons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          {loadingNodeMembers ? (
+            <View style={styles.nodeMembersLoading}>
+              <ActivityIndicator size="large" color="#FF7722" />
+              <Text style={[styles.nodeMembersLoadingText, { fontSize: isSmallDevice ? 13 : 14 }]}>
+                Loading members...
+              </Text>
+            </View>
+          ) : displayMembers.length === 0 ? (
+            <View style={styles.nodeMembersEmpty}>
+              <MaterialIcons name="people-outline" size={50} color="#d1d5db" />
+              <Text style={[styles.nodeMembersEmptyTitle, { fontSize: isSmallDevice ? 15 : 16 }]}>
+                No Direct Members
+              </Text>
+              <Text style={[styles.nodeMembersEmptySubtext, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {selectedNodeName || 'This member'} hasn't registered any direct members yet
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={displayMembers}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={styles.nodeMemberItem}>
+                  <View style={styles.nodeMemberAvatar}>
+                    <Text style={styles.nodeMemberAvatarText}>
+                      {item.fullName?.charAt(0)?.toUpperCase() || '?'}
+                    </Text>
+                  </View>
+                  <View style={styles.nodeMemberInfo}>
+                    <Text style={[styles.nodeMemberName, { fontSize: isSmallDevice ? 13 : 14 }]}>
+                      {item.fullName || 'Unknown'}
+                    </Text>
+                    <Text style={[styles.nodeMemberDetails, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                      {item.phone || item.email || 'No contact'}
+                    </Text>
+                    <View style={styles.nodeMemberMeta}>
+                      <View style={[
+                        styles.nodeMemberStatus,
+                        { backgroundColor: item.status === 'active' ? '#d1fae5' : '#fee2e2' }
+                      ]}>
+                        <Text style={[
+                          styles.nodeMemberStatusText,
+                          { color: item.status === 'active' ? '#10b981' : '#ef4444' }
+                        ]}>
+                          {item.status || 'inactive'}
+                        </Text>
+                      </View>
+                      {item.level && (
+                        <Text style={[styles.nodeMemberLevel, { fontSize: isSmallDevice ? 9 : 10 }]}>
+                          Level {item.level}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={20} color="#d1d5db" />
+                </View>
+              )}
+              contentContainerStyle={styles.nodeMembersList}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={() => setNodeMembersModalVisible(false)}
+          >
+            <Text style={[styles.closeButtonText, { fontSize: isSmallDevice ? 13 : 14 }]}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
   const WalletModal = () => {
     if (!selectedWallet) return null;
 
@@ -1665,24 +2041,22 @@ const resetNewMemberForm = () => {
               <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { fontSize: isSmallDevice ? 18 : 20 }]}>{translations.workingMembers}</Text>
-<View style={styles.headerRight}>
-  <TouchableOpacity 
-    style={styles.addButton}
-    onPress={() => {
-      resetNewMemberForm();
-      setParentMemberId(null);
-      setParentMemberName('');
-      setSearchParent('');
-      setRegistrationMethod('email');
-      // Show registration method selection first
-      setShowRegistrationMethodModal(true);
-      // Pre-fetch parents for default level
-      fetchAvailableParents('I');
-    }}
-  >
-    <MaterialIcons name="add" size={24} color="#ffffff" />
-  </TouchableOpacity>
-</View>
+            <View style={styles.headerRight}>
+              <TouchableOpacity 
+                style={styles.addButton}
+                onPress={() => {
+                  resetNewMemberForm();
+                  setParentMemberId(null);
+                  setParentMemberName('');
+                  setSearchParent('');
+                  setRegistrationMethod('email');
+                  setShowRegistrationMethodModal(true);
+                  fetchAvailableParents('I');
+                }}
+              >
+                <MaterialIcons name="add" size={24} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity 
               style={styles.refreshButton}
               onPress={onRefresh}
@@ -1708,91 +2082,90 @@ const resetNewMemberForm = () => {
           </View>
 
           <View style={styles.statusFilterWrapper}>
-  <ScrollView 
-    horizontal 
-    showsHorizontalScrollIndicator={false}
-    contentContainerStyle={styles.statusFilterScrollContent}
-    style={{ flexGrow: 0 }}
-  >
-    <StatusFilterChip
-      label={translations.all}
-      count={getStatusCount('all')}
-      active={filterStatus === 'all'}
-      onPress={() => handleFilterStatus('all')}
-    />
-    <StatusFilterChip
-      label={translations.active}
-      count={getStatusCount('active')}
-      active={filterStatus === 'active'}
-      onPress={() => handleFilterStatus('active')}
-    />
-    <StatusFilterChip
-      label={translations.pending}
-      count={getStatusCount('pending')}
-      active={filterStatus === 'pending'}
-      onPress={() => handleFilterStatus('pending')}
-    />
-    <StatusFilterChip
-      label={translations.suspended}
-      count={getStatusCount('suspended')}
-      active={filterStatus === 'suspended'}
-      onPress={() => handleFilterStatus('suspended')}
-    />
-  </ScrollView>
-</View>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.statusFilterScrollContent}
+              style={{ flexGrow: 0 }}
+            >
+              <StatusFilterChip
+                label={translations.all}
+                count={getStatusCount('all')}
+                active={filterStatus === 'all'}
+                onPress={() => handleFilterStatus('all')}
+              />
+              <StatusFilterChip
+                label={translations.active}
+                count={getStatusCount('active')}
+                active={filterStatus === 'active'}
+                onPress={() => handleFilterStatus('active')}
+              />
+              <StatusFilterChip
+                label={translations.pending}
+                count={getStatusCount('pending')}
+                active={filterStatus === 'pending'}
+                onPress={() => handleFilterStatus('pending')}
+              />
+              <StatusFilterChip
+                label={translations.suspended}
+                count={getStatusCount('suspended')}
+                active={filterStatus === 'suspended'}
+                onPress={() => handleFilterStatus('suspended')}
+              />
+            </ScrollView>
+          </View>
 
           <View style={styles.statsWrapper}>
-  <ScrollView 
-    horizontal 
-    showsHorizontalScrollIndicator={false} 
-    contentContainerStyle={styles.statsScrollContent}
-    style={{ flexGrow: 0 }}
-  >
-    <StatCard 
-      label={translations.all} 
-      count={workingMembers.length} 
-      icon="people" 
-      color="#ffffff" 
-      active={filterLevel === 'All'}
-      onPress={() => handleFilterLevel('All')}
-    />
-    
-    {dynamicLevels.length > 0 ? (
-      dynamicLevels.map((level) => {
-        const count = workingMembers.filter(m => m.level === level.id).length;
-        const levelName = level.name || level.id;
-        return (
-          <StatCard 
-            key={level.id}
-            label={levelName}
-            count={count}
-            icon="star" 
-            color="#ffffff"
-            active={filterLevel === levelName}
-            onPress={() => handleFilterLevel(levelName)}
-          />
-        );
-      })
-    ) : (
-      // Fallback to default levels if dynamic levels not loaded
-      ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'].map((key) => {
-        const level = getLevelDetails(key);
-        const count = workingMembers.filter(m => m.level === key).length;
-        return (
-          <StatCard 
-            key={key}
-            label={level.title}
-            count={count}
-            icon="star" 
-            color="#ffffff"
-            active={filterLevel === level.title}
-            onPress={() => handleFilterLevel(level.title)}
-          />
-        );
-      })
-    )}
-  </ScrollView>
-</View>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={styles.statsScrollContent}
+              style={{ flexGrow: 0 }}
+            >
+              <StatCard 
+                label={translations.all} 
+                count={workingMembers.length} 
+                icon="people" 
+                color="#ffffff" 
+                active={filterLevel === 'All'}
+                onPress={() => handleFilterLevel('All')}
+              />
+              
+              {dynamicLevels.length > 0 ? (
+                dynamicLevels.map((level) => {
+                  const count = workingMembers.filter(m => m.level === level.id).length;
+                  const levelName = level.name || level.id;
+                  return (
+                    <StatCard 
+                      key={level.id}
+                      label={levelName}
+                      count={count}
+                      icon="star" 
+                      color="#ffffff"
+                      active={filterLevel === levelName}
+                      onPress={() => handleFilterLevel(levelName)}
+                    />
+                  );
+                })
+              ) : (
+                ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'].map((key) => {
+                  const level = getLevelDetails(key);
+                  const count = workingMembers.filter(m => m.level === key).length;
+                  return (
+                    <StatCard 
+                      key={key}
+                      label={level.title}
+                      count={count}
+                      icon="star" 
+                      color="#ffffff"
+                      active={filterLevel === level.title}
+                      onPress={() => handleFilterLevel(level.title)}
+                    />
+                  );
+                })
+              )}
+            </ScrollView>
+          </View>
         </View>
 
         <FlatList
@@ -1819,371 +2192,371 @@ const resetNewMemberForm = () => {
           nestedScrollEnabled={true}
           keyboardShouldPersistTaps="handled"
         />
-{/* Referral Code Modal */}
-<Modal
-  animationType="slide"
-  transparent={true}
-  visible={referralModalVisible}
-  onRequestClose={() => {
-    setReferralModalVisible(false);
-    setSelectedMemberForReferral(null);
-  }}
->
-  <View style={styles.modalContainer}>
-    <View style={styles.modalContent}>
-      <View style={styles.modalHeader}>
-        <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
-          Referral Code
-        </Text>
-        <TouchableOpacity onPress={() => {
-          setReferralModalVisible(false);
-          setSelectedMemberForReferral(null);
-        }}>
-          <MaterialIcons name="close" size={24} color="#6B7280" />
-        </TouchableOpacity>
-      </View>
 
-      {selectedMemberForReferral && (
-        <>
-          <View style={styles.referralMemberInfo}>
-            <Text style={[styles.referralMemberName, { fontSize: isSmallDevice ? 16 : 18 }]}>
-              {selectedMemberForReferral.fullName}
-            </Text>
-            <Text style={[styles.referralMemberLevel, { fontSize: isSmallDevice ? 12 : 14 }]}>
-              Level: {getLevelLabel(selectedMemberForReferral.level)}
-            </Text>
-          </View>
-
-          <View style={styles.referralCodeContainer}>
-            {referralCode ? (
-              <>
-                <Text style={[styles.referralCodeLabel, { fontSize: isSmallDevice ? 12 : 14 }]}>
-                  Your Referral Code
+        {/* Referral Code Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={referralModalVisible}
+          onRequestClose={() => {
+            setReferralModalVisible(false);
+            setSelectedMemberForReferral(null);
+          }}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
+                  Referral Code
                 </Text>
-                <View style={styles.referralCodeDisplay}>
-                  <Text style={[styles.referralCodeText, { fontSize: isSmallDevice ? 20 : 24 }]}>
-                    {referralCode}
-                  </Text>
-                </View>
-                <Text style={[styles.referralCodeNote, { fontSize: isSmallDevice ? 10 : 12 }]}>
-                  Share this code with new members to earn commissions
-                </Text>
-                <TouchableOpacity 
-                  style={styles.referralShareButton}
-                  onPress={() => {
-                    const message = `Join Kabir Sat Dharam Foundation using my referral code: ${referralCode}\n\nDownload the app to get started!`;
-                    Alert.alert('Share Code', message);
-                  }}
-                >
-                  <MaterialIcons name="share" size={20} color="#ffffff" />
-                  <Text style={[styles.referralShareText, { fontSize: isSmallDevice ? 14 : 16 }]}>
-                    Share Code
-                  </Text>
+                <TouchableOpacity onPress={() => {
+                  setReferralModalVisible(false);
+                  setSelectedMemberForReferral(null);
+                }}>
+                  <MaterialIcons name="close" size={24} color="#6B7280" />
                 </TouchableOpacity>
-                {/* ✅ Add Regenerate button */}
-                <TouchableOpacity 
-                  style={[styles.referralRegenerateButton, generatingReferral && { opacity: 0.6 }]}
-                  onPress={handleGenerateReferral}
-                  disabled={generatingReferral}
-                >
-                  {generatingReferral ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <>
-                      <MaterialIcons name="refresh" size={18} color="#ffffff" />
-                      <Text style={[styles.referralGenerateText, { fontSize: isSmallDevice ? 12 : 14 }]}>
-                        Generate New Code
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={[styles.referralNoCodeText, { fontSize: isSmallDevice ? 14 : 16 }]}>
-                  No referral code generated yet
-                </Text>
-                <Text style={[styles.referralNoCodeSubtext, { fontSize: isSmallDevice ? 12 : 13 }]}>
-                  Generate a unique referral code for this member
-                </Text>
-                <TouchableOpacity 
-                  style={[styles.referralGenerateButton, generatingReferral && { opacity: 0.6 }]}
-                  onPress={handleGenerateReferral}
-                  disabled={generatingReferral}
-                >
-                  {generatingReferral ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <>
-                      <MaterialIcons name="refresh" size={20} color="#ffffff" />
-                      <Text style={[styles.referralGenerateText, { fontSize: isSmallDevice ? 14 : 16 }]}>
-                        Generate Referral Code
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
+              </View>
 
-          <TouchableOpacity 
-            style={styles.closeButton}
-            onPress={() => {
-              setReferralModalVisible(false);
-              setSelectedMemberForReferral(null);
-            }}
-          >
-            <Text style={[styles.closeButtonText, { fontSize: isSmallDevice ? 13 : 14 }]}>Close</Text>
-          </TouchableOpacity>
-        </>
-      )}
-    </View>
-  </View>
-</Modal>
-{/* Assign Member Modal */}
-<Modal
-  animationType="slide"
-  transparent={true}
-  visible={assignModalVisible}
-  onRequestClose={() => {
-    setAssignModalVisible(false);
-    setSelectedMemberForAssign(null);
-    setSelectedSubMemberId(null);
-    setSelectedSubMemberName('');
-  }}
->
-  <View style={styles.modalContainer}>
-    <View style={styles.modalContent}>
-      <View style={styles.modalHeader}>
-        <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
-          Assign Member
-        </Text>
-        <TouchableOpacity onPress={() => {
-          setAssignModalVisible(false);
-          setSelectedMemberForAssign(null);
-        }}>
-          <MaterialIcons name="close" size={24} color="#6B7280" />
-        </TouchableOpacity>
-      </View>
-
-      {selectedMemberForAssign && (
-        <>
-          <View style={styles.assignParentInfo}>
-            <Text style={styles.assignLabel}>Parent:</Text>
-            <Text style={styles.assignParentName}>{selectedMemberForAssign.fullName}</Text>
-            <Text style={styles.assignParentLevel}>
-              Level: {getLevelLabel(selectedMemberForAssign.level)}
-            </Text>
-          </View>
-
-          <View style={styles.assignDivider} />
-
-          <Text style={styles.assignSubtitle}>
-            Select a member to assign under {selectedMemberForAssign.fullName}
-          </Text>
-
-          <View style={styles.assignSearchContainer}>
-            <TextInput
-              style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14, flex: 1 }]}
-              placeholder="Search member by name..."
-              placeholderTextColor="#9ca3af"
-              value={searchSubMember}
-              onChangeText={setSearchSubMember}
-            />
-            <TouchableOpacity
-              style={styles.parentSearchButton}
-              onPress={() => {
-                if (searchSubMember.trim()) {
-                  const filtered = availableSubMembers.filter(m => 
-                    m.fullName.toLowerCase().includes(searchSubMember.toLowerCase())
-                  );
-                  setAvailableSubMembers(filtered);
-                } else {
-                  fetchAvailableSubMembers(selectedMemberForAssign.level);
-                }
-              }}
-            >
-              <MaterialIcons name="search" size={20} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
-
-          {availableSubMembers.length === 0 ? (
-            <View style={styles.assignEmptyState}>
-              <MaterialIcons name="people-outline" size={40} color="#d1d5db" />
-              <Text style={styles.assignEmptyText}>
-                No available members to assign
-              </Text>
-              <Text style={styles.assignEmptySubtext}>
-                All members at lower levels are already assigned
-              </Text>
-            </View>
-          ) : (
-            <ScrollView style={styles.assignListContainer}>
-              {availableSubMembers.map((member) => (
-                <TouchableOpacity
-                  key={member.id}
-                  style={[
-                    styles.assignItem,
-                    selectedSubMemberId === member.id && styles.assignItemActive
-                  ]}
-                  onPress={() => {
-                    setSelectedSubMemberId(member.id);
-                    setSelectedSubMemberName(member.fullName);
-                  }}
-                >
-                  <View style={styles.assignItemLeft}>
-                    <View style={styles.assignItemAvatar}>
-                      <Text style={styles.assignItemAvatarText}>
-                        {member.fullName.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View>
-                      <Text style={styles.assignItemName}>{member.fullName}</Text>
-                      <Text style={styles.assignItemLevel}>
-                        Level: {member.levelName}
-                      </Text>
-                    </View>
-                  </View>
-                  {selectedSubMemberId === member.id && (
-                    <MaterialIcons name="check-circle" size={24} color="#10b981" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-
-          {selectedSubMemberId && (
-            <View style={styles.assignSelectedContainer}>
-              <MaterialIcons name="link" size={16} color="#10b981" />
-              <Text style={styles.assignSelectedText}>
-                Assigning: {selectedSubMemberName}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.assignActions}>
-            <TouchableOpacity
-              style={[styles.assignButton, styles.assignCancelButton]}
-              onPress={() => {
-                setAssignModalVisible(false);
-                setSelectedMemberForAssign(null);
-                setSelectedSubMemberId(null);
-                setSelectedSubMemberName('');
-              }}
-            >
-              <Text style={styles.assignCancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.assignButton, 
-                styles.assignConfirmButton,
-                (!selectedSubMemberId || savingMember) && { opacity: 0.6 }
-              ]}
-              onPress={handleAssignMember}
-              disabled={!selectedSubMemberId || savingMember}
-            >
-              {savingMember ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
+              {selectedMemberForReferral && (
                 <>
-                  <MaterialIcons name="check" size={20} color="#ffffff" />
-                  <Text style={styles.assignConfirmText}>Assign</Text>
+                  <View style={styles.referralMemberInfo}>
+                    <Text style={[styles.referralMemberName, { fontSize: isSmallDevice ? 16 : 18 }]}>
+                      {selectedMemberForReferral.fullName}
+                    </Text>
+                    <Text style={[styles.referralMemberLevel, { fontSize: isSmallDevice ? 12 : 14 }]}>
+                      Level: {getLevelLabel(selectedMemberForReferral.level)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.referralCodeContainer}>
+                    {referralCode ? (
+                      <>
+                        <Text style={[styles.referralCodeLabel, { fontSize: isSmallDevice ? 12 : 14 }]}>
+                          Your Referral Code
+                        </Text>
+                        <View style={styles.referralCodeDisplay}>
+                          <Text style={[styles.referralCodeText, { fontSize: isSmallDevice ? 20 : 24 }]}>
+                            {referralCode}
+                          </Text>
+                        </View>
+                        <Text style={[styles.referralCodeNote, { fontSize: isSmallDevice ? 10 : 12 }]}>
+                          Share this code with new members to earn commissions
+                        </Text>
+                        <TouchableOpacity 
+                          style={styles.referralShareButton}
+                          onPress={() => {
+                            const message = `Join Kabir Sat Dharam Foundation using my referral code: ${referralCode}\n\nDownload the app to get started!`;
+                            Alert.alert('Share Code', message);
+                          }}
+                        >
+                          <MaterialIcons name="share" size={20} color="#ffffff" />
+                          <Text style={[styles.referralShareText, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                            Share Code
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={[styles.referralRegenerateButton, generatingReferral && { opacity: 0.6 }]}
+                          onPress={handleGenerateReferral}
+                          disabled={generatingReferral}
+                        >
+                          {generatingReferral ? (
+                            <ActivityIndicator size="small" color="#ffffff" />
+                          ) : (
+                            <>
+                              <MaterialIcons name="refresh" size={18} color="#ffffff" />
+                              <Text style={[styles.referralGenerateText, { fontSize: isSmallDevice ? 12 : 14 }]}>
+                                Generate New Code
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={[styles.referralNoCodeText, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                          No referral code generated yet
+                        </Text>
+                        <Text style={[styles.referralNoCodeSubtext, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                          Generate a unique referral code for this member
+                        </Text>
+                        <TouchableOpacity 
+                          style={[styles.referralGenerateButton, generatingReferral && { opacity: 0.6 }]}
+                          onPress={handleGenerateReferral}
+                          disabled={generatingReferral}
+                        >
+                          {generatingReferral ? (
+                            <ActivityIndicator size="small" color="#ffffff" />
+                          ) : (
+                            <>
+                              <MaterialIcons name="refresh" size={20} color="#ffffff" />
+                              <Text style={[styles.referralGenerateText, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                                Generate Referral Code
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+
+                  <TouchableOpacity 
+                    style={styles.closeButton}
+                    onPress={() => {
+                      setReferralModalVisible(false);
+                      setSelectedMemberForReferral(null);
+                    }}
+                  >
+                    <Text style={[styles.closeButtonText, { fontSize: isSmallDevice ? 13 : 14 }]}>Close</Text>
+                  </TouchableOpacity>
                 </>
               )}
-            </TouchableOpacity>
+            </View>
           </View>
-        </>
-      )}
-    </View>
-  </View>
-</Modal>
-{/* Registration Method Selection Modal */}
-<Modal
-  animationType="slide"
-  transparent={true}
-  visible={showRegistrationMethodModal}
-  onRequestClose={() => setShowRegistrationMethodModal(false)}
->
-  <View style={styles.modalContainer}>
-    <View style={styles.modalContent}>
-      <View style={styles.modalHeader}>
-        <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
-          Registration Method
-        </Text>
-        <TouchableOpacity onPress={() => setShowRegistrationMethodModal(false)}>
-          <MaterialIcons name="close" size={24} color="#6B7280" />
-        </TouchableOpacity>
-      </View>
+        </Modal>
 
-      <Text style={[styles.modalSubText, { fontSize: isSmallDevice ? 12 : 13 }]}>
-        Choose how you want to register this working member
-      </Text>
+        {/* Assign Member Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={assignModalVisible}
+          onRequestClose={() => {
+            setAssignModalVisible(false);
+            setSelectedMemberForAssign(null);
+            setSelectedSubMemberId(null);
+            setSelectedSubMemberName('');
+          }}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
+                  Assign Member
+                </Text>
+                <TouchableOpacity onPress={() => {
+                  setAssignModalVisible(false);
+                  setSelectedMemberForAssign(null);
+                }}>
+                  <MaterialIcons name="close" size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
 
-      <TouchableOpacity 
-        style={[styles.methodCard, registrationMethod === 'email' && styles.methodCardActive]}
-        onPress={() => {
-          setRegistrationMethod('email');
-          setShowRegistrationMethodModal(false);
-          setAddMemberModalVisible(true);
-          // Reset form
-          resetNewMemberForm();
-          // Fetch parents for initial level
-          fetchAvailableParents(newMemberData.level || 'I');
-        }}
-      >
-        <View style={[styles.methodIcon, { backgroundColor: registrationMethod === 'email' ? '#FF7722' : '#e5e7eb' }]}>
-          <MaterialIcons name="email" size={24} color={registrationMethod === 'email' ? '#ffffff' : '#6b7280'} />
-        </View>
-        <View style={styles.methodContent}>
-          <Text style={[styles.methodTitle, registrationMethod === 'email' && styles.methodTitleActive]}>
-            Email Registration
-          </Text>
-          <Text style={styles.methodDescription}>
-            Register using email and password
-          </Text>
-        </View>
-        {registrationMethod === 'email' && (
-          <MaterialIcons name="check-circle" size={20} color="#FF7722" />
-        )}
-      </TouchableOpacity>
+              {selectedMemberForAssign && (
+                <>
+                  <View style={styles.assignParentInfo}>
+                    <Text style={styles.assignLabel}>Parent:</Text>
+                    <Text style={styles.assignParentName}>{selectedMemberForAssign.fullName}</Text>
+                    <Text style={styles.assignParentLevel}>
+                      Level: {getLevelLabel(selectedMemberForAssign.level)}
+                    </Text>
+                  </View>
 
-      <TouchableOpacity 
-        style={[styles.methodCard, registrationMethod === 'phone' && styles.methodCardActive]}
-        onPress={() => {
-          setRegistrationMethod('phone');
-          setShowRegistrationMethodModal(false);
-          setAddMemberModalVisible(true);
-          // Reset form
-          resetNewMemberForm();
-          fetchAvailableParents(newMemberData.level || 'I');
-        }}
-      >
-        <View style={[styles.methodIcon, { backgroundColor: registrationMethod === 'phone' ? '#10b981' : '#e5e7eb' }]}>
-          <MaterialIcons name="phone" size={24} color={registrationMethod === 'phone' ? '#ffffff' : '#6b7280'} />
-        </View>
-        <View style={styles.methodContent}>
-          <Text style={[styles.methodTitle, registrationMethod === 'phone' && styles.methodTitleActive]}>
-            Phone Registration
-          </Text>
-          <Text style={styles.methodDescription}>
-            Register using phone number and password
-          </Text>
-        </View>
-        {registrationMethod === 'phone' && (
-          <MaterialIcons name="check-circle" size={20} color="#10b981" />
-        )}
-      </TouchableOpacity>
+                  <View style={styles.assignDivider} />
 
-      <TouchableOpacity 
-        style={styles.closeButton}
-        onPress={() => setShowRegistrationMethodModal(false)}
-      >
-        <Text style={[styles.closeButtonText, { fontSize: isSmallDevice ? 13 : 14 }]}>Cancel</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-</Modal>
-{/* Add Working Member Modal */}
+                  <Text style={styles.assignSubtitle}>
+                    Select a member to assign under {selectedMemberForAssign.fullName}
+                  </Text>
+
+                  <View style={styles.assignSearchContainer}>
+                    <TextInput
+                      style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14, flex: 1 }]}
+                      placeholder="Search member by name..."
+                      placeholderTextColor="#9ca3af"
+                      value={searchSubMember}
+                      onChangeText={setSearchSubMember}
+                    />
+                    <TouchableOpacity
+                      style={styles.parentSearchButton}
+                      onPress={() => {
+                        if (searchSubMember.trim()) {
+                          const filtered = availableSubMembers.filter(m => 
+                            m.fullName.toLowerCase().includes(searchSubMember.toLowerCase())
+                          );
+                          setAvailableSubMembers(filtered);
+                        } else {
+                          fetchAvailableSubMembers(selectedMemberForAssign.level);
+                        }
+                      }}
+                    >
+                      <MaterialIcons name="search" size={20} color="#ffffff" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {availableSubMembers.length === 0 ? (
+                    <View style={styles.assignEmptyState}>
+                      <MaterialIcons name="people-outline" size={40} color="#d1d5db" />
+                      <Text style={styles.assignEmptyText}>
+                        No available members to assign
+                      </Text>
+                      <Text style={styles.assignEmptySubtext}>
+                        All members at lower levels are already assigned
+                      </Text>
+                    </View>
+                  ) : (
+                    <ScrollView style={styles.assignListContainer}>
+                      {availableSubMembers.map((member) => (
+                        <TouchableOpacity
+                          key={member.id}
+                          style={[
+                            styles.assignItem,
+                            selectedSubMemberId === member.id && styles.assignItemActive
+                          ]}
+                          onPress={() => {
+                            setSelectedSubMemberId(member.id);
+                            setSelectedSubMemberName(member.fullName);
+                          }}
+                        >
+                          <View style={styles.assignItemLeft}>
+                            <View style={styles.assignItemAvatar}>
+                              <Text style={styles.assignItemAvatarText}>
+                                {member.fullName.charAt(0).toUpperCase()}
+                              </Text>
+                            </View>
+                            <View>
+                              <Text style={styles.assignItemName}>{member.fullName}</Text>
+                              <Text style={styles.assignItemLevel}>
+                                Level: {member.levelName}
+                              </Text>
+                            </View>
+                          </View>
+                          {selectedSubMemberId === member.id && (
+                            <MaterialIcons name="check-circle" size={24} color="#10b981" />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+
+                  {selectedSubMemberId && (
+                    <View style={styles.assignSelectedContainer}>
+                      <MaterialIcons name="link" size={16} color="#10b981" />
+                      <Text style={styles.assignSelectedText}>
+                        Assigning: {selectedSubMemberName}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.assignActions}>
+                    <TouchableOpacity
+                      style={[styles.assignButton, styles.assignCancelButton]}
+                      onPress={() => {
+                        setAssignModalVisible(false);
+                        setSelectedMemberForAssign(null);
+                        setSelectedSubMemberId(null);
+                        setSelectedSubMemberName('');
+                      }}
+                    >
+                      <Text style={styles.assignCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.assignButton, 
+                        styles.assignConfirmButton,
+                        (!selectedSubMemberId || savingMember) && { opacity: 0.6 }
+                      ]}
+                      onPress={handleAssignMember}
+                      disabled={!selectedSubMemberId || savingMember}
+                    >
+                      {savingMember ? (
+                        <ActivityIndicator size="small" color="#ffffff" />
+                      ) : (
+                        <>
+                          <MaterialIcons name="check" size={20} color="#ffffff" />
+                          <Text style={styles.assignConfirmText}>Assign</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* Registration Method Selection Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showRegistrationMethodModal}
+          onRequestClose={() => setShowRegistrationMethodModal(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
+                  Registration Method
+                </Text>
+                <TouchableOpacity onPress={() => setShowRegistrationMethodModal(false)}>
+                  <MaterialIcons name="close" size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={[styles.modalSubText, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Choose how you want to register this working member
+              </Text>
+
+              <TouchableOpacity 
+                style={[styles.methodCard, registrationMethod === 'email' && styles.methodCardActive]}
+                onPress={() => {
+                  setRegistrationMethod('email');
+                  setShowRegistrationMethodModal(false);
+                  setAddMemberModalVisible(true);
+                  resetNewMemberForm();
+                  fetchAvailableParents(newMemberData.level || 'I');
+                }}
+              >
+                <View style={[styles.methodIcon, { backgroundColor: registrationMethod === 'email' ? '#FF7722' : '#e5e7eb' }]}>
+                  <MaterialIcons name="email" size={24} color={registrationMethod === 'email' ? '#ffffff' : '#6b7280'} />
+                </View>
+                <View style={styles.methodContent}>
+                  <Text style={[styles.methodTitle, registrationMethod === 'email' && styles.methodTitleActive]}>
+                    Email Registration
+                  </Text>
+                  <Text style={styles.methodDescription}>
+                    Register using email and password
+                  </Text>
+                </View>
+                {registrationMethod === 'email' && (
+                  <MaterialIcons name="check-circle" size={20} color="#FF7722" />
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.methodCard, registrationMethod === 'phone' && styles.methodCardActive]}
+                onPress={() => {
+                  setRegistrationMethod('phone');
+                  setShowRegistrationMethodModal(false);
+                  setAddMemberModalVisible(true);
+                  resetNewMemberForm();
+                  fetchAvailableParents(newMemberData.level || 'I');
+                }}
+              >
+                <View style={[styles.methodIcon, { backgroundColor: registrationMethod === 'phone' ? '#10b981' : '#e5e7eb' }]}>
+                  <MaterialIcons name="phone" size={24} color={registrationMethod === 'phone' ? '#ffffff' : '#6b7280'} />
+                </View>
+                <View style={styles.methodContent}>
+                  <Text style={[styles.methodTitle, registrationMethod === 'phone' && styles.methodTitleActive]}>
+                    Phone Registration
+                  </Text>
+                  <Text style={styles.methodDescription}>
+                    Register using phone number and password
+                  </Text>
+                </View>
+                {registrationMethod === 'phone' && (
+                  <MaterialIcons name="check-circle" size={20} color="#10b981" />
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setShowRegistrationMethodModal(false)}
+              >
+                <Text style={[styles.closeButtonText, { fontSize: isSmallDevice ? 13 : 14 }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Add Working Member Modal */}
 <Modal
   animationType="slide"
   transparent={true}
@@ -2210,12 +2583,10 @@ const resetNewMemberForm = () => {
         showsVerticalScrollIndicator={true}
         contentContainerStyle={{ paddingBottom: 30 }}
       >
-        {/* Header with Orange Oval Save Button at Top Right */}
         <View style={styles.modalHeader}>
           <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
             Add Working Member
           </Text>
-          {/* ✅ Orange Oval Save Button at Top Right */}
           <TouchableOpacity 
             style={[styles.modalSaveButton, savingMember && { opacity: 0.6 }]}
             onPress={handleAddWorkingMember}
@@ -2272,16 +2643,30 @@ const resetNewMemberForm = () => {
             />
           </View>
 
+          {/* Password Field with Show/Hide Button */}
           <View style={styles.formField}>
             <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>Password * (min 6 chars)</Text>
-            <TextInput
-              style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-              value={newMemberData.password}
-              onChangeText={(text) => setNewMemberData({...newMemberData, password: text})}
-              placeholder="Enter password"
-              placeholderTextColor="#9ca3af"
-              secureTextEntry
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={[styles.passwordInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                value={newMemberData.password}
+                onChangeText={(text) => setNewMemberData({...newMemberData, password: text})}
+                placeholder="Enter password"
+                placeholderTextColor="#9ca3af"
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity 
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons 
+                  name={showPassword ? "visibility" : "visibility-off"} 
+                  size={22} 
+                  color="#6b7280" 
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.formRow}>
@@ -2412,169 +2797,164 @@ const resetNewMemberForm = () => {
           </View>
         </View>
 
-        {/* Level Selection */ }
-<View style={styles.formSection}>
-  <Text style={[styles.formSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
-    Level Assignment
-  </Text>
+        {/* Level Selection */}
+        <View style={styles.formSection}>
+          <Text style={[styles.formSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
+            Level Assignment
+          </Text>
 
-  <View style={styles.formField}>
-    <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>Select Level *</Text>
-    <View style={styles.levelOptionsGrid}>
-      {dynamicLevels.length > 0 ? (
-        dynamicLevels.map((level) => {
-          const isSelected = newMemberData.level === level.id;
-          const levelColor = getLevelColor(level.id);
-          return (
-            <TouchableOpacity
-              key={level.id}
-              style={[
-                styles.levelOption,
-                isSelected && styles.levelOptionActive,
-                { borderColor: isSelected ? levelColor : '#e5e7eb' }
-              ]}
-              onPress={() => {
-                setNewMemberData({...newMemberData, level: level.id});
-                // Fetch available parents for this level
-                fetchAvailableParents(level.id);
-                // Reset parent selection
-                setParentMemberId(null);
-                setParentMemberName('');
-              }}
-            >
-              <MaterialIcons 
-                name={getLevelIcon(level.id)} 
-                size={isSmallDevice ? 10 : 14} 
-                color={isSelected ? '#ffffff' : levelColor} 
-              />
-              <Text style={[
-                styles.levelOptionText,
-                isSelected && styles.levelOptionTextActive,
-                { fontSize: isSmallDevice ? 9 : 10 }
-              ]}>
-                {level.id}
+          <View style={styles.formField}>
+            <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>Select Level *</Text>
+            <View style={styles.levelOptionsGrid}>
+              {dynamicLevels.length > 0 ? (
+                dynamicLevels.map((level) => {
+                  const isSelected = newMemberData.level === level.id;
+                  const levelColor = getLevelColor(level.id);
+                  return (
+                    <TouchableOpacity
+                      key={level.id}
+                      style={[
+                        styles.levelOption,
+                        isSelected && styles.levelOptionActive,
+                        { borderColor: isSelected ? levelColor : '#e5e7eb' }
+                      ]}
+                      onPress={() => {
+                        setNewMemberData({...newMemberData, level: level.id});
+                        fetchAvailableParents(level.id);
+                        setParentMemberId(null);
+                        setParentMemberName('');
+                      }}
+                    >
+                      <MaterialIcons 
+                        name={getLevelIcon(level.id)} 
+                        size={isSmallDevice ? 10 : 14} 
+                        color={isSelected ? '#ffffff' : levelColor} 
+                      />
+                      <Text style={[
+                        styles.levelOptionText,
+                        isSelected && styles.levelOptionTextActive,
+                        { fontSize: isSmallDevice ? 9 : 10 }
+                      ]}>
+                        {level.id}
+                      </Text>
+                      <Text style={[
+                        styles.levelOptionSubText,
+                        isSelected && { color: '#ffffff' },
+                        { fontSize: isSmallDevice ? 7 : 8 }
+                      ]}>
+                        {level.directCommission}%/{level.secondaryCommission}%
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <Text style={[styles.emptyText, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                  Loading levels...
+                </Text>
+              )}
+            </View>
+          </View>
+          
+          {availableParents.length > 0 && (
+            <View style={styles.formField}>
+              <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                Attach to Parent (Optional)
               </Text>
-              <Text style={[
-                styles.levelOptionSubText,
-                isSelected && { color: '#ffffff' },
-                { fontSize: isSmallDevice ? 7 : 8 }
-              ]}>
-                {level.directCommission}%/{level.secondaryCommission}%
+              <Text style={[styles.helperText, { fontSize: isSmallDevice ? 9 : 10 }]}>
+                Select a higher-level member to attach this member under them
               </Text>
-            </TouchableOpacity>
-          );
-        })
-      ) : (
-        <Text style={[styles.emptyText, { fontSize: isSmallDevice ? 12 : 13 }]}>
-          Loading levels...
-        </Text>
-      )}
-    </View>
-  </View>
-  
-  {/* Parent Selection - Only show if higher levels exist */}
-  {availableParents.length > 0 && (
-    <View style={styles.formField}>
-      <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
-        Attach to Parent (Optional)
-      </Text>
-      <Text style={[styles.helperText, { fontSize: isSmallDevice ? 9 : 10 }]}>
-        Select a higher-level member to attach this member under them
-      </Text>
-      
-      <View style={styles.parentSearchContainer}>
-        <TextInput
-          style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14, flex: 1 }]}
-          placeholder="Search parent by name..."
-          placeholderTextColor="#9ca3af"
-          value={searchParent}
-          onChangeText={setSearchParent}
-        />
-        <TouchableOpacity
-          style={styles.parentSearchButton}
-          onPress={() => {
-            if (searchParent.trim()) {
-              const filtered = availableParents.filter(p => 
-                p.fullName.toLowerCase().includes(searchParent.toLowerCase())
-              );
-              // Show filtered results in a dropdown or list
-              setAvailableParents(filtered);
-            } else {
-              fetchAvailableParents(newMemberData.level);
-            }
-          }}
-        >
-          <MaterialIcons name="search" size={20} color="#ffffff" />
-        </TouchableOpacity>
-      </View>
-      
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.parentListContainer}
-        contentContainerStyle={styles.parentListContent}
-      >
-        <TouchableOpacity
-          style={[
-            styles.parentChip,
-            !parentMemberId && styles.parentChipActive
-          ]}
-          onPress={() => {
-            setParentMemberId(null);
-            setParentMemberName('');
-          }}
-        >
-          <Text style={[styles.parentChipText, !parentMemberId && styles.parentChipTextActive]}>
-            None
-          </Text>
-        </TouchableOpacity>
-        
-        {availableParents.map((parent) => (
-          <TouchableOpacity
-            key={parent.id}
-            style={[
-              styles.parentChip,
-              parentMemberId === parent.id && styles.parentChipActive
-            ]}
-            onPress={() => {
-              setParentMemberId(parent.id);
-              setParentMemberName(parent.fullName);
-            }}
-          >
-            <Text style={[
-              styles.parentChipText,
-              parentMemberId === parent.id && styles.parentChipTextActive
-            ]}>
-              {parent.fullName} ({parent.levelName})
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      
-      {parentMemberId && parentMemberName && (
-        <View style={styles.selectedParentContainer}>
-          <MaterialIcons name="link" size={16} color="#10b981" />
-          <Text style={styles.selectedParentText}>
-            Attached to: {parentMemberName}
-          </Text>
-          <TouchableOpacity onPress={() => {
-            setParentMemberId(null);
-            setParentMemberName('');
-          }}>
-            <MaterialIcons name="close" size={16} color="#ef4444" />
-          </TouchableOpacity>
+              
+              <View style={styles.parentSearchContainer}>
+                <TextInput
+                  style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14, flex: 1 }]}
+                  placeholder="Search parent by name..."
+                  placeholderTextColor="#9ca3af"
+                  value={searchParent}
+                  onChangeText={setSearchParent}
+                />
+                <TouchableOpacity
+                  style={styles.parentSearchButton}
+                  onPress={() => {
+                    if (searchParent.trim()) {
+                      const filtered = availableParents.filter(p => 
+                        p.fullName.toLowerCase().includes(searchParent.toLowerCase())
+                      );
+                      setAvailableParents(filtered);
+                    } else {
+                      fetchAvailableParents(newMemberData.level);
+                    }
+                  }}
+                >
+                  <MaterialIcons name="search" size={20} color="#ffffff" />
+                </TouchableOpacity>
+              </View>
+              
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                style={styles.parentListContainer}
+                contentContainerStyle={styles.parentListContent}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.parentChip,
+                    !parentMemberId && styles.parentChipActive
+                  ]}
+                  onPress={() => {
+                    setParentMemberId(null);
+                    setParentMemberName('');
+                  }}
+                >
+                  <Text style={[styles.parentChipText, !parentMemberId && styles.parentChipTextActive]}>
+                    None
+                  </Text>
+                </TouchableOpacity>
+                
+                {availableParents.map((parent) => (
+                  <TouchableOpacity
+                    key={parent.id}
+                    style={[
+                      styles.parentChip,
+                      parentMemberId === parent.id && styles.parentChipActive
+                    ]}
+                    onPress={() => {
+                      setParentMemberId(parent.id);
+                      setParentMemberName(parent.fullName);
+                    }}
+                  >
+                    <Text style={[
+                      styles.parentChipText,
+                      parentMemberId === parent.id && styles.parentChipTextActive
+                    ]}>
+                      {parent.fullName} ({parent.levelName})
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              
+              {parentMemberId && parentMemberName && (
+                <View style={styles.selectedParentContainer}>
+                  <MaterialIcons name="link" size={16} color="#10b981" />
+                  <Text style={styles.selectedParentText}>
+                    Attached to: {parentMemberName}
+                  </Text>
+                  <TouchableOpacity onPress={() => {
+                    setParentMemberId(null);
+                    setParentMemberName('');
+                  }}>
+                    <MaterialIcons name="close" size={16} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
         </View>
-      )}
-    </View>
-  )}
-</View>
-
-        {/* ❌ REMOVED BOTTOM BUTTONS - No Cancel/Add buttons at bottom */}
       </ScrollView>
     </TouchableOpacity>
   </TouchableOpacity>
 </Modal>
-        {/* Detail Modal */}
+
+        {/* ============ DETAIL MODAL WITH HIERARCHY ============ */}
         <Modal
           animationType="slide"
           transparent={true}
@@ -2594,6 +2974,7 @@ const resetNewMemberForm = () => {
 
               {selectedMember && (
                 <>
+                  {/* Profile Section */}
                   <View style={styles.detailProfile}>
                     {selectedMember.profilePhoto ? (
                       <Image source={{ uri: selectedMember.profilePhoto }} style={styles.detailAvatar} />
@@ -2608,7 +2989,7 @@ const resetNewMemberForm = () => {
                       {selectedMember.fullName}
                     </Text>
                     <Text style={[styles.detailEmail, { fontSize: isSmallDevice ? 12 : 14 }]}>
-                      {selectedMember.email}
+                      {selectedMember.email || selectedMember.phone || 'No contact'}
                     </Text>
                     <View style={[styles.detailLevelBadge, { backgroundColor: getLevelColor(selectedMember.level) + '15' }]}>
                       <MaterialIcons name={getLevelIcon(selectedMember.level)} size={14} color={getLevelColor(selectedMember.level)} />
@@ -2618,6 +2999,7 @@ const resetNewMemberForm = () => {
                     </View>
                   </View>
 
+                  {/* Performance Section */}
                   <View style={styles.detailSection}>
                     <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>{translations.performance}</Text>
                     <View style={styles.detailStats}>
@@ -2648,6 +3030,7 @@ const resetNewMemberForm = () => {
                     </View>
                   </View>
 
+                  {/* Commission Rates Section */}
                   <View style={styles.detailSection}>
                     <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>{translations.commissionRates}</Text>
                     <View style={styles.detailCommissionRow}>
@@ -2663,24 +3046,69 @@ const resetNewMemberForm = () => {
                       </Text>
                     </View>
                   </View>
-
-                  <View style={styles.detailSection}>
-                    <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>{translations.directMembers}</Text>
-                    {selectedMember.directReferrals?.length === 0 ? (
-                      <Text style={[styles.detailEmptyText, { fontSize: isSmallDevice ? 12 : 13 }]}>
-                        {translations.noDirectMembers}
-                      </Text>
-                    ) : (
-                      selectedMember.directReferrals?.map((memberId, index) => (
-                        <View key={index} style={styles.registeredMemberItem}>
-                          <Text style={[styles.registeredMemberName, { fontSize: isSmallDevice ? 12 : 13 }]}>
-                            ID: {memberId.slice(0, 12)}...
-                          </Text>
-                        </View>
-                      ))
-                    )}
-                  </View>
-
+{/* Direct Members Section */}
+<View style={styles.detailSection}>
+  <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
+    {translations.directMembers}
+  </Text>
+  
+  {(() => {
+    // Use registeredMembersList from selectedMember
+    const allMembers = selectedMember?.registeredMembersList || [];
+    // Filter out working members
+    const filteredMembers = allMembers.filter(m => 
+      m.role !== 'working' && m.role !== 'workingMember'
+    );
+    
+    if (filteredMembers.length === 0) {
+      return (
+        <Text style={[styles.detailEmptyText, { fontSize: isSmallDevice ? 12 : 13 }]}>
+          No direct members yet
+        </Text>
+      );
+    }
+    
+    return filteredMembers.map((member, index) => (
+      <View key={index} style={styles.registeredMemberItem}>
+        <View style={styles.directMemberRow}>
+          <View style={styles.directMemberAvatar}>
+            <Text style={styles.directMemberAvatarText}>
+              {member.fullName?.charAt(0)?.toUpperCase() || '?'}
+            </Text>
+          </View>
+          <View style={styles.directMemberInfo}>
+            <Text style={[styles.directMemberName, { fontSize: isSmallDevice ? 13 : 14 }]}>
+              {member.fullName || 'Unknown Member'}
+            </Text>
+            <Text style={[styles.directMemberDetails, { fontSize: isSmallDevice ? 10 : 11 }]}>
+              {member.email || member.phone || 'No contact'}
+            </Text>
+            <View style={styles.directMemberMeta}>
+              <View style={[
+                styles.directMemberStatus,
+                { backgroundColor: member.status === 'active' ? '#d1fae5' : '#fee2e2' }
+              ]}>
+                <Text style={[
+                  styles.directMemberStatusText,
+                  { color: member.status === 'active' ? '#10b981' : '#ef4444' }
+                ]}>
+                  {member.status || 'unknown'}
+                </Text>
+              </View>
+              {member.level && (
+                <Text style={styles.directMemberLevel}>
+                  Level {member.level}
+                </Text>
+              )}
+            </View>
+          </View>
+          <MaterialIcons name="chevron-right" size={20} color="#d1d5db" />
+        </View>
+      </View>
+    ));
+  })()}
+</View>
+                  {/* Status Section */}
                   <View style={styles.detailSection}>
                     <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>{translations.status}</Text>
                     <View style={styles.detailStatusRow}>
@@ -2733,6 +3161,171 @@ const resetNewMemberForm = () => {
                     )}
                   </View>
 
+
+<View style={styles.detailSection}>
+  <View style={styles.hierarchyHeader}>
+    <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
+      Downline Hierarchy
+    </Text>
+    {memberHierarchy.length > 0 && (
+      <Text style={styles.hierarchyCount}>
+        ({memberHierarchy.length} members)
+      </Text>
+    )}
+  </View>
+  
+  {loadingHierarchy ? (
+    <View style={styles.hierarchyLoading}>
+      <ActivityIndicator size="small" color="#FF7722" />
+      <Text style={styles.hierarchyLoadingText}>Loading hierarchy...</Text>
+    </View>
+  ) : memberHierarchy.length > 0 ? (
+    <View style={styles.hierarchyContainer}>
+      {/* Visual Tree Render */}
+      {memberHierarchy.map((member, index) => {
+        const isDirectChild = member.parentId === selectedMember?.id;
+        const isGrandChild = member.depth > 1;
+        const hasChildren = member.childrenCount > 0;
+        const levelColor = getLevelColor(member.level);
+        
+        return (
+          <View key={member.id} style={styles.hierarchyItem}>
+            {/* Node Card - Same style as dashboard */}
+            <TouchableOpacity 
+  style={[
+    styles.hierarchyItemContent,
+    member.isCurrent && styles.hierarchyCurrentItem,
+    isDirectChild && styles.hierarchyDirectChildItem,
+    isGrandChild && styles.hierarchyGrandChildItem
+  ]}
+  onPress={() => {
+    // Don't fetch for current member (selected)
+    if (!member.isCurrent) {
+      fetchNodeDirectMembers(member.id, member.fullName);
+    } else {
+      // For current member, show their own direct members
+      fetchNodeDirectMembers(member.id, 'You');
+    }
+  }}
+  activeOpacity={0.7}
+>
+              {/* Level Badge */}
+              <View style={[
+                styles.hierarchyNodeLevelBadge,
+                { backgroundColor: levelColor + '20' }
+              ]}>
+                <Text style={[styles.hierarchyNodeLevelText, { color: levelColor }]}>
+                  {member.levelName || member.level || 'I'}
+                </Text>
+              </View>
+
+              {/* Avatar */}
+              <View style={[
+                styles.hierarchyNodeAvatar,
+                { backgroundColor: member.isCurrent ? '#FF7722' : '#f3f4f6' }
+              ]}>
+                <Text style={[
+                  styles.hierarchyNodeAvatarText,
+                  { color: member.isCurrent ? '#ffffff' : '#6b7280' }
+                ]}>
+                  {member.fullName?.charAt(0)?.toUpperCase() || '?'}
+                </Text>
+              </View>
+
+              {/* Member Info */}
+              <View style={styles.hierarchyNodeInfo}>
+                <View style={styles.hierarchyNodeNameRow}>
+                  <Text style={[
+                    styles.hierarchyNodeName,
+                    member.isCurrent && styles.hierarchyNodeNameCurrent
+                  ]} numberOfLines={1}>
+                    {member.fullName}
+                    {member.isCurrent && ' 👈'}
+                  </Text>
+                  {isDirectChild && (
+                    <View style={styles.hierarchyNodeDirectBadge}>
+                      <Text style={styles.hierarchyNodeDirectBadgeText}>Direct</Text>
+                    </View>
+                  )}
+                  {isGrandChild && (
+                    <View style={styles.hierarchyNodeIndirectBadge}>
+                      <Text style={styles.hierarchyNodeIndirectBadgeText}>Indirect</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.hierarchyNodeMeta}>
+                  <Text style={styles.hierarchyNodeLevel}>
+                    Level {member.level || 'I'}
+                  </Text>
+                  {hasChildren && !member.isCurrent && (
+                    <View style={styles.hierarchyNodeChildCount}>
+                      <MaterialIcons name="people" size={10} color="#8b5cf6" />
+                      <Text style={styles.hierarchyNodeChildCountText}>{member.childrenCount}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Status */}
+              <View style={[
+                styles.hierarchyNodeStatus,
+                { backgroundColor: member.status === 'active' ? '#d1fae5' : '#fee2e2' }
+              ]}>
+                <View style={[
+                  styles.hierarchyNodeStatusDot,
+                  { backgroundColor: member.status === 'active' ? '#10b981' : '#ef4444' }
+                ]} />
+                <Text style={[
+                  styles.hierarchyNodeStatusText,
+                  { color: member.status === 'active' ? '#10b981' : '#ef4444' }
+                ]}>
+                  {member.status || 'inactive'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Connector - show between nodes */}
+            {index < memberHierarchy.length - 1 && (
+              <View style={styles.hierarchyConnector}>
+                <View style={styles.hierarchyConnectorLine} />
+                {memberHierarchy[index + 1]?.depth > member.depth ? (
+                  <MaterialIcons name="arrow-downward" size={14} color="#8b5cf6" />
+                ) : (
+                  <View style={styles.hierarchyConnectorDot} />
+                )}
+                <View style={styles.hierarchyConnectorLine} />
+              </View>
+            )}
+          </View>
+        );
+      })}
+      
+      {/* Summary */}
+      <View style={styles.hierarchySummary}>
+        <Text style={styles.hierarchySummaryText}>
+          Total: {memberHierarchy.length} members
+          {memberHierarchy.filter(m => !m.isCurrent && m.depth === 1).length > 0 && 
+            ` | Direct: ${memberHierarchy.filter(m => !m.isCurrent && m.depth === 1).length}`
+          }
+          {memberHierarchy.filter(m => m.depth > 1).length > 0 && 
+            ` | Indirect: ${memberHierarchy.filter(m => m.depth > 1).length}`
+          }
+        </Text>
+      </View>
+    </View>
+  ) : (
+    <View style={styles.hierarchyEmptyState}>
+      <MaterialIcons name="people-outline" size={30} color="#d1d5db" />
+      <Text style={[styles.detailEmptyText, { fontSize: isSmallDevice ? 12 : 13 }]}>
+        No downline members yet
+      </Text>
+      <Text style={[styles.hierarchyEmptySubtext, { fontSize: isSmallDevice ? 10 : 11 }]}>
+        Use the "Assign" button to add members under this person
+      </Text>
+    </View>
+  )}
+</View>
+                  {/* Close Button */}
                   <TouchableOpacity 
                     style={styles.closeButton}
                     onPress={() => setDetailModalVisible(false)}
@@ -2990,97 +3583,95 @@ const resetNewMemberForm = () => {
 
         {/* Wallet Modal */}
         <WalletModal />
-{/* Download ID Card & Certificates Modal */}
-<Modal
-  animationType="slide"
-  transparent={true}
-  visible={downloadModalVisible}
-  onRequestClose={() => {
-    setDownloadModalVisible(false);
-    setSelectedMemberForDownload(null);
-  }}
->
-  <View style={styles.modalContainer}>
-    <ScrollView style={[styles.modalContent, { maxHeight: '90%' }]}>
-      <View style={styles.modalHeader}>
-        <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
-          Download Documents
-        </Text>
-        <TouchableOpacity onPress={() => {
-          setDownloadModalVisible(false);
-          setSelectedMemberForDownload(null);
-        }}>
-          <MaterialIcons name="close" size={24} color="#6B7280" />
-        </TouchableOpacity>
-      </View>
 
-      {selectedMemberForDownload && (
-        <>
-          {/* Member Info */}
-          <View style={styles.downloadMemberInfo}>
-            <Text style={styles.downloadMemberName}>{selectedMemberForDownload.fullName}</Text>
-            <Text style={styles.downloadMemberLevel}>
-              Level: {getLevelLabel(selectedMemberForDownload.level)}
-            </Text>
-          </View>
-
-          {/* ID Card Section */}
-          <View style={styles.downloadSection}>
-            <View style={styles.downloadSectionHeader}>
-              <Text style={styles.downloadSectionTitle}>ID Card</Text>
-              <TouchableOpacity 
-                style={styles.downloadButtonSmall}
-                onPress={() => downloadIDCard(selectedMemberForDownload)}
-                disabled={downloading}
-                activeOpacity={0.7}
-              >
-                <MaterialIcons 
-                  name={downloading ? "hourglass-empty" : "download"} 
-                  size={16} 
-                  color="#8b5cf6" 
-                />
-                <Text style={styles.downloadButtonSmallText}>
-                  {downloading ? 'Downloading...' : 'Download ID Card'}
+        {/* Download ID Card & Certificates Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={downloadModalVisible}
+          onRequestClose={() => {
+            setDownloadModalVisible(false);
+            setSelectedMemberForDownload(null);
+          }}
+        >
+          <View style={styles.modalContainer}>
+            <ScrollView style={[styles.modalContent, { maxHeight: '90%' }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
+                  Download Documents
                 </Text>
-              </TouchableOpacity>
-            </View>
-            {renderIDCard(selectedMemberForDownload)}
-          </View>
-
-          {/* Certificates Section */}
-          <View style={styles.downloadSection}>
-            <View style={styles.downloadSectionHeader}>
-              <Text style={styles.downloadSectionTitle}>Certificates</Text>
-              <Text style={styles.downloadSectionCount}>
-                {memberCertificates.length} earned
-              </Text>
-            </View>
-
-            {memberCertificates.length > 0 ? (
-              memberCertificates.map((cert, index) => renderCertificateItem(cert, index))
-            ) : (
-              <View style={styles.noCertContainer}>
-                <MaterialIcons name="verified" size={30} color="#d1d5db" />
-                <Text style={styles.noCertText}>No certificates earned yet</Text>
+                <TouchableOpacity onPress={() => {
+                  setDownloadModalVisible(false);
+                  setSelectedMemberForDownload(null);
+                }}>
+                  <MaterialIcons name="close" size={24} color="#6B7280" />
+                </TouchableOpacity>
               </View>
-            )}
-          </View>
 
-          {/* Close Button */}
-          <TouchableOpacity 
-            style={styles.closeButton}
-            onPress={() => {
-              setDownloadModalVisible(false);
-              setSelectedMemberForDownload(null);
-            }}
-          >
-            <Text style={[styles.closeButtonText, { fontSize: isSmallDevice ? 13 : 14 }]}>Close</Text>
-          </TouchableOpacity>
-        </>
-      )}
-    </ScrollView>
-  </View>
-</Modal>
+              {selectedMemberForDownload && (
+                <>
+                  <View style={styles.downloadMemberInfo}>
+                    <Text style={styles.downloadMemberName}>{selectedMemberForDownload.fullName}</Text>
+                    <Text style={styles.downloadMemberLevel}>
+                      Level: {getLevelLabel(selectedMemberForDownload.level)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.downloadSection}>
+                    <View style={styles.downloadSectionHeader}>
+                      <Text style={styles.downloadSectionTitle}>ID Card</Text>
+                      <TouchableOpacity 
+                        style={styles.downloadButtonSmall}
+                        onPress={() => downloadIDCard(selectedMemberForDownload)}
+                        disabled={downloading}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons 
+                          name={downloading ? "hourglass-empty" : "download"} 
+                          size={16} 
+                          color="#8b5cf6" 
+                        />
+                        <Text style={styles.downloadButtonSmallText}>
+                          {downloading ? 'Downloading...' : 'Download ID Card'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    {renderIDCard(selectedMemberForDownload)}
+                  </View>
+
+                  <View style={styles.downloadSection}>
+                    <View style={styles.downloadSectionHeader}>
+                      <Text style={styles.downloadSectionTitle}>Certificates</Text>
+                      <Text style={styles.downloadSectionCount}>
+                        {memberCertificates.length} earned
+                      </Text>
+                    </View>
+
+                    {memberCertificates.length > 0 ? (
+                      memberCertificates.map((cert, index) => renderCertificateItem(cert, index))
+                    ) : (
+                      <View style={styles.noCertContainer}>
+                        <MaterialIcons name="verified" size={30} color="#d1d5db" />
+                        <Text style={styles.noCertText}>No certificates earned yet</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <TouchableOpacity 
+                    style={styles.closeButton}
+                    onPress={() => {
+                      setDownloadModalVisible(false);
+                      setSelectedMemberForDownload(null);
+                    }}
+                  >
+                    <Text style={[styles.closeButtonText, { fontSize: isSmallDevice ? 13 : 14 }]}>Close</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </Modal>
+<NodeMembersModal />
       </View>
     </SafeAreaView>
   );
@@ -3147,7 +3738,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.Regular,
     color: '#1f2937',
   },
-  
   statusChip: {
     paddingVertical: 5,
     paddingHorizontal: 12,
@@ -3413,25 +4003,25 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   modalContainer: {
-  flex: 1,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  justifyContent: 'flex-end',  // ✅ CHANGE to flex-end
-  padding: 16,
-},
-modalContent: {
-  backgroundColor: '#ffffff',
-  borderRadius: 16,
-  padding: 20,
-  paddingBottom: 60,  // ✅ Add extra bottom padding
-  maxHeight: '90%',   // ✅ Increase max height
-},
-modalButtons: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  gap: 12,
-  marginTop: 16,
-  paddingBottom: Platform.OS === 'ios' ? 20 : 10,  // ✅ Add safe area
-},
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    paddingBottom: 60,
+    maxHeight: '90%',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -3495,6 +4085,9 @@ modalButtons: {
   detailStats: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+  },
+  detailStat: {
+    alignItems: 'center',
   },
   detailStatValue: {
     fontFamily: Fonts.Bold,
@@ -3643,532 +4236,523 @@ modalButtons: {
     flexDirection: 'row',
     gap: 6,
   },
-// Add these to your styles
-
-headerRight: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-},
-// Add to styles
-referralButton: {
-  backgroundColor: '#f59e0b',
-},
-referralMemberInfo: {
-  alignItems: 'center',
-  paddingVertical: 12,
-  marginBottom: 16,
-  backgroundColor: '#f9fafb',
-  borderRadius: 8,
-},
-referralMemberName: {
-  fontFamily: Fonts.Bold,
-  color: '#1f2937',
-},
-referralMemberLevel: {
-  fontFamily: Fonts.Regular,
-  color: '#6b7280',
-  marginTop: 2,
-},
-referralCodeContainer: {
-  alignItems: 'center',
-  paddingVertical: 20,
-  paddingHorizontal: 16,
-  backgroundColor: '#f0fdf4',
-  borderRadius: 12,
-  borderWidth: 1,
-  borderColor: '#bbf7d0',
-  marginBottom: 16,
-},
-referralCodeLabel: {
-  fontFamily: Fonts.SemiBold,
-  color: '#6b7280',
-  marginBottom: 8,
-},
-referralCodeDisplay: {
-  backgroundColor: '#ffffff',
-  paddingVertical: 16,
-  paddingHorizontal: 32,
-  borderRadius: 12,
-  borderWidth: 2,
-  borderColor: '#10b981',
-  marginBottom: 8,
-},
-referralCodeText: {
-  fontFamily: Fonts.Bold,
-  color: '#10b981',
-  letterSpacing: 4,
-},
-referralCodeNote: {
-  fontFamily: Fonts.Regular,
-  color: '#6b7280',
-  textAlign: 'center',
-  marginVertical: 8,
-},
-referralShareButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: '#10b981',
-  paddingVertical: 12,
-  paddingHorizontal: 24,
-  borderRadius: 8,
-  gap: 8,
-  marginTop: 8,
-},
-referralShareText: {
-  fontFamily: Fonts.SemiBold,
-  color: '#ffffff',
-},
-referralNoCodeText: {
-  fontFamily: Fonts.SemiBold,
-  color: '#1f2937',
-  marginBottom: 4,
-},
-referralNoCodeSubtext: {
-  fontFamily: Fonts.Regular,
-  color: '#6b7280',
-  textAlign: 'center',
-  marginBottom: 16,
-},
-referralGenerateButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: '#FF7722',
-  paddingVertical: 14,
-  paddingHorizontal: 24,
-  borderRadius: 8,
-  gap: 8,
-  width: '100%',
-},
-referralGenerateText: {
-  fontFamily: Fonts.SemiBold,
-  color: '#ffffff',
-},
-addButton: {
-  padding: 4,
-},
-downloadButton: {
-  backgroundColor: '#8b5cf6',
-},
-
-// ID Card Styles
-idCard: {
-  width: '100%',
-  backgroundColor: '#ffffff',
-  borderRadius: 10,
-  padding: 12,
-  borderWidth: 2,
-  borderColor: '#e5e7eb',
-  position: 'relative',
-  overflow: 'hidden',
-},
-watermarkContainer: {
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  opacity: 0.1,
-},
-idCardTopSection: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: 6,
-  paddingHorizontal: 2,
-},
-idCardLeftLogo: {
-  width: 50,
-  height: 50,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-idCardRightLogo: {
-  width: 50,
-  height: 50,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-idCardLogoImage: {
-  width: 40,
-  height: 40,
-},
-idCardCenterTitle: {
-  flex: 1,
-  alignItems: 'center',
-  paddingHorizontal: 4,
-},
-idCardMainTitle: {
-  fontFamily: Fonts.Bold,
-  fontSize: 12,
-  color: '#1f2937',
-  textAlign: 'center',
-},
-idCardSubTitle: {
-  fontFamily: Fonts.Regular,
-  fontSize: 8,
-  color: '#4b5563',
-  textAlign: 'center',
-  marginTop: 1,
-},
-idCardRegNo: {
-  fontFamily: Fonts.Regular,
-  fontSize: 7,
-  color: '#6b7280',
-  textAlign: 'center',
-  marginTop: 1,
-},
-idCardIdentityTitle: {
-  alignItems: 'center',
-  marginVertical: 4,
-  paddingVertical: 2,
-  borderTopWidth: 1,
-  borderBottomWidth: 1,
-  borderColor: '#d1d5db',
-},
-idCardIdentityText: {
-  fontFamily: Fonts.Bold,
-  fontSize: 14,
-  color: '#1f2937',
-  letterSpacing: 1,
-},
-idCardBody: {
-  flexDirection: 'row',
-  marginTop: 4,
-  paddingVertical: 2,
-},
-idCardLeftFields: {
-  flex: 1,
-  paddingRight: 6,
-},
-idCardField: {
-  marginBottom: 2,
-},
-idCardFieldLabel: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 8,
-  color: '#4b5563',
-},
-idCardFieldValue: {
-  fontFamily: Fonts.Regular,
-  fontSize: 9,
-  color: '#1f2937',
-  marginLeft: 2,
-},
-idCardStatusValue: {
-  color: '#10b981',
-  fontFamily: Fonts.SemiBold,
-},
-idCardRightPhoto: {
-  width: 70,
-  alignItems: 'center',
-  justifyContent: 'flex-start',
-  paddingLeft: 4,
-},
-idCardPhoto: {
-  width: 60,
-  height: 70,
-  borderRadius: 3,
-  borderWidth: 1,
-  borderColor: '#d1d5db',
-},
-statusFilterWrapper: {
-  marginBottom: 12,
-},
-statusFilterScrollContent: {
-  gap: 8,
-  paddingVertical: 4,
-  alignItems: 'center',
-},
-idCardPhotoPlaceholder: {
-  width: 60,
-  height: 70,
-  borderRadius: 3,
-  backgroundColor: '#f3f4f6',
-  justifyContent: 'center',
-  alignItems: 'center',
-  borderWidth: 1,
-  borderColor: '#d1d5db',
-},
-idCardPhotoLabel: {
-  fontFamily: Fonts.Regular,
-  fontSize: 7,
-  color: '#6b7280',
-  marginTop: 2,
-},
-idCardFooter: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  marginTop: 6,
-  paddingTop: 6,
-  borderTopWidth: 1,
-  borderTopColor: '#e5e7eb',
-},
-idCardFooterText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 9,
-  color: '#4b5563',
-},
-idCardFooterCenter: {
-  alignItems: 'center',
-},
-idCardSignatureLine: {
-  width: 60,
-  height: 1,
-  backgroundColor: '#9ca3af',
-  marginBottom: 1,
-},
-idCardSignatureLabel: {
-  fontFamily: Fonts.Regular,
-  fontSize: 7,
-  color: '#6b7280',
-},
-
-// Download Modal Styles
-downloadMemberInfo: {
-  alignItems: 'center',
-  paddingVertical: 8,
-  marginBottom: 12,
-  backgroundColor: '#f9fafb',
-  borderRadius: 8,
-},
-downloadMemberName: {
-  fontFamily: Fonts.Bold,
-  fontSize: 16,
-  color: '#1f2937',
-},
-downloadMemberLevel: {
-  fontFamily: Fonts.Regular,
-  fontSize: 12,
-  color: '#6b7280',
-  marginTop: 2,
-},
-downloadSection: {
-  marginBottom: 16,
-  paddingBottom: 16,
-  borderBottomWidth: 1,
-  borderBottomColor: '#f3f4f6',
-},
-downloadSectionHeader: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  marginBottom: 10,
-},
-downloadSectionTitle: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 14,
-  color: '#1f2937',
-},
-downloadSectionCount: {
-  fontFamily: Fonts.Regular,
-  fontSize: 11,
-  color: '#6b7280',
-},
-downloadButtonSmall: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 4,
-  paddingHorizontal: 10,
-  paddingVertical: 4,
-  borderRadius: 6,
-  backgroundColor: '#f5f3ff',
-},
-downloadButtonSmallText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 10,
-  color: '#8b5cf6',
-},
-
-// Certificate Styles
-certItemWrapper: {
-  borderBottomWidth: 1,
-  borderBottomColor: '#f3f4f6',
-  paddingVertical: 6,
-},
-certItem: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-},
-parentSearchContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-  marginBottom: 8,
-},
-parentSearchButton: {
-  backgroundColor: '#FF7722',
-  padding: 10,
-  borderRadius: 8,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-parentListContainer: {
-  maxHeight: 80,
-  marginBottom: 8,
-},
-parentListContent: {
-  gap: 8,
-  alignItems: 'center',
-},
-parentChip: {
-  paddingHorizontal: 12,
-  paddingVertical: 6,
-  borderRadius: 16,
-  borderWidth: 1,
-  borderColor: '#e5e7eb',
-  backgroundColor: '#ffffff',
-},
-parentChipActive: {
-  backgroundColor: '#FF7722',
-  borderColor: '#FF7722',
-},
-parentChipText: {
-  fontFamily: Fonts.Regular,
-  fontSize: 12,
-  color: '#6b7280',
-},
-parentChipTextActive: {
-  color: '#ffffff',
-},
-selectedParentContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: '#f0fdf4',
-  paddingHorizontal: 12,
-  paddingVertical: 6,
-  borderRadius: 8,
-  gap: 6,
-  borderWidth: 1,
-  borderColor: '#bbf7d0',
-},
-selectedParentText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 12,
-  color: '#10b981',
-  flex: 1,
-},
-methodCard: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: '#ffffff',
-  borderRadius: 12,
-  padding: 16,
-  marginBottom: 12,
-  borderWidth: 2,
-  borderColor: '#e5e7eb',
-},
-methodCardActive: {
-  borderColor: '#FF7722',
-  backgroundColor: '#fff5eb',
-},
-methodIcon: {
-  width: 44,
-  height: 44,
-  borderRadius: 22,
-  justifyContent: 'center',
-  alignItems: 'center',
-  marginRight: 14,
-  flexShrink: 0,
-},
-methodContent: {
-  flex: 1,
-},
-methodTitle: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 16,
-  color: '#1f2937',
-},
-methodTitleActive: {
-  color: '#FF7722',
-},
-methodDescription: {
-  fontFamily: Fonts.Regular,
-  fontSize: 12,
-  color: '#6b7280',
-},
-modalSubText: {
-  fontFamily: Fonts.Regular,
-  color: '#6b7280',
-  textAlign: 'center',
-  marginBottom: 16,
-},
-helperText: {
-  fontFamily: Fonts.Regular,
-  color: '#6b7280',
-  marginBottom: 6,
-  marginTop: 2,
-},
-certItemIcon: {
-  width: 28,
-  height: 28,
-  borderRadius: 14,
-  justifyContent: 'center',
-  alignItems: 'center',
-  flexShrink: 0,
-},
-certItemContent: {
-  flex: 1,
-},
-certItemTitle: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 12,
-  color: '#1f2937',
-},
-certItemMeta: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 6,
-  flexWrap: 'wrap',
-},
-certItemType: {
-  fontFamily: Fonts.Regular,
-  fontSize: 9,
-  color: '#6b7280',
-  backgroundColor: '#f3f4f6',
-  paddingHorizontal: 5,
-  paddingVertical: 1,
-  borderRadius: 3,
-},
-certItemDate: {
-  fontFamily: Fonts.Regular,
-  fontSize: 9,
-  color: '#9ca3af',
-},
-certItemAmount: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 12,
-  color: '#10b981',
-  flexShrink: 0,
-},
-certDownloadButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'flex-end',
-  paddingVertical: 2,
-  paddingHorizontal: 6,
-  gap: 3,
-  alignSelf: 'flex-end',
-},
-certDownloadText: {
-  fontFamily: Fonts.Regular,
-  color: '#8b5cf6',
-  fontSize: 10,
-},
-noCertContainer: {
-  alignItems: 'center',
-  paddingVertical: 16,
-  gap: 4,
-},
-noCertText: {
-  fontFamily: Fonts.Regular,
-  fontSize: 13,
-  color: '#6b7280',
-},
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  referralButton: {
+    backgroundColor: '#f59e0b',
+  },
+  referralMemberInfo: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginBottom: 16,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+  },
+  referralMemberName: {
+    fontFamily: Fonts.Bold,
+    color: '#1f2937',
+  },
+  referralMemberLevel: {
+    fontFamily: Fonts.Regular,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  referralCodeContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    marginBottom: 16,
+  },
+  referralCodeLabel: {
+    fontFamily: Fonts.SemiBold,
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  referralCodeDisplay: {
+    backgroundColor: '#ffffff',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#10b981',
+    marginBottom: 8,
+  },
+  referralCodeText: {
+    fontFamily: Fonts.Bold,
+    color: '#10b981',
+    letterSpacing: 4,
+  },
+  referralCodeNote: {
+    fontFamily: Fonts.Regular,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginVertical: 8,
+  },
+  referralShareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10b981',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 8,
+  },
+  referralShareText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#ffffff',
+  },
+  referralNoCodeText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  referralNoCodeSubtext: {
+    fontFamily: Fonts.Regular,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  referralGenerateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF7722',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    gap: 8,
+    width: '100%',
+  },
+  referralGenerateText: {
+    fontFamily: Fonts.SemiBold,
+    color: '#ffffff',
+  },
+  addButton: {
+    padding: 4,
+  },
+  downloadButton: {
+    backgroundColor: '#8b5cf6',
+  },
+  idCard: {
+    width: '100%',
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  watermarkContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.1,
+  },
+  idCardTopSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    paddingHorizontal: 2,
+  },
+  idCardLeftLogo: {
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  idCardRightLogo: {
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  idCardLogoImage: {
+    width: 40,
+    height: 40,
+  },
+  idCardCenterTitle: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  idCardMainTitle: {
+    fontFamily: Fonts.Bold,
+    fontSize: 12,
+    color: '#1f2937',
+    textAlign: 'center',
+  },
+  idCardSubTitle: {
+    fontFamily: Fonts.Regular,
+    fontSize: 8,
+    color: '#4b5563',
+    textAlign: 'center',
+    marginTop: 1,
+  },
+  idCardRegNo: {
+    fontFamily: Fonts.Regular,
+    fontSize: 7,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 1,
+  },
+  idCardIdentityTitle: {
+    alignItems: 'center',
+    marginVertical: 4,
+    paddingVertical: 2,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  idCardIdentityText: {
+    fontFamily: Fonts.Bold,
+    fontSize: 14,
+    color: '#1f2937',
+    letterSpacing: 1,
+  },
+  idCardBody: {
+    flexDirection: 'row',
+    marginTop: 4,
+    paddingVertical: 2,
+  },
+  idCardLeftFields: {
+    flex: 1,
+    paddingRight: 6,
+  },
+  idCardField: {
+    marginBottom: 2,
+  },
+  idCardFieldLabel: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 8,
+    color: '#4b5563',
+  },
+  idCardFieldValue: {
+    fontFamily: Fonts.Regular,
+    fontSize: 9,
+    color: '#1f2937',
+    marginLeft: 2,
+  },
+  idCardStatusValue: {
+    color: '#10b981',
+    fontFamily: Fonts.SemiBold,
+  },
+  idCardRightPhoto: {
+    width: 70,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingLeft: 4,
+  },
+  idCardPhoto: {
+    width: 60,
+    height: 70,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  statusFilterWrapper: {
+    marginBottom: 12,
+  },
+  statusFilterScrollContent: {
+    gap: 8,
+    paddingVertical: 4,
+    alignItems: 'center',
+  },
+  idCardPhotoPlaceholder: {
+    width: 60,
+    height: 70,
+    borderRadius: 3,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  idCardPhotoLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 7,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  idCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  idCardFooterText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 9,
+    color: '#4b5563',
+  },
+  idCardFooterCenter: {
+    alignItems: 'center',
+  },
+  idCardSignatureLine: {
+    width: 60,
+    height: 1,
+    backgroundColor: '#9ca3af',
+    marginBottom: 1,
+  },
+  idCardSignatureLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 7,
+    color: '#6b7280',
+  },
+  downloadMemberInfo: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+  },
+  downloadMemberName: {
+    fontFamily: Fonts.Bold,
+    fontSize: 16,
+    color: '#1f2937',
+  },
+  downloadMemberLevel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  downloadSection: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  downloadSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  downloadSectionTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#1f2937',
+  },
+  downloadSectionCount: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  downloadButtonSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#f5f3ff',
+  },
+  downloadButtonSmallText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 10,
+    color: '#8b5cf6',
+  },
+  certItemWrapper: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    paddingVertical: 6,
+  },
+  certItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  parentSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  parentSearchButton: {
+    backgroundColor: '#FF7722',
+    padding: 10,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  parentListContainer: {
+    maxHeight: 80,
+    marginBottom: 8,
+  },
+  parentListContent: {
+    gap: 8,
+    alignItems: 'center',
+  },
+  parentChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+  },
+  parentChipActive: {
+    backgroundColor: '#FF7722',
+    borderColor: '#FF7722',
+  },
+  parentChipText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  parentChipTextActive: {
+    color: '#ffffff',
+  },
+  selectedParentContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  selectedParentText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+    color: '#10b981',
+    flex: 1,
+  },
+  methodCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+  },
+  methodCardActive: {
+    borderColor: '#FF7722',
+    backgroundColor: '#fff5eb',
+  },
+  methodIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+    flexShrink: 0,
+  },
+  methodContent: {
+    flex: 1,
+  },
+  methodTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 16,
+    color: '#1f2937',
+  },
+  methodTitleActive: {
+    color: '#FF7722',
+  },
+  methodDescription: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  modalSubText: {
+    fontFamily: Fonts.Regular,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  helperText: {
+    fontFamily: Fonts.Regular,
+    color: '#6b7280',
+    marginBottom: 6,
+    marginTop: 2,
+  },
+  certItemIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  certItemContent: {
+    flex: 1,
+  },
+  certItemTitle: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+    color: '#1f2937',
+  },
+  certItemMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  certItemType: {
+    fontFamily: Fonts.Regular,
+    fontSize: 9,
+    color: '#6b7280',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  certItemDate: {
+    fontFamily: Fonts.Regular,
+    fontSize: 9,
+    color: '#9ca3af',
+  },
+  certItemAmount: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 12,
+    color: '#10b981',
+    flexShrink: 0,
+  },
+  certDownloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    gap: 3,
+    alignSelf: 'flex-end',
+  },
+  certDownloadText: {
+    fontFamily: Fonts.Regular,
+    color: '#8b5cf6',
+    fontSize: 10,
+  },
+  noCertContainer: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    gap: 4,
+  },
+  noCertText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#6b7280',
+  },
   statusButton: {
     flex: 1,
     paddingVertical: 8,
@@ -4247,21 +4831,20 @@ noCertText: {
     paddingVertical: 2,
     borderRadius: 10,
   },
-// Orange Oval Save Button
-modalSaveButton: {
-  backgroundColor: '#FF7722',
-  paddingHorizontal: 20,
-  paddingVertical: 8,
-  borderRadius: 20,
-  alignItems: 'center',
-  justifyContent: 'center',
-  minWidth: 60,
-},
-modalSaveButtonText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 14,
-  color: '#ffffff',
-},
+  modalSaveButton: {
+    backgroundColor: '#FF7722',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 60,
+  },
+  modalSaveButtonText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#ffffff',
+  },
   historyStatusText: {
     fontFamily: Fonts.SemiBold,
     color: '#ffffff',
@@ -4313,162 +4896,234 @@ modalSaveButtonText: {
   walletStat: {
     alignItems: 'center',
   },
-assignButton: {
-  backgroundColor: '#8b5cf6',
-},
-assignParentInfo: {
-  backgroundColor: '#f9fafb',
-  padding: 12,
-  borderRadius: 8,
-  marginBottom: 12,
-},
-assignLabel: {
-  fontFamily: Fonts.Regular,
-  fontSize: 12,
-  color: '#6b7280',
-},
-assignParentName: {
-  fontFamily: Fonts.Bold,
-  fontSize: 16,
-  color: '#1f2937',
-  marginTop: 2,
-},
-assignParentLevel: {
-  fontFamily: Fonts.Regular,
-  fontSize: 12,
-  color: '#6b7280',
-  marginTop: 2,
-},
-assignDivider: {
-  height: 1,
-  backgroundColor: '#e5e7eb',
-  marginVertical: 12,
-},
-assignSubtitle: {
-  fontFamily: Fonts.Regular,
-  fontSize: 14,
-  color: '#6b7280',
-  marginBottom: 12,
-},
-assignSearchContainer: {
+  assignButton: {
+    backgroundColor: '#8b5cf6',
+  },
+  assignParentInfo: {
+    backgroundColor: '#f9fafb',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  assignLabel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  assignParentName: {
+    fontFamily: Fonts.Bold,
+    fontSize: 16,
+    color: '#1f2937',
+    marginTop: 2,
+  },
+  assignParentLevel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  assignDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 12,
+  },
+// Add these styles
+passwordContainer: {
   flexDirection: 'row',
   alignItems: 'center',
-  gap: 8,
-  marginBottom: 12,
-},
-assignListContainer: {
-  maxHeight: 250,
-  marginBottom: 12,
-},
-assignItem: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: 12,
-  backgroundColor: '#f9fafb',
-  borderRadius: 8,
-  marginBottom: 6,
   borderWidth: 1,
-  borderColor: 'transparent',
+  borderColor: '#e5e7eb',
+  borderRadius: 8,
+  backgroundColor: '#f9fafb',
 },
-assignItemActive: {
-  borderColor: '#8b5cf6',
-  backgroundColor: '#f5f3ff',
+passwordInput: {
+  flex: 1,
+  padding: 10,
+  fontFamily: Fonts.Regular,
+  color: '#1f2937',
 },
-assignItemLeft: {
+eyeButton: {
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+  assignSubtitle: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 12,
+  },
+  assignSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  assignListContainer: {
+    maxHeight: 250,
+    marginBottom: 12,
+  },
+// ============ DIRECT MEMBERS STYLES ============
+directMemberRow: {
   flexDirection: 'row',
   alignItems: 'center',
-  gap: 10,
+  backgroundColor: '#f9fafb',
+  padding: 12,
+  borderRadius: 10,
+  borderWidth: 1,
+  borderColor: '#f3f4f6',
 },
-assignItemAvatar: {
-  width: 32,
-  height: 32,
-  borderRadius: 16,
+directMemberAvatar: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
   backgroundColor: '#8b5cf615',
   justifyContent: 'center',
   alignItems: 'center',
+  marginRight: 12,
 },
-assignItemAvatarText: {
+directMemberAvatarText: {
   fontFamily: Fonts.Bold,
-  fontSize: 14,
+  fontSize: 16,
   color: '#8b5cf6',
 },
-assignItemName: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 14,
-  color: '#1f2937',
-},
-assignItemLevel: {
-  fontFamily: Fonts.Regular,
-  fontSize: 11,
-  color: '#6b7280',
-},
-assignEmptyState: {
-  alignItems: 'center',
-  paddingVertical: 30,
-  gap: 4,
-},
-assignEmptyText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 14,
-  color: '#1f2937',
-},
-assignEmptySubtext: {
-  fontFamily: Fonts.Regular,
-  fontSize: 12,
-  color: '#6b7280',
-},
-assignSelectedContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: '#f0fdf4',
-  paddingHorizontal: 12,
-  paddingVertical: 8,
-  borderRadius: 8,
-  gap: 6,
-  marginBottom: 12,
-  borderWidth: 1,
-  borderColor: '#bbf7d0',
-},
-assignSelectedText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 13,
-  color: '#10b981',
+directMemberInfo: {
   flex: 1,
 },
-assignActions: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  gap: 12,
-  marginTop: 8,
-},
-assignButton: {
-  paddingVertical: 5,
-  borderRadius: 8,
-  alignItems: 'center',
-  justifyContent: 'center',
-  flexDirection: 'row',
-  gap: 6,
-backgroundColor: '#8b5cf6',
-},
-assignCancelButton: {
-  backgroundColor: '#f3f4f6',
-  borderWidth: 1,
-  borderColor: '#e5e7eb',
-},
-assignConfirmButton: {
-  backgroundColor: '#8b5cf6',
-},
-assignCancelText: {
+directMemberName: {
   fontFamily: Fonts.SemiBold,
-  fontSize: 14,
+  color: '#1f2937',
+},
+directMemberDetails: {
+  fontFamily: Fonts.Regular,
   color: '#6b7280',
+  marginTop: 1,
 },
-assignConfirmText: {
+directMemberMeta: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  marginTop: 2,
+},
+directMemberStatus: {
+  paddingHorizontal: 8,
+  paddingVertical: 2,
+  borderRadius: 8,
+},
+directMemberStatusText: {
   fontFamily: Fonts.SemiBold,
-  fontSize: 14,
-  color: '#ffffff',
+  fontSize: 10,
 },
+directMemberLevel: {
+  fontFamily: Fonts.Regular,
+  fontSize: 10,
+  color: '#6b7280',
+  backgroundColor: '#f3f4f6',
+  paddingHorizontal: 6,
+  paddingVertical: 1,
+  borderRadius: 4,
+},
+  assignItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  assignItemActive: {
+    borderColor: '#8b5cf6',
+    backgroundColor: '#f5f3ff',
+  },
+  assignItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  assignItemAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#8b5cf615',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  assignItemAvatarText: {
+    fontFamily: Fonts.Bold,
+    fontSize: 14,
+    color: '#8b5cf6',
+  },
+  assignItemName: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#1f2937',
+  },
+  assignItemLevel: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  assignEmptyState: {
+    alignItems: 'center',
+    paddingVertical: 30,
+    gap: 4,
+  },
+  assignEmptyText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#1f2937',
+  },
+  assignEmptySubtext: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  assignSelectedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  assignSelectedText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 13,
+    color: '#10b981',
+    flex: 1,
+  },
+  assignActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 8,
+  },
+  assignCancelButton: {
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  assignConfirmButton: {
+    backgroundColor: '#8b5cf6',
+  },
+  assignCancelText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  assignConfirmText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#ffffff',
+  },
   walletStatValue: {
     fontFamily: Fonts.Bold,
     color: '#1f2937',
@@ -4478,4 +5133,714 @@ assignConfirmText: {
     color: '#6b7280',
     marginTop: 2,
   },
+  // ============ HIERARCHY STYLES ============
+  hierarchyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  hierarchyCount: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  hierarchyLoading: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 8,
+  },
+  hierarchyLoadingText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  hierarchyContainer: {
+    marginTop: 4,
+  },
+  hierarchyItem: {
+    marginBottom: 4,
+  },
+  hierarchyItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    gap: 10,
+  },
+  hierarchyCurrentItem: {
+    backgroundColor: '#fff5eb',
+    borderWidth: 1,
+    borderColor: '#FF7722',
+  },
+  hierarchyDirectChildItem: {
+    backgroundColor: '#f0fdf4',
+  },
+  hierarchyGrandChildItem: {
+    backgroundColor: '#f8fafc',
+  },
+  hierarchyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  hierarchyLevelText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 10,
+  },
+  hierarchyMemberInfo: {
+    flex: 1,
+  },
+  hierarchyMemberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  hierarchyMemberName: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 13,
+    color: '#1f2937',
+  },
+  hierarchyCurrentMember: {
+    color: '#FF7722',
+    fontFamily: Fonts.Bold,
+  },
+  hierarchyMemberDetails: {
+    fontFamily: Fonts.Regular,
+    fontSize: 10,
+    color: '#6b7280',
+    marginTop: 1,
+  },
+  hierarchyDirectBadge: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+  },
+// ============ HIERARCHY STYLES ============
+hierarchyHeader: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  marginBottom: 8,
+},
+hierarchyCount: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+},
+hierarchyLoading: {
+  alignItems: 'center',
+  paddingVertical: 20,
+  gap: 8,
+},
+hierarchyLoadingText: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+},
+hierarchyContainer: {
+  marginTop: 4,
+},
+hierarchyItem: {
+  marginBottom: 4,
+},
+hierarchyItemContent: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  padding: 10,
+  backgroundColor: '#f9fafb',
+  borderRadius: 8,
+  gap: 10,
+},
+hierarchyCurrentItem: {
+  backgroundColor: '#fff5eb',
+  borderWidth: 1,
+  borderColor: '#FF7722',
+},
+hierarchyDirectChildItem: {
+  backgroundColor: '#f0fdf4',
+},
+hierarchyGrandChildItem: {
+  backgroundColor: '#f8fafc',
+},
+hierarchyBadge: {
+  paddingHorizontal: 8,
+  paddingVertical: 4,
+  borderRadius: 12,
+  minWidth: 60,
+  alignItems: 'center',
+},
+hierarchyLevelText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 10,
+},
+hierarchyMemberInfo: {
+  flex: 1,
+},
+hierarchyMemberRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  flexWrap: 'wrap',
+},
+hierarchyMemberName: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 13,
+  color: '#1f2937',
+},
+hierarchyCurrentMember: {
+  color: '#FF7722',
+  fontFamily: Fonts.Bold,
+},
+hierarchyMemberDetails: {
+  fontFamily: Fonts.Regular,
+  fontSize: 10,
+  color: '#6b7280',
+  marginTop: 1,
+},
+hierarchyDirectBadge: {
+  backgroundColor: '#10b981',
+  paddingHorizontal: 6,
+  paddingVertical: 1,
+  borderRadius: 8,
+},
+hierarchyDirectBadgeText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 8,
+  color: '#ffffff',
+},
+hierarchyIndirectBadge: {
+  backgroundColor: '#94a3b8',
+  paddingHorizontal: 6,
+  paddingVertical: 1,
+  borderRadius: 8,
+},
+hierarchyIndirectBadgeText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 8,
+  color: '#ffffff',
+},
+hierarchyChildBadge: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#8b5cf615',
+  paddingHorizontal: 4,
+  paddingVertical: 1,
+  borderRadius: 8,
+  gap: 2,
+},
+hierarchyChildBadgeText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 8,
+  color: '#8b5cf6',
+},
+hierarchyStatusBadge: {
+  paddingHorizontal: 6,
+  paddingVertical: 2,
+  borderRadius: 10,
+},
+hierarchyStatusText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 9,
+},
+hierarchyConnector: {
+  alignItems: 'center',
+  paddingVertical: 2,
+  marginLeft: 10,
+},
+hierarchyLine: {
+  width: 1,
+  height: 4,
+  backgroundColor: '#d1d5db',
+},
+hierarchyDot: {
+  width: 4,
+  height: 4,
+  borderRadius: 2,
+  backgroundColor: '#9ca3af',
+},
+hierarchySummary: {
+  marginTop: 8,
+  padding: 8,
+  backgroundColor: '#f3f4f6',
+  borderRadius: 8,
+  alignItems: 'center',
+},
+hierarchySummaryText: {
+  fontFamily: Fonts.Regular,
+  fontSize: 12,
+  color: '#6b7280',
+},
+hierarchyEmptyState: {
+  alignItems: 'center',
+  paddingVertical: 20,
+  gap: 4,
+},
+hierarchyEmptySubtext: {
+  fontFamily: Fonts.Regular,
+  fontSize: 11,
+  color: '#9ca3af',
+},
+  hierarchyDirectBadgeText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 8,
+    color: '#ffffff',
+  },
+  hierarchyIndirectBadge: {
+    backgroundColor: '#94a3b8',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+  },
+  hierarchyIndirectBadgeText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 8,
+    color: '#ffffff',
+  },
+  hierarchyStatusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  hierarchyStatusText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 9,
+  },
+  hierarchyConnector: {
+    alignItems: 'center',
+    paddingVertical: 2,
+    marginLeft: 10,
+  },
+  hierarchyLine: {
+    width: 1,
+    height: 4,
+    backgroundColor: '#d1d5db',
+  },
+  hierarchyDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#9ca3af',
+  },
+  hierarchySummary: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  hierarchySummaryText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  hierarchyEmptyState: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 4,
+  },
+  hierarchyEmptySubtext: {
+    fontFamily: Fonts.Regular,
+    fontSize: 11,
+    color: '#9ca3af',
+  },
+  formSection: {
+    marginBottom: 16,
+  },
+  formSectionTitle: {
+    fontFamily: Fonts.SemiBold,
+    color: '#1f2937',
+    marginBottom: 8,
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  levelOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  levelOptionSubText: {
+    fontFamily: Fonts.Regular,
+    color: '#6b7280',
+  },
+  referralRegenerateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#8b5cf6',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 8,
+    width: '100%',
+  },
+// ============ HIERARCHY NODE STYLES (SAME AS DASHBOARD) ============
+hierarchyNodeCard: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  backgroundColor: '#f9fafb',
+  borderRadius: 10,
+  padding: 12,
+  width: '100%',
+  borderWidth: 1,
+  borderColor: '#e5e7eb',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.05,
+  shadowRadius: 2,
+  elevation: 1,
+  minHeight: 60,
+},
+// ============ DIRECT MEMBERS STYLES ============
+directMemberRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#f9fafb',
+  padding: 12,
+  borderRadius: 10,
+  borderWidth: 1,
+  borderColor: '#f3f4f6',
+},
+directMemberAvatar: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: '#8b5cf615',
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginRight: 12,
+},
+directMemberAvatarText: {
+  fontFamily: Fonts.Bold,
+  fontSize: 16,
+  color: '#8b5cf6',
+},
+directMemberInfo: {
+  flex: 1,
+},
+directMemberName: {
+  fontFamily: Fonts.SemiBold,
+  color: '#1f2937',
+},
+directMemberDetails: {
+  fontFamily: Fonts.Regular,
+  color: '#6b7280',
+  marginTop: 1,
+},
+directMemberMeta: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  marginTop: 2,
+},
+directMemberStatus: {
+  paddingHorizontal: 8,
+  paddingVertical: 2,
+  borderRadius: 8,
+},
+directMemberStatusText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 10,
+},
+directMemberLevel: {
+  fontFamily: Fonts.Regular,
+  fontSize: 10,
+  color: '#6b7280',
+  backgroundColor: '#f3f4f6',
+  paddingHorizontal: 6,
+  paddingVertical: 1,
+  borderRadius: 4,
+},
+hierarchyNodeCurrent: {
+  backgroundColor: '#fff5eb',
+  borderColor: '#FF7722',
+  borderWidth: 2,
+},
+hierarchyNodeDirect: {
+  backgroundColor: '#f0fdf4',
+  borderLeftWidth: 3,
+  borderLeftColor: '#10b981',
+},
+hierarchyNodeGrandChild: {
+  backgroundColor: '#f8fafc',
+  borderLeftWidth: 3,
+  borderLeftColor: '#94a3b8',
+  marginLeft: 10,
+},
+
+// Level Badge
+hierarchyNodeLevelBadge: {
+  paddingHorizontal: 8,
+  paddingVertical: 3,
+  borderRadius: 10,
+  minWidth: 45,
+  alignItems: 'center',
+},
+hierarchyNodeLevelText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 9,
+},
+
+// Avatar
+hierarchyNodeAvatar: {
+  width: 34,
+  height: 34,
+  borderRadius: 17,
+  justifyContent: 'center',
+  alignItems: 'center',
+  borderWidth: 1,
+  borderColor: '#e5e7eb',
+},
+hierarchyNodeAvatarText: {
+  fontFamily: Fonts.Bold,
+  fontSize: 14,
+},
+
+// Info
+hierarchyNodeInfo: {
+  flex: 1,
+  marginLeft: 8,
+},
+hierarchyNodeNameRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 4,
+  flexWrap: 'wrap',
+},
+hierarchyNodeName: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 13,
+  color: '#1f2937',
+},
+hierarchyNodeNameCurrent: {
+  color: '#FF7722',
+  fontFamily: Fonts.Bold,
+},
+hierarchyNodeDirectBadge: {
+  backgroundColor: '#10b981',
+  paddingHorizontal: 6,
+  paddingVertical: 1,
+  borderRadius: 6,
+},
+hierarchyNodeDirectBadgeText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 7,
+  color: '#ffffff',
+},
+hierarchyNodeIndirectBadge: {
+  backgroundColor: '#94a3b8',
+  paddingHorizontal: 6,
+  paddingVertical: 1,
+  borderRadius: 6,
+},
+hierarchyNodeIndirectBadgeText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 7,
+  color: '#ffffff',
+},
+
+// Meta
+hierarchyNodeMeta: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: 4,
+  marginTop: 1,
+},
+hierarchyNodeLevel: {
+  fontFamily: Fonts.Regular,
+  fontSize: 9,
+  color: '#6b7280',
+},
+hierarchyNodeChildCount: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#8b5cf615',
+  paddingHorizontal: 4,
+  paddingVertical: 1,
+  borderRadius: 8,
+  gap: 2,
+},
+hierarchyNodeChildCountText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 8,
+  color: '#8b5cf6',
+},
+
+// Status
+hierarchyNodeStatus: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: 6,
+  paddingVertical: 2,
+  borderRadius: 8,
+  gap: 3,
+},
+hierarchyNodeStatusDot: {
+  width: 5,
+  height: 5,
+  borderRadius: 2.5,
+},
+hierarchyNodeStatusText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 8,
+},
+
+// Connectors
+hierarchyConnector: {
+  alignItems: 'center',
+  paddingVertical: 2,
+  marginLeft: 10,
+},
+hierarchyConnectorLine: {
+  width: 1,
+  height: 6,
+  backgroundColor: '#d1d5db',
+},
+hierarchyConnectorDot: {
+  width: 4,
+  height: 4,
+  borderRadius: 2,
+  backgroundColor: '#9ca3af',
+},
+// ============ NODE MEMBERS MODAL STYLES ============
+nodeMembersModalContent: {
+  backgroundColor: '#ffffff',
+  borderRadius: 16,
+  padding: 20,
+  paddingBottom: 40,
+  maxHeight: '90%',
+  minHeight: 300,
+},
+nodeMembersModalSubtitle: {
+  fontFamily: Fonts.Regular,
+  color: '#6b7280',
+  marginTop: 2,
+},
+nodeMembersLoading: {
+  paddingVertical: 40,
+  alignItems: 'center',
+},
+nodeMembersLoadingText: {
+  fontFamily: Fonts.Regular,
+  color: '#6b7280',
+  marginTop: 8,
+},
+nodeMembersEmpty: {
+  paddingVertical: 40,
+  alignItems: 'center',
+},
+nodeMembersEmptyTitle: {
+  fontFamily: Fonts.SemiBold,
+  color: '#1f2937',
+  marginTop: 8,
+},
+nodeMembersEmptySubtext: {
+  fontFamily: Fonts.Regular,
+  color: '#9ca3af',
+  marginTop: 4,
+  textAlign: 'center',
+},
+nodeMembersList: {
+  paddingBottom: 8,
+},
+
+// Member Item in Modal
+nodeMemberItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#f9fafb',
+  padding: 12,
+  borderRadius: 10,
+  marginBottom: 8,
+  borderWidth: 1,
+  borderColor: '#f3f4f6',
+},
+nodeMemberAvatar: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: '#8b5cf615',
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginRight: 12,
+},
+nodeMemberAvatarText: {
+  fontFamily: Fonts.Bold,
+  fontSize: 16,
+  color: '#8b5cf6',
+},
+nodeMemberInfo: {
+  flex: 1,
+},
+nodeMemberName: {
+  fontFamily: Fonts.SemiBold,
+  color: '#1f2937',
+},
+nodeMemberDetails: {
+  fontFamily: Fonts.Regular,
+  color: '#6b7280',
+  marginTop: 1,
+},
+nodeMemberMeta: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  marginTop: 2,
+},
+nodeMemberStatus: {
+  paddingHorizontal: 8,
+  paddingVertical: 2,
+  borderRadius: 8,
+},
+nodeMemberStatusText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 10,
+},
+nodeMemberLevel: {
+  fontFamily: Fonts.Regular,
+  color: '#6b7280',
+},
+
+// Hierarchy Tap Hint
+hierarchyTapHint: {
+  fontFamily: Fonts.Regular,
+  fontSize: 8,
+  color: '#9ca3af',
+  marginTop: 1,
+},
+
+// Direct Member Badge in Hierarchy
+hierarchyDirectMemberBadge: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#fef3c7',
+  paddingHorizontal: 4,
+  paddingVertical: 1,
+  borderRadius: 8,
+  gap: 2,
+},
+hierarchyDirectMemberBadgeText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 8,
+  color: '#f59e0b',
+},
+// Override existing hierarchy styles
+hierarchyItem: {
+  marginBottom: 4,
+  width: '100%',
+},
+hierarchyContainer: {
+  marginTop: 4,
+  width: '100%',
+},
 });

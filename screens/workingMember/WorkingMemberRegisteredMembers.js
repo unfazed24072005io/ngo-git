@@ -407,322 +407,317 @@ const [registerData, setRegisterData] = useState({
   const handleRegisterMember = async () => {
   const auth = getAuthInstance();
 
-    console.log('🚀 Register button clicked!');
-    console.log('📋 Current form data:', {
-      fullName: formData.fullName,
-      email: formData.email,
-      phone: formData.phone,
-      password: formData.password ? '***' : 'empty',
-      confirmPassword: formData.confirmPassword ? '***' : 'empty',
-      gender: formData.gender
+  console.log('🚀 Register button clicked!');
+  console.log('📋 Current registerData:', registerData);
+  
+  // Validation - Check all required fields
+  console.log('🔍 Validating register data...');
+  
+  if (!registerData.fullName.trim()) {
+    console.log('❌ Validation failed: Full name is empty');
+    Alert.alert(translations.validationError, translations.enterFullName);
+    return;
+  }
+  console.log('✅ Full name validated');
+
+  if (!registerData.email.trim() || !validateEmail(registerData.email)) {
+    console.log('❌ Validation failed: Email is invalid');
+    Alert.alert(translations.validationError, translations.validEmail);
+    return;
+  }
+  console.log('✅ Email validated');
+
+  if (!registerData.phone.trim()) {
+    console.log('❌ Validation failed: Phone is empty');
+    Alert.alert(translations.validationError, translations.enterPhone);
+    return;
+  }
+  console.log('✅ Phone validated');
+
+  if (!registerData.password || registerData.password.length < 6) {
+    console.log('❌ Validation failed: Password is too short');
+    Alert.alert(translations.validationError, translations.passwordMinLength);
+    return;
+  }
+  console.log('✅ Password validated');
+
+  if (registerData.password !== registerData.confirmPassword) {
+    console.log('❌ Validation failed: Passwords do not match');
+    Alert.alert(translations.validationError, translations.passwordMismatch);
+    return;
+  }
+  console.log('✅ Passwords match');
+
+  console.log('✅ All validations passed, starting registration...');
+  setRegisterLoading(true);
+
+  try {
+    console.log('👤 Getting current user...');
+    const workingMemberId = auth.currentUser?.uid;
+    console.log('👤 Working Member ID:', workingMemberId);
+    
+    if (!workingMemberId) {
+      console.log('❌ No user logged in');
+      Alert.alert(translations.error, translations.youMustBeLoggedIn);
+      setRegisterLoading(false);
+      return;
+    }
+    
+    console.log('📖 Fetching working member data...');
+    const workingMemberDoc = await getDoc(doc(db, 'users', workingMemberId));
+    
+    if (!workingMemberDoc.exists()) {
+      console.log('❌ Working member document does not exist');
+      Alert.alert(translations.error, translations.workingMemberNotFound);
+      setRegisterLoading(false);
+      return;
+    }
+    
+    const workingMemberData = workingMemberDoc.data();
+    console.log('📋 Working Member Data found:', {
+      name: workingMemberData.fullName,
+      email: workingMemberData.email,
+      role: workingMemberData.role,
+      level: workingMemberData.level
     });
     
-    // Validation - Check all required fields
-    console.log('🔍 Validating form data...');
+    // Create user account
+    console.log('📧 Creating user account for:', registerData.email);
+    console.log('🔐 Password length:', registerData.password.length);
     
-    if (!formData.fullName.trim()) {
-      console.log('❌ Validation failed: Full name is empty');
-      Alert.alert(translations.validationError, translations.enterFullName);
-      return;
-    }
-    console.log('✅ Full name validated');
+    const userCredential = await createUserWithEmailAndPassword(
+      auth, 
+      registerData.email.trim(), 
+      registerData.password
+    );
+    
+    const userId = userCredential.user.uid;
+    console.log('✅ User created with ID:', userId);
 
-    if (!formData.email.trim() || !validateEmail(formData.email)) {
-      console.log('❌ Validation failed: Email is invalid');
-      Alert.alert(translations.validationError, translations.validEmail);
-      return;
-    }
-    console.log('✅ Email validated');
+    // ============ CREATE DOCUMENTS BEFORE LOGOUT ============
+    console.log('📝 Creating user document...');
+    const userDocData = {
+      uid: userId,
+      fullName: registerData.fullName.trim(),
+      email: registerData.email.trim().toLowerCase(),
+      phone: registerData.phone.trim(),
+      address: registerData.address.trim() || '',
+      gender: registerData.gender || 'Male',
+      dob: registerData.dob || '',
+      role: 'member',
+      isWorkingMember: false,
+      createdBy: workingMemberId,
+      registeredBy: workingMemberId,
+      status: 'active',
+      profilePhoto: formData.profilePhoto || null,
+      aadharFront: formData.aadharFront || null,
+      aadharBack: formData.aadharBack || null,
+      panCard: formData.panCard || null,
+      signature: formData.signature || null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    await setDoc(doc(db, 'users', userId), userDocData);
+    console.log('✅ User document created');
 
-    if (!formData.phone.trim()) {
-      console.log('❌ Validation failed: Phone is empty');
-      Alert.alert(translations.validationError, translations.enterPhone);
-      return;
-    }
-    console.log('✅ Phone validated');
+    // Add to registeredMembers collection
+    console.log('📝 Adding to registeredMembers...');
+    const registeredMemberData = {
+      memberId: userId,
+      workingMemberId: workingMemberId,
+      fullName: registerData.fullName.trim(),
+      email: registerData.email.trim().toLowerCase(),
+      phone: registerData.phone.trim(),
+      address: registerData.address.trim() || '',
+      gender: registerData.gender || 'Male',
+      dob: registerData.dob || '',
+      status: 'active',
+      commission: 0,
+      totalDonations: 0,
+      profilePhoto: formData.profilePhoto || null,
+      aadharFront: formData.aadharFront || null,
+      aadharBack: formData.aadharBack || null,
+      panCard: formData.panCard || null,
+      signature: formData.signature || null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    const registeredMemberRef = await addDoc(collection(db, 'registeredMembers'), registeredMemberData);
+    console.log('✅ Registered member added with ID:', registeredMemberRef.id);
 
-    if (!formData.password || formData.password.length < 6) {
-      console.log('❌ Validation failed: Password is too short');
-      Alert.alert(translations.validationError, translations.passwordMinLength);
-      return;
-    }
-    console.log('✅ Password validated');
+    // Add to members collection
+    console.log('📝 Adding to members...');
+    await addDoc(collection(db, 'members'), {
+      uid: userId,
+      fullName: registerData.fullName.trim(),
+      email: registerData.email.trim().toLowerCase(),
+      phone: registerData.phone.trim(),
+      address: registerData.address.trim() || '',
+      gender: registerData.gender || 'Male',
+      dob: registerData.dob || '',
+      role: 'member',
+      registeredBy: workingMemberId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    console.log('✅ Members collection updated');
 
-    if (formData.password !== formData.confirmPassword) {
-      console.log('❌ Validation failed: Passwords do not match');
-      Alert.alert(translations.validationError, translations.passwordMismatch);
-      return;
-    }
-    console.log('✅ Passwords match');
+    // Create wallet for the member
+    console.log('📝 Creating wallet...');
+    await setDoc(doc(db, 'wallets', userId), {
+      balance: 0,
+      totalDonations: 0,
+      totalWithdrawn: 0,
+      pendingWithdrawals: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    console.log('✅ Wallet created');
 
-    console.log('✅ All validations passed, starting registration...');
-    setRegisterLoading(true);
-
-    try {
-      console.log('👤 Getting current user...');
-      const workingMemberId = auth.currentUser?.uid;
-      const workingMemberEmail = auth.currentUser?.email;
-      console.log('👤 Working Member ID:', workingMemberId);
-      
-      if (!workingMemberId) {
-        console.log('❌ No user logged in');
-        Alert.alert(translations.error, translations.youMustBeLoggedIn);
-        setRegisterLoading(false);
-        return;
-      }
-      
-      console.log('📖 Fetching working member data...');
-      const workingMemberDoc = await getDoc(doc(db, 'users', workingMemberId));
-      
-      if (!workingMemberDoc.exists()) {
-        console.log('❌ Working member document does not exist');
-        Alert.alert(translations.error, translations.workingMemberNotFound);
-        setRegisterLoading(false);
-        return;
-      }
-      
-      const workingMemberData = workingMemberDoc.data();
-      console.log('📋 Working Member Data found:', {
-        name: workingMemberData.fullName,
-        email: workingMemberData.email,
-        role: workingMemberData.role,
-        level: workingMemberData.level
-      });
-      
-      // Create user account
-      console.log('📧 Creating user account for:', formData.email);
-      console.log('🔐 Password length:', formData.password.length);
-      
-      const userCredential = await createUserWithEmailAndPassword(
-        auth, 
-        formData.email.trim(), 
-        formData.password
-      );
-      
-      const userId = userCredential.user.uid;
-      console.log('✅ User created with ID:', userId);
-
-      // ============ CREATE DOCUMENTS BEFORE LOGOUT ============
-      console.log('📝 Creating user document...');
-      const userDocData = {
-        uid: userId,
-        fullName: formData.fullName.trim(),
-        email: formData.email.trim().toLowerCase(),
-        phone: formData.phone.trim(),
-        address: formData.address.trim() || '',
-        city: formData.city || '',
-        state: formData.state || '',
-        pincode: formData.pincode || '',
-        gender: formData.gender || 'Male',
-        role: 'member',
-        isWorkingMember: false,
-        createdBy: workingMemberId,
-        registeredBy: workingMemberId,
-        status: 'active',
-        profilePhoto: formData.profilePhoto || null,
-        aadharFront: formData.aadharFront || null,
-        aadharBack: formData.aadharBack || null,
-        panCard: formData.panCard || null,
-        signature: formData.signature || null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      await setDoc(doc(db, 'users', userId), userDocData);
-      console.log('✅ User document created');
-
-      // Add to registeredMembers collection
-      console.log('📝 Adding to registeredMembers...');
-      const registeredMemberData = {
-        memberId: userId,
-        workingMemberId: workingMemberId,
-        fullName: formData.fullName.trim(),
-        email: formData.email.trim().toLowerCase(),
-        phone: formData.phone.trim(),
-        address: formData.address.trim() || '',
-        city: formData.city || '',
-        state: formData.state || '',
-        pincode: formData.pincode || '',
-        gender: formData.gender || 'Male',
-        status: 'active',
-        commission: 0,
-        totalDonations: 0,
-        profilePhoto: formData.profilePhoto || null,
-        aadharFront: formData.aadharFront || null,
-        aadharBack: formData.aadharBack || null,
-        panCard: formData.panCard || null,
-        signature: formData.signature || null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      const registeredMemberRef = await addDoc(collection(db, 'registeredMembers'), registeredMemberData);
-      console.log('✅ Registered member added with ID:', registeredMemberRef.id);
-
-      // Add to members collection
-      console.log('📝 Adding to members...');
-      await addDoc(collection(db, 'members'), {
-        uid: userId,
-        fullName: formData.fullName.trim(),
-        email: formData.email.trim().toLowerCase(),
-        phone: formData.phone.trim(),
-        address: formData.address.trim() || '',
-        city: formData.city || '',
-        state: formData.state || '',
-        pincode: formData.pincode || '',
-        gender: formData.gender || 'Male',
-        role: 'member',
-        registeredBy: workingMemberId,
-        createdAt: new Date().toISOString(),
+    // 1. Update working member's direct referrals
+    console.log('📝 Updating direct referrals...');
+    const workingMemberRef = doc(db, 'users', workingMemberId);
+    const currentReferrals = workingMemberData.directReferrals || [];
+    console.log('📊 Current referrals:', currentReferrals);
+    
+    if (!currentReferrals.includes(userId)) {
+      currentReferrals.push(userId);
+      await updateDoc(workingMemberRef, {
+        directReferrals: currentReferrals,
         updatedAt: new Date().toISOString()
       });
-      console.log('✅ Members collection updated');
-
-      // Create wallet for the member
-      console.log('📝 Creating wallet...');
-      await setDoc(doc(db, 'wallets', userId), {
-        balance: 0,
-        totalDonations: 0,
-        totalWithdrawn: 0,
-        pendingWithdrawals: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      console.log('✅ Wallet created');
-
-      // 1. Update working member's direct referrals
-      console.log('📝 Updating direct referrals...');
-      const workingMemberRef = doc(db, 'users', workingMemberId);
-      const currentReferrals = workingMemberData.directReferrals || [];
-      console.log('📊 Current referrals:', currentReferrals);
-      
-      if (!currentReferrals.includes(userId)) {
-        currentReferrals.push(userId);
-        await updateDoc(workingMemberRef, {
-          directReferrals: currentReferrals,
-          updatedAt: new Date().toISOString()
-        });
-        console.log('✅ Direct referrals updated:', currentReferrals.length);
-      } else {
-        console.log('ℹ️ User already in referrals list');
-      }
-
-      // 2. Log the activity
-      console.log('📝 Logging activity...');
-      await addDoc(collection(db, 'activities'), {
-        workingMemberId: workingMemberId,
-        memberId: userId,
-        memberName: formData.fullName.trim(),
-        type: 'member_registration',
-        commission: 0,
-        levelChanged: false,
-        oldLevel: null,
-        newLevel: null,
-        createdAt: new Date().toISOString()
-      });
-      console.log('✅ Activity logged');
-
-      // Update local state
-      console.log('📊 Updating local state...');
-      const newMember = {
-        id: registeredMemberRef.id,
-        memberId: userId,
-        workingMemberId: workingMemberId,
-        fullName: formData.fullName.trim(),
-        email: formData.email.trim().toLowerCase(),
-        phone: formData.phone.trim(),
-        status: 'active',
-        commission: 0,
-        totalDonations: 0,
-        profilePhoto: formData.profilePhoto || null,
-        createdAt: new Date().toISOString()
-      };
-      
-      setMembers(prev => {
-        const exists = prev.some(m => m.id === registeredMemberRef.id || m.memberId === userId);
-        if (exists) return prev;
-        return [newMember, ...prev];
-      });
-
-      setFilteredMembers(prev => {
-        const exists = prev.some(m => m.id === registeredMemberRef.id || m.memberId === userId);
-        if (exists) return prev;
-        return [newMember, ...prev];
-      });
-      
-      setStats(prev => ({
-        ...prev,
-        total: prev.total + 1,
-        active: prev.active + 1
-      }));
-
-      // ============ ⚠️ NOW LOGOUT AND REDIRECT ============
-      console.log('🔄 Auto-logging out working member...');
-      await auth.signOut();
-      console.log('✅ Working member logged out');
-      console.log('📧 New member is now logged in:', auth.currentUser?.uid);
-
-      // Build success message
-      let successMessage = translations.memberRegistered + '\n\n';
-      successMessage += translations.memberRegisteredDetails.replace('{name}', formData.fullName);
-
-      console.log('🎉 Registration complete! Redirecting to Login...');
-      
-      // ✅ RESET FORM AND NAVIGATE TO LOGIN
-      setFormData({
-        fullName: '',
-        email: '',
-        phone: '',
-        address: '',
-        city: '',
-        state: '',
-        pincode: '',
-        gender: 'Male',
-        password: '',
-        confirmPassword: '',
-        aadharFront: null,
-        aadharBack: null,
-        panCard: null,
-        profilePhoto: null,
-        signature: null,
-      });
-      setStep(1);
-      setRegisterModalVisible(false);
-      setRegisterLoading(false);
-
-      // ✅ Navigate to Login screen
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
-
-      // Show alert after navigation
-      Alert.alert(translations.registrationSuccessful, successMessage);
-      
-    } catch (error) {
-      console.error('❌ Registration error:', error);
-      console.error('❌ Error stack:', error.stack);
-      console.error('❌ Error code:', error.code);
-      console.error('❌ Error message:', error.message);
-      
-      setRegisterLoading(false);
-      
-      if (error.code === 'auth/email-already-in-use') {
-        Alert.alert(translations.error, translations.emailAlreadyUsed);
-      } else if (error.code === 'auth/invalid-email') {
-        Alert.alert(translations.error, translations.invalidEmail);
-      } else if (error.code === 'auth/weak-password') {
-        Alert.alert(translations.error, translations.weakPassword);
-      } else if (error.code === 'auth/network-request-failed') {
-        Alert.alert(translations.error, translations.networkError);
-      } else {
-        Alert.alert(translations.registrationFailed, error.message || translations.somethingWentWrong);
-      }
-    } finally {
-      console.log('🏁 Registration process completed');
-      setRegisterLoading(false);
+      console.log('✅ Direct referrals updated:', currentReferrals.length);
+    } else {
+      console.log('ℹ️ User already in referrals list');
     }
-  };
+
+    // 2. Log the activity
+    console.log('📝 Logging activity...');
+    await addDoc(collection(db, 'activities'), {
+      workingMemberId: workingMemberId,
+      memberId: userId,
+      memberName: registerData.fullName.trim(),
+      type: 'member_registration',
+      commission: 0,
+      levelChanged: false,
+      oldLevel: null,
+      newLevel: null,
+      createdAt: new Date().toISOString()
+    });
+    console.log('✅ Activity logged');
+
+    // Update local state
+    console.log('📊 Updating local state...');
+    const newMember = {
+      id: registeredMemberRef.id,
+      memberId: userId,
+      workingMemberId: workingMemberId,
+      fullName: registerData.fullName.trim(),
+      email: registerData.email.trim().toLowerCase(),
+      phone: registerData.phone.trim(),
+      status: 'active',
+      commission: 0,
+      totalDonations: 0,
+      profilePhoto: formData.profilePhoto || null,
+      createdAt: new Date().toISOString()
+    };
+    
+    setMembers(prev => {
+      const exists = prev.some(m => m.id === registeredMemberRef.id || m.memberId === userId);
+      if (exists) return prev;
+      return [newMember, ...prev];
+    });
+
+    setFilteredMembers(prev => {
+      const exists = prev.some(m => m.id === registeredMemberRef.id || m.memberId === userId);
+      if (exists) return prev;
+      return [newMember, ...prev];
+    });
+    
+    setStats(prev => ({
+      ...prev,
+      total: prev.total + 1,
+      active: prev.active + 1
+    }));
+
+    // ============ ⚠️ NOW LOGOUT AND REDIRECT ============
+    console.log('🔄 Auto-logging out working member...');
+    await auth.signOut();
+    console.log('✅ Working member logged out');
+
+    // Build success message
+    let successMessage = translations.memberRegistered + '\n\n';
+    successMessage += translations.memberRegisteredDetails.replace('{name}', registerData.fullName);
+
+    console.log('🎉 Registration complete! Redirecting to Login...');
+    
+    // ✅ RESET FORM AND NAVIGATE TO LOGIN
+    setFormData({
+      fullName: '',
+      email: '',
+      phone: '',
+      address: '',
+      city: '',
+      state: '',
+      pincode: '',
+      gender: 'Male',
+      password: '',
+      confirmPassword: '',
+      aadharFront: null,
+      aadharBack: null,
+      panCard: null,
+      profilePhoto: null,
+      signature: null,
+    });
+    setRegisterData({
+      fullName: '',
+      email: '',
+      phone: '',
+      password: '',
+      confirmPassword: '',
+      gender: '',
+      dob: '',
+      address: '',
+    });
+    setStep(1);
+    setRegisterModalVisible(false);
+    setRegisterLoading(false);
+
+    // ✅ Navigate to Login screen
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
+
+    // Show alert after navigation
+    Alert.alert(translations.registrationSuccessful, successMessage);
+    
+  } catch (error) {
+    console.error('❌ Registration error:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error message:', error.message);
+    
+    setRegisterLoading(false);
+    
+    if (error.code === 'auth/email-already-in-use') {
+      Alert.alert(translations.error, translations.emailAlreadyUsed);
+    } else if (error.code === 'auth/invalid-email') {
+      Alert.alert(translations.error, translations.invalidEmail);
+    } else if (error.code === 'auth/weak-password') {
+      Alert.alert(translations.error, translations.weakPassword);
+    } else if (error.code === 'auth/network-request-failed') {
+      Alert.alert(translations.error, translations.networkError);
+    } else {
+      Alert.alert(translations.registrationFailed, error.message || translations.somethingWentWrong);
+    }
+  } finally {
+    console.log('🏁 Registration process completed');
+    setRegisterLoading(false);
+  }
+};
 
   const resetForm = () => {
     setFormData({
@@ -1434,39 +1429,19 @@ const [registerData, setRegisterData] = useState({
               </View>
 
               {/* Date of Birth */}
-              <View style={styles.formField}>
-                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
-                  {translations.dateOfBirth}
-                </Text>
-                <TouchableOpacity
-                  style={styles.datePickerButton}
-                  onPress={() => setShowDatePicker(true)}
-                  disabled={registerLoading}
-                >
-                  <MaterialIcons name="calendar-today" size={20} color="#6b7280" />
-                  <Text style={[
-                    styles.datePickerText,
-                    registerData.dob ? styles.datePickerTextSelected : null
-                  ]}>
-                    {registerData.dob || translations.selectDate}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {showDatePicker && (
-                <DateTimePicker
-                  value={registerData.dob ? new Date(registerData.dob) : new Date(2000, 0, 1)}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={(event, selectedDate) => {
-                    setShowDatePicker(false);
-                    if (selectedDate) {
-                      const formattedDate = selectedDate.toISOString().split('T')[0];
-                      setRegisterData({ ...registerData, dob: formattedDate });
-                    }
-                  }}
-                />
-              )}
+<View style={styles.formField}>
+  <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+    {translations.dateOfBirth}
+  </Text>
+  <TextInput
+    style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+    value={registerData.dob}
+    onChangeText={(text) => setRegisterData({ ...registerData, dob: text })}
+    placeholder="DD/MM/YYYY"
+    placeholderTextColor="#9ca3af"
+    editable={!registerLoading}
+  />
+</View>
 
               {/* Address */}
               <View style={styles.formField}>

@@ -197,9 +197,13 @@ const [showPassword, setShowPassword] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
 // Add these with your other state declarations (around line 100-120)
-const [selectedNodeMembers, setSelectedNodeMembers] = useState([]);
+
 const [selectedNodeName, setSelectedNodeName] = useState('');
 const [nodeMembersModalVisible, setNodeMembersModalVisible] = useState(false);
+const [selectedNodeMembers, setSelectedNodeMembers] = useState({
+  memberDetails: null,
+  directMembers: []
+});
 const [loadingNodeMembers, setLoadingNodeMembers] = useState(false);
   const [filterLevel, setFilterLevel] = useState('All');
   const [parentMemberId, setParentMemberId] = useState(null);
@@ -387,27 +391,174 @@ const fetchDirectMembersData = async (memberIds) => {
 
   // ============ LOAD HIERARCHY FUNCTION ============
   // ============ LOAD HIERARCHY FUNCTION (ENHANCED) ============
+// ============ LOAD HIERARCHY FUNCTION (FIXED) ============
+// ============ LOAD HIERARCHY FUNCTION (FIXED) ============
 const loadMemberHierarchy = async (member) => {
   setLoadingHierarchy(true);
   try {
-    const hierarchy = await fetchMemberHierarchy(member.id);
+    const hierarchy = [];
+    const visited = new Set();
     
-    // Enhance each member in hierarchy with their children count
-    const enhancedHierarchy = await Promise.all(
-      hierarchy.map(async (item) => {
-        if (!item.isCurrent) {
-          const children = await fetchSubMembersForHierarchy(item.id);
-          return {
-            ...item,
-            children: children,
-            childrenCount: children.length
-          };
+    // Start with the current member - use the passed member object
+    const rootMember = {
+      id: member.id,
+      fullName: member.fullName || 'Unknown',
+      level: member.level || 'I',
+      levelName: getLevelLabel(member.level || 'I'),
+      isCurrent: true,
+      phone: member.phone || '',
+      email: member.email || '',
+      status: member.status || 'active',
+      childrenIds: member.childrenIds || [],
+      depth: 0,
+      parentId: member.parentId || null,
+      childrenCount: 0,
+      children: [],
+      registeredMembersList: member.registeredMembersList || [],
+      // Add all fields from the member
+      address: member.address || '',
+      fatherName: member.fatherName || '',
+      dob: member.dob || '',
+      aadharNumber: member.aadharNumber || '',
+      gender: member.gender || '',
+      state: member.state || '',
+      pinCode: member.pinCode || '',
+      village: member.village || '',
+      postOffice: member.postOffice || '',
+      thana: member.thana || '',
+      district: member.district || '',
+      directCommission: member.directCommission || 0,
+      secondaryCommission: member.secondaryCommission || 0,
+      totalEarned: member.totalEarned || 0,
+      pendingCommission: member.pendingCommission || 0,
+      walletBalance: member.walletBalance || 0,
+      totalDonations: member.totalDonations || 0,
+      promotionEligible: member.promotionEligible || false,
+      profilePhoto: member.profilePhoto || null,
+      directReferralCount: member.directReferralCount || 0,
+      createdAt: member.createdAt || '',
+      updatedAt: member.updatedAt || ''
+    };
+    
+    hierarchy.push(rootMember);
+    visited.add(member.id);
+    
+    // Recursively fetch children
+    const fetchChildren = async (parentId, parentObj, depth) => {
+      try {
+        // Query users where parentId matches
+        const q = query(
+          collection(db, 'users'),
+          where('parentId', '==', parentId),
+          where('role', 'in', ['working', 'workingMember'])
+        );
+        const snapshot = await getDocs(q);
+        
+        const childrenList = [];
+        for (const doc of snapshot.docs) {
+          const data = doc.data();
+          if (!visited.has(doc.id)) {
+            // Check if this member exists in workingMembers for complete data
+            const existingMember = workingMembers.find(m => m.id === doc.id);
+            
+            // Use existing member data if available, otherwise use data from Firestore
+            const memberData = existingMember || data;
+            
+            // Fetch registered members for this child
+            const registeredQuery = query(
+              collection(db, 'users'),
+              where('registeredBy', '==', doc.id)
+            );
+            const registeredSnap = await getDocs(registeredQuery);
+            const registeredList = [];
+            registeredSnap.forEach((regDoc) => {
+              const regData = regDoc.data();
+              if (regData.role !== 'working' && regData.role !== 'workingMember') {
+                registeredList.push({ id: regDoc.id, ...regData });
+              }
+            });
+            
+            const child = {
+              id: doc.id,
+              fullName: memberData.fullName || data.fullName || data.name || 'Unknown',
+              level: memberData.level || data.level || 'I',
+              levelName: getLevelLabel(memberData.level || data.level || 'I'),
+              isCurrent: false,
+              phone: memberData.phone || data.phone || '',
+              email: memberData.email || data.email || '',
+              status: memberData.status || data.status || 'active',
+              childrenIds: memberData.childrenIds || data.childrenIds || [],
+              depth: depth + 1,
+              parentId: parentId,
+              childrenCount: 0,
+              children: [],
+              registeredMembersList: registeredList,
+              // Add all fields
+              address: memberData.address || data.address || '',
+              fatherName: memberData.fatherName || data.fatherName || '',
+              dob: memberData.dob || data.dob || '',
+              aadharNumber: memberData.aadharNumber || data.aadharNumber || '',
+              gender: memberData.gender || data.gender || '',
+              state: memberData.state || data.state || '',
+              pinCode: memberData.pinCode || data.pinCode || '',
+              village: memberData.village || data.village || '',
+              postOffice: memberData.postOffice || data.postOffice || '',
+              thana: memberData.thana || data.thana || '',
+              district: memberData.district || data.district || '',
+              directCommission: memberData.directCommission || data.directCommission || 0,
+              secondaryCommission: memberData.secondaryCommission || data.secondaryCommission || 0,
+              totalEarned: memberData.totalEarned || data.totalEarned || 0,
+              pendingCommission: memberData.pendingCommission || data.pendingCommission || 0,
+              walletBalance: memberData.walletBalance || data.walletBalance || 0,
+              totalDonations: memberData.totalDonations || data.totalDonations || 0,
+              promotionEligible: memberData.promotionEligible || data.promotionEligible || false,
+              profilePhoto: memberData.profilePhoto || data.profilePhoto || null,
+              directReferralCount: memberData.directReferralCount || data.directReferralCount || 0,
+              createdAt: memberData.createdAt || data.createdAt || '',
+              updatedAt: memberData.updatedAt || data.updatedAt || ''
+            };
+            childrenList.push(child);
+            visited.add(doc.id);
+          }
         }
-        return item;
-      })
-    );
+        
+        // Sort children by level
+        const levelsToUse = dynamicLevels.length > 0 ? dynamicLevels : getDefaultLevels();
+        childrenList.sort((a, b) => {
+          const aIndex = levelsToUse.findIndex(l => l.id === a.level);
+          const bIndex = levelsToUse.findIndex(l => l.id === b.level);
+          return aIndex - bIndex;
+        });
+        
+        // Add children to parent and recursively fetch their children
+        for (const child of childrenList) {
+          parentObj.children.push(child);
+          parentObj.childrenCount = (parentObj.childrenCount || 0) + 1;
+          await fetchChildren(child.id, child, child.depth);
+        }
+      } catch (error) {
+        console.error('Error fetching children for:', parentId, error);
+      }
+    };
     
-    setMemberHierarchy(enhancedHierarchy);
+    await fetchChildren(member.id, rootMember, 0);
+    
+    // Flatten the hierarchy for display while preserving structure
+    const flattenHierarchy = (node, flatList) => {
+      flatList.push(node);
+      if (node.children && node.children.length > 0) {
+        for (const child of node.children) {
+          flattenHierarchy(child, flatList);
+        }
+      }
+    };
+    
+    const flatHierarchy = [];
+    flattenHierarchy(rootMember, flatHierarchy);
+    setMemberHierarchy(flatHierarchy);
+    
+    console.log('📊 Hierarchy loaded:', flatHierarchy.length, 'members');
+    
   } catch (error) {
     console.error('Error loading hierarchy:', error);
     setMemberHierarchy([]);
@@ -415,54 +566,73 @@ const loadMemberHierarchy = async (member) => {
     setLoadingHierarchy(false);
   }
 };
-
   // ============ FETCH AVAILABLE SUB-MEMBERS (ONLY EXACTLY ONE LEVEL BELOW) ============
   const fetchAvailableSubMembers = async (parentLevel) => {
-    if (!parentLevel) return;
+  if (!parentLevel) return;
+  
+  try {
+    console.log('🔍 Fetching available sub-members for parent level:', parentLevel);
     
-    try {
-      const levelsToUse = dynamicLevels.length > 0 ? dynamicLevels : getDefaultLevels();
-      const parentLevelIndex = levelsToUse.findIndex(l => l.id === parentLevel);
-      
-      // ✅ ONLY get members at EXACTLY ONE LEVEL BELOW (index - 1)
-      const subLevelIndex = parentLevelIndex - 1;
-      
-      // If parent is at the lowest level, no one can be assigned below
-      if (subLevelIndex < 0) {
-        setAvailableSubMembers([]);
-        return;
-      }
-      
-      const subLevel = levelsToUse[subLevelIndex];
-      const subLevelId = subLevel.id;
-      
-      const q = query(
-        collection(db, 'users'),
-        where('role', 'in', ['working', 'workingMember']),
-        where('status', '==', 'active'),
-        where('level', '==', subLevelId)
-      );
-      const snapshot = await getDocs(q);
-      const subMembers = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        // Only show members without a parent
-        if (!data.parentId) {
-          subMembers.push({
-            id: doc.id,
-            fullName: data.fullName || data.name || 'Unknown',
-            level: data.level,
-            levelName: getLevelLabel(data.level),
-            phone: data.phone || '',
-            email: data.email || '',
-          });
-        }
-      });
-      setAvailableSubMembers(subMembers);
-    } catch (error) {
-      console.error('Error fetching sub-members:', error);
+    const levelsToUse = dynamicLevels.length > 0 ? dynamicLevels : getDefaultLevels();
+    const parentLevelIndex = levelsToUse.findIndex(l => l.id === parentLevel);
+    
+    // Get ALL levels below the parent (not just exactly one level below)
+    const subLevels = levelsToUse.filter((l, index) => index < parentLevelIndex);
+    const subLevelIds = subLevels.map(l => l.id);
+    
+    console.log('📋 Sub levels to search:', subLevelIds);
+    
+    if (subLevelIds.length === 0) {
+      console.log('❌ No lower levels available');
+      setAvailableSubMembers([]);
+      return;
     }
-  };
+    
+    // Get all working members with levels below the parent
+    const q = query(
+      collection(db, 'users'),
+      where('role', 'in', ['working', 'workingMember']),
+      where('status', '==', 'active')
+    );
+    const snapshot = await getDocs(q);
+    const subMembers = [];
+    
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const memberLevel = data.level || 'I';
+      
+      // Check if this member's level is below the parent
+      if (subLevelIds.includes(memberLevel)) {
+        // Only show members without a parent (or with null parent)
+        if (!data.parentId || data.parentId === '') {
+          // Also check if this member is already assigned to someone else
+          const isAlreadyAssigned = workingMembers.some(m => 
+            m.id === doc.id && m.parentId && m.parentId !== ''
+          );
+          
+          if (!isAlreadyAssigned) {
+            subMembers.push({
+              id: doc.id,
+              fullName: data.fullName || data.name || 'Unknown',
+              level: data.level,
+              levelName: getLevelLabel(data.level),
+              phone: data.phone || '',
+              email: data.email || '',
+              parentId: data.parentId || null
+            });
+          }
+        }
+      }
+    });
+    
+    console.log('✅ Found available sub-members:', subMembers.length);
+    setAvailableSubMembers(subMembers);
+    
+  } catch (error) {
+    console.error('Error fetching sub-members:', error);
+    setAvailableSubMembers([]);
+  }
+};
 
   const fetchDynamicLevels = async () => {
     try {
@@ -584,48 +754,365 @@ const fetchNodeDirectMembers = async (nodeId, nodeName) => {
   setSelectedNodeName(nodeName || 'Member');
   
   try {
-    // First, try to find direct members from the registeredMembersList
-    if (selectedMember && selectedMember.registeredMembersList) {
-      // Filter out working members
-      const directMembers = selectedMember.registeredMembersList.filter(
-        m => m.registeredBy === nodeId && m.role !== 'working' && m.role !== 'workingMember'
+    // FIRST: Try to find the member in workingMembers array (most complete data)
+    const memberFromList = workingMembers.find(m => m.id === nodeId);
+    
+    if (memberFromList) {
+      console.log('✅ Found in workingMembers:', memberFromList.fullName);
+      console.log('📧 Email from workingMembers:', memberFromList.email);
+      console.log('📱 Phone from workingMembers:', memberFromList.phone);
+      console.log('📋 Full data:', memberFromList);
+      
+      // Use the data from workingMembers directly - this has ALL fields
+      const fullDetails = {
+        id: memberFromList.id,
+        fullName: memberFromList.fullName || nodeName || 'Unknown',
+        email: memberFromList.email || 'Not provided',
+        phone: memberFromList.phone || 'Not provided',
+        address: memberFromList.address || 'Not provided',
+        fatherName: memberFromList.fatherName || 'Not provided',
+        dob: memberFromList.dob || 'Not provided',
+        aadharNumber: memberFromList.aadharNumber || 'Not provided',
+        gender: memberFromList.gender || 'Not provided',
+        village: memberFromList.village || 'Not provided',
+        postOffice: memberFromList.postOffice || 'Not provided',
+        thana: memberFromList.thana || 'Not provided',
+        district: memberFromList.district || 'Not provided',
+        state: memberFromList.state || 'Not provided',
+        pinCode: memberFromList.pinCode || 'Not provided',
+        membershipStatus: memberFromList.status || 'active',
+        bio: memberFromList.bio || 'NGO Member',
+        department: memberFromList.department || 'Not assigned',
+        position: memberFromList.position || 'Member',
+        employeeId: memberFromList.employeeId || `MBR-${nodeId.slice(0, 6).toUpperCase()}`,
+        reportingTo: memberFromList.reportingTo || 'Not provided',
+        joinedDate: memberFromList.joinedDate || memberFromList.createdAt || 'Not provided',
+        level: memberFromList.level || 'I',
+        levelName: getLevelLabel(memberFromList.level || 'I'),
+        status: memberFromList.status || 'active',
+        totalEarned: memberFromList.totalEarned || 0,
+        pendingCommission: memberFromList.pendingCommission || 0,
+        directReferralCount: memberFromList.directReferralCount || 0,
+        walletBalance: memberFromList.walletBalance || 0,
+        totalDonations: memberFromList.totalDonations || 0,
+        promotionEligible: memberFromList.promotionEligible || false,
+        directCommission: memberFromList.directCommission || 0,
+        secondaryCommission: memberFromList.secondaryCommission || 0,
+        donationsRequired: memberFromList.donationsRequired || 0,
+        membersNeededForPromotion: memberFromList.membersNeededForPromotion || 0,
+        nextLevel: memberFromList.nextLevel || null,
+        profilePhoto: memberFromList.profilePhoto || null,
+        registeredMembersList: memberFromList.registeredMembersList || [],
+        parentId: memberFromList.parentId || null,
+        parentName: memberFromList.parentName || null,
+        createdAt: memberFromList.createdAt || 'Not provided',
+        updatedAt: memberFromList.updatedAt || 'Not provided'
+      };
+      
+      // Filter direct members (non-working)
+      const directMembers = (fullDetails.registeredMembersList || []).filter(
+        m => m.role !== 'working' && m.role !== 'workingMember'
       );
-      if (directMembers.length > 0) {
-        console.log('✅ Found direct members from registeredMembersList:', directMembers.length);
-        setSelectedNodeMembers(directMembers);
+      
+      console.log('✅ Using workingMembers data - email:', fullDetails.email, 'phone:', fullDetails.phone);
+      console.log('✅ Direct members count:', directMembers.length);
+      
+      setSelectedNodeMembers({
+        memberDetails: fullDetails,
+        directMembers: directMembers
+      });
+      setNodeMembersModalVisible(true);
+      setLoadingNodeMembers(false);
+      return;
+    }
+    
+    // SECOND: If not in workingMembers, try Firestore directly
+    console.log('📡 Not in workingMembers, fetching from Firestore...');
+    const memberRef = doc(db, 'users', nodeId);
+    const memberDoc = await getDoc(memberRef);
+    
+    if (memberDoc.exists()) {
+      const data = memberDoc.data();
+      console.log('📋 User data from Firestore:', data);
+      console.log('📧 Email from Firestore:', data.email);
+      console.log('📱 Phone from Firestore:', data.phone);
+      
+      const fullDetails = {
+        id: nodeId,
+        fullName: data.fullName || data.name || nodeName || 'Unknown',
+        email: data.email || 'Not provided',
+        phone: data.phone || 'Not provided',
+        address: data.address || 'Not provided',
+        fatherName: data.fatherName || 'Not provided',
+        dob: data.dob || 'Not provided',
+        aadharNumber: data.aadharNumber || 'Not provided',
+        gender: data.gender || 'Not provided',
+        village: data.village || 'Not provided',
+        postOffice: data.postOffice || 'Not provided',
+        thana: data.thana || 'Not provided',
+        district: data.district || 'Not provided',
+        state: data.state || 'Not provided',
+        pinCode: data.pinCode || 'Not provided',
+        membershipStatus: data.membershipStatus || data.status || 'active',
+        bio: data.bio || 'NGO Member',
+        department: data.department || 'Not assigned',
+        position: data.position || 'Member',
+        employeeId: data.employeeId || `MBR-${nodeId.slice(0, 6).toUpperCase()}`,
+        reportingTo: data.reportingTo || 'Not provided',
+        joinedDate: data.createdAt ? 
+          (data.createdAt.seconds ? new Date(data.createdAt.seconds * 1000).toLocaleDateString() : data.createdAt) 
+          : 'Not provided',
+        level: data.level || 'I',
+        levelName: getLevelLabel(data.level || 'I'),
+        status: data.status || 'active',
+        totalEarned: data.totalEarned || 0,
+        pendingCommission: data.pendingCommission || 0,
+        directReferralCount: data.directReferralCount || 0,
+        walletBalance: data.walletBalance || 0,
+        totalDonations: data.totalDonations || 0,
+        promotionEligible: data.promotionEligible || false,
+        directCommission: data.directCommission || 0,
+        secondaryCommission: data.secondaryCommission || 0,
+        donationsRequired: data.donationsRequired || 0,
+        membersNeededForPromotion: data.membersNeededForPromotion || 0,
+        nextLevel: data.nextLevel || null,
+        profilePhoto: data.profilePhoto || null,
+        registeredMembersList: [],
+        parentId: data.parentId || null,
+        parentName: data.parentName || null,
+        createdAt: data.createdAt || 'Not provided',
+        updatedAt: data.updatedAt || 'Not provided'
+      };
+      
+      // Query registered members
+      const registeredQuery = query(
+        collection(db, 'users'),
+        where('registeredBy', '==', nodeId)
+      );
+      const registeredSnap = await getDocs(registeredQuery);
+      const directMembers = [];
+      registeredSnap.forEach((regDoc) => {
+        const regData = regDoc.data();
+        if (regData.role !== 'working' && regData.role !== 'workingMember') {
+          directMembers.push({ id: regDoc.id, ...regData });
+        }
+      });
+      
+      fullDetails.directReferralCount = directMembers.length;
+      fullDetails.registeredMembersList = directMembers;
+      
+      console.log('✅ Using Firestore data - email:', fullDetails.email, 'phone:', fullDetails.phone);
+      
+      setSelectedNodeMembers({
+        memberDetails: fullDetails,
+        directMembers: directMembers
+      });
+      setNodeMembersModalVisible(true);
+      setLoadingNodeMembers(false);
+      return;
+    }
+    
+    // THIRD: Try to find in workingMembers by parentId match (if this is a child)
+    const childMember = workingMembers.find(m => m.parentId === nodeId);
+    if (childMember) {
+      console.log('✅ Found child member with parentId match:', childMember.fullName);
+      // This means the node is a parent, so we need to find the parent in workingMembers
+      const parentFromList = workingMembers.find(m => m.id === nodeId);
+      if (parentFromList) {
+        console.log('✅ Found parent in workingMembers:', parentFromList.fullName);
+        // Recurse with the parent data
+        const fullDetails = {
+          id: parentFromList.id,
+          fullName: parentFromList.fullName || nodeName || 'Unknown',
+          email: parentFromList.email || 'Not provided',
+          phone: parentFromList.phone || 'Not provided',
+          address: parentFromList.address || 'Not provided',
+          fatherName: parentFromList.fatherName || 'Not provided',
+          dob: parentFromList.dob || 'Not provided',
+          aadharNumber: parentFromList.aadharNumber || 'Not provided',
+          gender: parentFromList.gender || 'Not provided',
+          village: parentFromList.village || 'Not provided',
+          postOffice: parentFromList.postOffice || 'Not provided',
+          thana: parentFromList.thana || 'Not provided',
+          district: parentFromList.district || 'Not provided',
+          state: parentFromList.state || 'Not provided',
+          pinCode: parentFromList.pinCode || 'Not provided',
+          membershipStatus: parentFromList.status || 'active',
+          bio: parentFromList.bio || 'NGO Member',
+          department: parentFromList.department || 'Not assigned',
+          position: parentFromList.position || 'Member',
+          employeeId: parentFromList.employeeId || `MBR-${nodeId.slice(0, 6).toUpperCase()}`,
+          reportingTo: parentFromList.reportingTo || 'Not provided',
+          joinedDate: parentFromList.joinedDate || parentFromList.createdAt || 'Not provided',
+          level: parentFromList.level || 'I',
+          levelName: getLevelLabel(parentFromList.level || 'I'),
+          status: parentFromList.status || 'active',
+          totalEarned: parentFromList.totalEarned || 0,
+          pendingCommission: parentFromList.pendingCommission || 0,
+          directReferralCount: parentFromList.directReferralCount || 0,
+          walletBalance: parentFromList.walletBalance || 0,
+          totalDonations: parentFromList.totalDonations || 0,
+          promotionEligible: parentFromList.promotionEligible || false,
+          directCommission: parentFromList.directCommission || 0,
+          secondaryCommission: parentFromList.secondaryCommission || 0,
+          donationsRequired: parentFromList.donationsRequired || 0,
+          membersNeededForPromotion: parentFromList.membersNeededForPromotion || 0,
+          nextLevel: parentFromList.nextLevel || null,
+          profilePhoto: parentFromList.profilePhoto || null,
+          registeredMembersList: parentFromList.registeredMembersList || [],
+          parentId: parentFromList.parentId || null,
+          parentName: parentFromList.parentName || null,
+          createdAt: parentFromList.createdAt || 'Not provided',
+          updatedAt: parentFromList.updatedAt || 'Not provided'
+        };
+        
+        const directMembers = (fullDetails.registeredMembersList || []).filter(
+          m => m.role !== 'working' && m.role !== 'workingMember'
+        );
+        
+        setSelectedNodeMembers({
+          memberDetails: fullDetails,
+          directMembers: directMembers
+        });
         setNodeMembersModalVisible(true);
         setLoadingNodeMembers(false);
         return;
       }
     }
-
-    // If not found, query Firestore
-    const membersQuery = query(
-      collection(db, 'users'),
-      where('registeredBy', '==', nodeId)
-    );
-    const membersSnap = await getDocs(membersQuery);
-    const membersList = [];
-    membersSnap.forEach((doc) => {
-      const data = doc.data();
-      // Filter out working members in JavaScript
-      if (data.role !== 'working' && data.role !== 'workingMember') {
-        console.log('✅ Found member:', data.fullName, 'Role:', data.role);
-        membersList.push({
-          id: doc.id,
-          ...data
-        });
-      } else {
-        console.log('⏭️ Skipping working member:', data.fullName);
-      }
-    });
     
-    console.log('📊 Total members fetched:', membersList.length);
-    setSelectedNodeMembers(membersList);
+    // FOURTH: Fallback to hierarchy data with enhanced field extraction
+    const memberFromHierarchy = memberHierarchy.find(m => m.id === nodeId);
+    if (memberFromHierarchy) {
+      console.log('✅ Found in hierarchy:', memberFromHierarchy.fullName);
+      
+      // Try to get more complete data from workingMembers
+      const enrichedMember = workingMembers.find(m => m.id === nodeId);
+      
+      const directMembers = (memberFromHierarchy.registeredMembersList || []).filter(
+        m => m.role !== 'working' && m.role !== 'workingMember'
+      );
+      
+      // Use enriched data if available, otherwise use hierarchy data
+      const email = enrichedMember?.email || memberFromHierarchy.email || 'Not provided';
+      const phone = enrichedMember?.phone || memberFromHierarchy.phone || 'Not provided';
+      const address = enrichedMember?.address || memberFromHierarchy.address || 'Not provided';
+      const fatherName = enrichedMember?.fatherName || memberFromHierarchy.fatherName || 'Not provided';
+      const dob = enrichedMember?.dob || memberFromHierarchy.dob || 'Not provided';
+      const aadharNumber = enrichedMember?.aadharNumber || memberFromHierarchy.aadharNumber || 'Not provided';
+      const gender = enrichedMember?.gender || memberFromHierarchy.gender || 'Not provided';
+      const state = enrichedMember?.state || memberFromHierarchy.state || 'Not provided';
+      const pinCode = enrichedMember?.pinCode || memberFromHierarchy.pinCode || 'Not provided';
+      
+      console.log('📧 Final email:', email);
+      console.log('📱 Final phone:', phone);
+      
+      setSelectedNodeMembers({
+        memberDetails: {
+          id: memberFromHierarchy.id,
+          fullName: memberFromHierarchy.fullName || nodeName || 'Unknown',
+          email: email,
+          phone: phone,
+          address: address,
+          fatherName: fatherName,
+          dob: dob,
+          aadharNumber: aadharNumber,
+          gender: gender,
+          village: enrichedMember?.village || memberFromHierarchy.village || 'Not provided',
+          postOffice: enrichedMember?.postOffice || memberFromHierarchy.postOffice || 'Not provided',
+          thana: enrichedMember?.thana || memberFromHierarchy.thana || 'Not provided',
+          district: enrichedMember?.district || memberFromHierarchy.district || 'Not provided',
+          state: state,
+          pinCode: pinCode,
+          membershipStatus: memberFromHierarchy.status || 'active',
+          bio: enrichedMember?.bio || memberFromHierarchy.bio || 'NGO Member',
+          department: enrichedMember?.department || memberFromHierarchy.department || 'Not assigned',
+          position: enrichedMember?.position || memberFromHierarchy.position || 'Member',
+          employeeId: enrichedMember?.employeeId || memberFromHierarchy.employeeId || `MBR-${nodeId.slice(0, 6).toUpperCase()}`,
+          reportingTo: enrichedMember?.reportingTo || memberFromHierarchy.reportingTo || 'Not provided',
+          joinedDate: enrichedMember?.joinedDate || memberFromHierarchy.joinedDate || memberFromHierarchy.createdAt || 'Not provided',
+          level: memberFromHierarchy.level || 'I',
+          levelName: memberFromHierarchy.levelName || getLevelLabel('I'),
+          status: memberFromHierarchy.status || 'active',
+          totalEarned: enrichedMember?.totalEarned || memberFromHierarchy.totalEarned || 0,
+          pendingCommission: enrichedMember?.pendingCommission || memberFromHierarchy.pendingCommission || 0,
+          directReferralCount: directMembers.length,
+          walletBalance: enrichedMember?.walletBalance || memberFromHierarchy.walletBalance || 0,
+          totalDonations: enrichedMember?.totalDonations || memberFromHierarchy.totalDonations || 0,
+          promotionEligible: enrichedMember?.promotionEligible || memberFromHierarchy.promotionEligible || false,
+          directCommission: enrichedMember?.directCommission || memberFromHierarchy.directCommission || 0,
+          secondaryCommission: enrichedMember?.secondaryCommission || memberFromHierarchy.secondaryCommission || 0,
+          donationsRequired: enrichedMember?.donationsRequired || memberFromHierarchy.donationsRequired || 0,
+          membersNeededForPromotion: enrichedMember?.membersNeededForPromotion || memberFromHierarchy.membersNeededForPromotion || 0,
+          nextLevel: enrichedMember?.nextLevel || memberFromHierarchy.nextLevel || null,
+          profilePhoto: enrichedMember?.profilePhoto || memberFromHierarchy.profilePhoto || null,
+          registeredMembersList: memberFromHierarchy.registeredMembersList || [],
+          parentId: memberFromHierarchy.parentId || null,
+          parentName: memberFromHierarchy.parentName || null,
+          createdAt: memberFromHierarchy.createdAt || 'Not provided',
+          updatedAt: memberFromHierarchy.updatedAt || 'Not provided'
+        },
+        directMembers: directMembers
+      });
+      console.log('✅ Using hierarchy data with enrichment - email:', email, 'phone:', phone);
+      setNodeMembersModalVisible(true);
+      setLoadingNodeMembers(false);
+      return;
+    }
+    
+    // FINAL FALLBACK: Use minimal data
+    console.log('❌ No data found for member:', nodeId);
+    setSelectedNodeMembers({
+      memberDetails: {
+        id: nodeId,
+        fullName: nodeName || 'Member',
+        email: 'Not provided',
+        phone: 'Not provided',
+        address: 'Not provided',
+        fatherName: 'Not provided',
+        dob: 'Not provided',
+        aadharNumber: 'Not provided',
+        gender: 'Not provided',
+        village: 'Not provided',
+        postOffice: 'Not provided',
+        thana: 'Not provided',
+        district: 'Not provided',
+        state: 'Not provided',
+        pinCode: 'Not provided',
+        membershipStatus: 'active',
+        bio: 'NGO Member',
+        department: 'Not assigned',
+        position: 'Member',
+        employeeId: `MBR-${nodeId.slice(0, 6).toUpperCase()}`,
+        reportingTo: 'Not provided',
+        joinedDate: 'Not provided',
+        level: 'I',
+        levelName: getLevelLabel('I'),
+        status: 'active',
+        totalEarned: 0,
+        pendingCommission: 0,
+        directReferralCount: 0,
+        walletBalance: 0,
+        totalDonations: 0,
+        promotionEligible: false,
+        directCommission: 0,
+        secondaryCommission: 0,
+        donationsRequired: 0,
+        membersNeededForPromotion: 0,
+        nextLevel: null,
+        profilePhoto: null,
+        registeredMembersList: [],
+        parentId: null,
+        parentName: null,
+        createdAt: 'Not provided',
+        updatedAt: 'Not provided'
+      },
+      directMembers: []
+    });
     setNodeMembersModalVisible(true);
+    
   } catch (error) {
     console.error('❌ Error fetching node members:', error);
-    Alert.alert('Error', 'Failed to load members');
+    Alert.alert('Error', 'Failed to load member details');
   } finally {
     setLoadingNodeMembers(false);
   }
@@ -1222,110 +1709,126 @@ const fetchSubMembersForHierarchy = async (parentId) => {
   };
 
   const setupRealtimeListener = () => {
-    const q = query(
-      collection(db, 'users'), 
-      where('role', 'in', ['working', 'workingMember'])
-    );
-    
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const membersList = [];
-      for (const doc of snapshot.docs) {
-        const data = doc.data();
-        const member = { id: doc.id, ...data };
-        
-        const level = data.level || 'I';
-        const levelDetails = getLevelDetails(level);
-        member.levelTitle = levelDetails.title;
-        member.levelColor = levelDetails.color;
-        member.levelBadge = levelDetails.badge;
-        member.directCommission = levelDetails.directCommission;
-        member.secondaryCommission = levelDetails.secondaryCommission;
-        
-        const directReferrals = data.directReferrals || [];
-        member.directReferralCount = directReferrals.length;
-        member.directReferrals = directReferrals;
-        
-        const registeredQuery = query(
-          collection(db, 'users'), 
-          where('registeredBy', '==', doc.id)
-        );
-        const registeredSnap = await getDocs(registeredQuery);
-        member.registeredMembers = registeredSnap.size;
-        member.registeredMembersList = [];
-        registeredSnap.forEach((regDoc) => {
-          member.registeredMembersList.push({ id: regDoc.id, ...regDoc.data() });
-        });
+  const auth = getAuthInstance();
 
-        try {
-          const wallet = await WalletService.getOrCreateWallet(doc.id);
-          member.walletBalance = wallet.balance || 0;
-          member.totalEarned = wallet.totalEarned || 0;
-          member.pendingCommission = wallet.pendingCommission || 0;
-        } catch (error) {
-          console.error('Error fetching wallet:', error);
-          member.walletBalance = 0;
-          member.totalEarned = 0;
-          member.pendingCommission = 0;
+  const userId = auth.currentUser?.uid;
+  if (!userId) return;
+
+  const q = query(
+    collection(db, 'users'), 
+    where('role', 'in', ['working', 'workingMember'])
+  );
+  
+  const unsubscribe = onSnapshot(q, async (snapshot) => {
+    const membersList = [];
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const member = { id: doc.id, ...data };
+      
+      const level = data.level || 'I';
+      const levelDetails = getLevelDetails(level);
+      member.levelTitle = levelDetails.title;
+      member.levelColor = levelDetails.color;
+      member.levelBadge = levelDetails.badge;
+      member.directCommission = levelDetails.directCommission;
+      member.secondaryCommission = levelDetails.secondaryCommission;
+      
+      const directReferrals = data.directReferrals || [];
+      member.directReferralCount = directReferrals.length;
+      member.directReferrals = directReferrals;
+      
+      // ✅ FIX: Query registered members for THIS specific member only
+      const registeredQuery = query(
+        collection(db, 'users'), 
+        where('registeredBy', '==', doc.id)
+      );
+      const registeredSnap = await getDocs(registeredQuery);
+      
+      // ✅ FIX: Create a fresh array for each member - DO NOT reuse
+      const registeredList = [];
+      registeredSnap.forEach((regDoc) => {
+        const regData = regDoc.data();
+        // Only add non-working members
+        if (regData.role !== 'working' && regData.role !== 'workingMember') {
+          registeredList.push({ 
+            id: regDoc.id, 
+            ...regData 
+          });
         }
+      });
+      // ✅ IMPORTANT: Assign the fresh array to the member
+      member.registeredMembersList = registeredList;
+      member.registeredMembers = registeredList.length;
 
-        try {
-          const totalDonations = await CommissionService.getTotalDonationsByMember(doc.id);
-          member.totalDonations = totalDonations;
-        } catch (error) {
-          member.totalDonations = 0;
-        }
-
-        const levelsToUse = dynamicLevels || getDefaultLevels();
-        const currentLevelIndex = levelsToUse.findIndex(l => l.id === level);
-        const currentLevelData = currentLevelIndex !== -1 ? levelsToUse[currentLevelIndex] : null;
-        
-        if (currentLevelData) {
-          const donationsRequired = currentLevelData.donationsRequiredForPromotion || 0;
-          const isEligible = member.totalDonations >= donationsRequired && donationsRequired > 0;
-          member.promotionEligible = isEligible;
-          member.membersNeededForPromotion = Math.max(0, donationsRequired - member.totalDonations);
-          member.donationsRequired = donationsRequired;
-        } else {
-          member.promotionEligible = false;
-          member.membersNeededForPromotion = 0;
-          member.donationsRequired = 0;
-        }
-
-        const nextLevelId = getNextLevelId(level);
-        member.nextLevel = nextLevelId;
-        if (nextLevelId) {
-          const nextLevel = getLevelDetails(nextLevelId);
-          member.nextLevelTitle = nextLevel.title;
-        }
-
-        member.promotionPending = data.promotionPending || false;
-        
-        const commissionQuery = query(
-          collection(db, 'walletTransactions'),
-          where('userId', '==', doc.id),
-          where('type', 'in', ['direct_commission', 'secondary_commission']),
-          orderBy('createdAt', 'desc')
-        );
-        const commissionSnap = await getDocs(commissionQuery);
-        const history = [];
-        commissionSnap.forEach((cDoc) => {
-          history.push({ id: cDoc.id, ...cDoc.data() });
-        });
-        member.commissionHistory = history;
-
-        membersList.push(member);
+      try {
+        const wallet = await WalletService.getOrCreateWallet(doc.id);
+        member.walletBalance = wallet.balance || 0;
+        member.totalEarned = wallet.totalEarned || 0;
+        member.pendingCommission = wallet.pendingCommission || 0;
+      } catch (error) {
+        console.error('Error fetching wallet:', error);
+        member.walletBalance = 0;
+        member.totalEarned = 0;
+        member.pendingCommission = 0;
       }
-      
-      membersList.sort((a, b) => (b.totalEarned || 0) - (a.totalEarned || 0));
-      
-      setWorkingMembers(membersList);
-      applyFilters(membersList, search, filterStatus, filterLevel);
-      setLoading(false);
-    });
 
-    return () => unsubscribe();
-  };
+      try {
+        const totalDonations = await CommissionService.getTotalDonationsByMember(doc.id);
+        member.totalDonations = totalDonations;
+      } catch (error) {
+        member.totalDonations = 0;
+      }
 
+      const levelsToUse = dynamicLevels || getDefaultLevels();
+      const currentLevelIndex = levelsToUse.findIndex(l => l.id === level);
+      const currentLevelData = currentLevelIndex !== -1 ? levelsToUse[currentLevelIndex] : null;
+      
+      if (currentLevelData) {
+        const donationsRequired = currentLevelData.donationsRequiredForPromotion || 0;
+        const isEligible = member.totalDonations >= donationsRequired && donationsRequired > 0;
+        member.promotionEligible = isEligible;
+        member.membersNeededForPromotion = Math.max(0, donationsRequired - member.totalDonations);
+        member.donationsRequired = donationsRequired;
+      } else {
+        member.promotionEligible = false;
+        member.membersNeededForPromotion = 0;
+        member.donationsRequired = 0;
+      }
+
+      const nextLevelId = getNextLevelId(level);
+      member.nextLevel = nextLevelId;
+      if (nextLevelId) {
+        const nextLevel = getLevelDetails(nextLevelId);
+        member.nextLevelTitle = nextLevel.title;
+      }
+
+      member.promotionPending = data.promotionPending || false;
+      
+      const commissionQuery = query(
+        collection(db, 'walletTransactions'),
+        where('userId', '==', doc.id),
+        where('type', 'in', ['direct_commission', 'secondary_commission']),
+        orderBy('createdAt', 'desc')
+      );
+      const commissionSnap = await getDocs(commissionQuery);
+      const history = [];
+      commissionSnap.forEach((cDoc) => {
+        history.push({ id: cDoc.id, ...cDoc.data() });
+      });
+      member.commissionHistory = history;
+
+      membersList.push(member);
+    }
+    
+    membersList.sort((a, b) => (b.totalEarned || 0) - (a.totalEarned || 0));
+    
+    setWorkingMembers(membersList);
+    applyFilters(membersList, search, filterStatus, filterLevel);
+    setLoading(false);
+  });
+
+  return () => unsubscribe();
+};
   const getDefaultLevels = () => {
     return [
       { id: 'I', name: 'Customer', directCommission: 25, secondaryCommission: 10, donationsRequiredForPromotion: 10000 },
@@ -1837,28 +2340,91 @@ const fetchSubMembersForHierarchy = async (parentId) => {
     );
   };
 // Add this component with your other modal components (around line 1200-1300)
+// ============ NODE MEMBERS MODAL (UPDATED TO MATCH WORKING MEMBER DETAILS) ============
 const NodeMembersModal = () => {
-  // Get display members - filter out working members
-  const getDisplayMembers = () => {
-    // If we have selectedNodeMembers (from query), filter them
-    if (selectedNodeMembers.length > 0) {
-      return selectedNodeMembers.filter(m => 
-        m.role !== 'working' && m.role !== 'workingMember'
-      );
+  const getDisplayData = () => {
+    if (selectedNodeMembers && typeof selectedNodeMembers === 'object') {
+      if (selectedNodeMembers.memberDetails) {
+        return {
+          memberDetails: selectedNodeMembers.memberDetails,
+          directMembers: selectedNodeMembers.directMembers || []
+        };
+      }
+      if (Array.isArray(selectedNodeMembers)) {
+        const filtered = selectedNodeMembers.filter(m => 
+          m.role !== 'working' && m.role !== 'workingMember'
+        );
+        return {
+          memberDetails: {
+            fullName: selectedNodeName || 'Member',
+            email: 'N/A',
+            phone: 'N/A',
+            address: 'N/A',
+            fatherName: 'N/A',
+            dob: 'N/A',
+            aadharNumber: 'N/A',
+            membershipStatus: 'N/A',
+            bio: 'N/A',
+            department: 'N/A',
+            position: 'N/A',
+            employeeId: 'N/A',
+            reportingTo: 'N/A',
+            joinedDate: 'N/A',
+            level: 'N/A',
+            levelName: 'N/A',
+            status: 'N/A',
+            totalEarned: 0,
+            pendingCommission: 0,
+            directReferralCount: filtered.length,
+            walletBalance: 0,
+            totalDonations: 0,
+            promotionEligible: false,
+            profilePhoto: null,
+            registeredMembersList: []
+          },
+          directMembers: filtered
+        };
+      }
     }
-    
-    // Fallback to registeredMembersList from selectedMember
-    if (selectedMember?.registeredMembersList) {
-      return selectedMember.registeredMembersList.filter(m => 
-        m.role !== 'working' && m.role !== 'workingMember'
-      );
-    }
-    
-    return [];
+    return {
+      memberDetails: {
+        fullName: selectedNodeName || 'Member',
+        email: 'N/A',
+        phone: 'N/A',
+        address: 'N/A',
+        fatherName: 'N/A',
+        dob: 'N/A',
+        aadharNumber: 'N/A',
+        membershipStatus: 'N/A',
+        bio: 'N/A',
+        department: 'N/A',
+        position: 'N/A',
+        employeeId: 'N/A',
+        reportingTo: 'N/A',
+        joinedDate: 'N/A',
+        level: 'N/A',
+        levelName: 'N/A',
+        status: 'N/A',
+        totalEarned: 0,
+        pendingCommission: 0,
+        directReferralCount: 0,
+        walletBalance: 0,
+        totalDonations: 0,
+        promotionEligible: false,
+        profilePhoto: null,
+        registeredMembersList: []
+      },
+      directMembers: []
+    };
   };
 
-  const displayMembers = getDisplayMembers();
-  const totalCount = displayMembers.length;
+  const { memberDetails, directMembers } = getDisplayData();
+  const totalCount = directMembers.length;
+  const statusColor = memberDetails.status === 'active' ? '#10b981' : 
+                      memberDetails.status === 'pending' ? '#f59e0b' : '#ef4444';
+  const statusLabel = memberDetails.status === 'active' ? translations.active : 
+                      memberDetails.status === 'pending' ? translations.pending : 
+                      memberDetails.status || 'Unknown';
 
   return (
     <Modal
@@ -1868,90 +2434,415 @@ const NodeMembersModal = () => {
       onRequestClose={() => setNodeMembersModalVisible(false)}
     >
       <View style={styles.modalContainer}>
-        <View style={styles.nodeMembersModalContent}>
+        <ScrollView style={styles.nodeMembersModalContent} showsVerticalScrollIndicator={false}>
           <View style={styles.modalHeader}>
-            <View>
+            <View style={styles.nodeModalHeaderLeft}>
               <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 18 }]}>
-                Direct Members
+                {memberDetails.fullName || selectedNodeName || 'Member'}
               </Text>
-              <Text style={[styles.nodeMembersModalSubtitle, { fontSize: isSmallDevice ? 11 : 12 }]}>
-                {selectedNodeName || 'Member'} has registered {totalCount} members
-              </Text>
+              <View style={styles.nodeModalStatusRow}>
+                <View style={[styles.nodeModalStatusBadge, { backgroundColor: statusColor + '15' }]}>
+                  <View style={[styles.nodeModalStatusDot, { backgroundColor: statusColor }]} />
+                  <Text style={[styles.nodeModalStatusText, { color: statusColor }]}>
+                    {statusLabel}
+                  </Text>
+                </View>
+                <Text style={[styles.nodeModalLevelText, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                  Level: {memberDetails.levelName || memberDetails.level || 'N/A'}
+                </Text>
+              </View>
             </View>
             <TouchableOpacity onPress={() => setNodeMembersModalVisible(false)}>
               <MaterialIcons name="close" size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>
 
-          {loadingNodeMembers ? (
-            <View style={styles.nodeMembersLoading}>
-              <ActivityIndicator size="large" color="#FF7722" />
-              <Text style={[styles.nodeMembersLoadingText, { fontSize: isSmallDevice ? 13 : 14 }]}>
-                Loading members...
+          {/* ============ PROFILE SECTION (Matches Working Member Detail) ============ */}
+          <View style={styles.detailProfile}>
+            {memberDetails.profilePhoto ? (
+              <Image source={{ uri: memberDetails.profilePhoto }} style={styles.detailAvatar} />
+            ) : (
+              <View style={styles.detailAvatarPlaceholder}>
+                <Text style={[styles.detailAvatarText, { fontSize: isSmallDevice ? 28 : 32 }]}>
+                  {memberDetails.fullName?.charAt(0) || '?'}
+                </Text>
+              </View>
+            )}
+            <Text style={[styles.detailName, { fontSize: isSmallDevice ? 18 : 20 }]}>
+              {memberDetails.fullName}
+            </Text>
+            <Text style={[styles.detailEmail, { fontSize: isSmallDevice ? 12 : 14 }]}>
+              {memberDetails.email || memberDetails.phone || 'No contact'}
+            </Text>
+            <View style={[styles.detailLevelBadge, { backgroundColor: getLevelColor(memberDetails.level) + '15' }]}>
+              <MaterialIcons name={getLevelIcon(memberDetails.level)} size={14} color={getLevelColor(memberDetails.level)} />
+              <Text style={[styles.detailLevelText, { color: getLevelColor(memberDetails.level), fontSize: isSmallDevice ? 12 : 14 }]}>
+                {getLevelLabel(memberDetails.level).toUpperCase()}
               </Text>
             </View>
-          ) : displayMembers.length === 0 ? (
-            <View style={styles.nodeMembersEmpty}>
-              <MaterialIcons name="people-outline" size={50} color="#d1d5db" />
-              <Text style={[styles.nodeMembersEmptyTitle, { fontSize: isSmallDevice ? 15 : 16 }]}>
-                No Direct Members
+          </View>
+
+          {/* ============ PERFORMANCE SECTION (Matches Working Member Detail) ============ */}
+          <View style={styles.detailSection}>
+            <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
+              {translations.performance}
+            </Text>
+            <View style={styles.detailStats}>
+              <View style={styles.detailStat}>
+                <Text style={[styles.detailStatValue, { fontSize: isSmallDevice ? 16 : 18 }]}>
+                  {memberDetails.directReferralCount || 0}
+                </Text>
+                <Text style={[styles.detailStatLabel, { fontSize: isSmallDevice ? 10 : 11 }]}>
+                  {translations.direct}
+                </Text>
+              </View>
+              <View style={styles.detailStat}>
+                <Text style={[styles.detailStatValue, { fontSize: isSmallDevice ? 16 : 18 }]}>
+                  ₹{memberDetails.totalEarned?.toLocaleString() || 0}
+                </Text>
+                <Text style={[styles.detailStatLabel, { fontSize: isSmallDevice ? 10 : 11 }]}>
+                  {translations.earned}
+                </Text>
+              </View>
+              <View style={styles.detailStat}>
+                <Text style={[styles.detailStatValue, { fontSize: isSmallDevice ? 16 : 18 }]}>
+                  ₹{memberDetails.pendingCommission?.toLocaleString() || 0}
+                </Text>
+                <Text style={[styles.detailStatLabel, { fontSize: isSmallDevice ? 10 : 11 }]}>
+                  {translations.pendingCommission}
+                </Text>
+              </View>
+              <View style={styles.detailStat}>
+                <Text style={[styles.detailStatValue, { fontSize: isSmallDevice ? 16 : 18, color: '#f59e0b' }]}>
+                  ₹{memberDetails.totalDonations?.toLocaleString() || 0}
+                </Text>
+                <Text style={[styles.detailStatLabel, { fontSize: isSmallDevice ? 10 : 11 }]}>
+                  {translations.donations}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* ============ COMMISSION RATES SECTION (Matches Working Member Detail) ============ */}
+          <View style={styles.detailSection}>
+            <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
+              {translations.commissionRates}
+            </Text>
+            <View style={styles.detailCommissionRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {translations.directCommission}
               </Text>
-              <Text style={[styles.nodeMembersEmptySubtext, { fontSize: isSmallDevice ? 12 : 13 }]}>
-                {selectedNodeName || 'This member'} hasn't registered any direct members yet
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.directCommission || 0}%
               </Text>
             </View>
-          ) : (
-            <FlatList
-              data={displayMembers}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <View style={styles.nodeMemberItem}>
-                  <View style={styles.nodeMemberAvatar}>
-                    <Text style={styles.nodeMemberAvatarText}>
-                      {item.fullName?.charAt(0)?.toUpperCase() || '?'}
+            <View style={styles.detailCommissionRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {translations.secondaryCommission}
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.secondaryCommission || 0}%
+              </Text>
+            </View>
+          </View>
+
+          {/* ============ DIRECT MEMBERS SECTION (Matches Working Member Detail) ============ */}
+          <View style={styles.detailSection}>
+            <View style={styles.hierarchyHeader}>
+              <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
+                {translations.directMembers}
+              </Text>
+              {totalCount > 0 && (
+                <Text style={styles.hierarchyCount}>
+                  ({totalCount})
+                </Text>
+              )}
+            </View>
+            
+            {loadingNodeMembers ? (
+              <View style={styles.hierarchyLoading}>
+                <ActivityIndicator size="small" color="#FF7722" />
+                <Text style={styles.hierarchyLoadingText}>Loading members...</Text>
+              </View>
+            ) : totalCount === 0 ? (
+              <View style={styles.hierarchyEmptyState}>
+                <MaterialIcons name="people-outline" size={30} color="#d1d5db" />
+                <Text style={[styles.detailEmptyText, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                  No direct members yet
+                </Text>
+                <Text style={[styles.hierarchyEmptySubtext, { fontSize: isSmallDevice ? 10 : 11 }]}>
+                  Members registered by this member will appear here
+                </Text>
+              </View>
+            ) : (
+              directMembers.map((member, index) => (
+                <TouchableOpacity 
+                  key={index} 
+                  style={styles.directMemberRow}
+                  onPress={() => {
+                    Alert.alert(
+                      'Member Details',
+                      `👤 Name: ${member.fullName || 'Unknown'}\n` +
+                      `📧 Email: ${member.email || 'N/A'}\n` +
+                      `📱 Phone: ${member.phone || 'N/A'}\n` +
+                      `📊 Status: ${member.status || 'N/A'}\n` +
+                      `🏅 Level: ${member.level || 'N/A'}`
+                    );
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.directMemberAvatar}>
+                    <Text style={styles.directMemberAvatarText}>
+                      {member.fullName?.charAt(0)?.toUpperCase() || '?'}
                     </Text>
                   </View>
-                  <View style={styles.nodeMemberInfo}>
-                    <Text style={[styles.nodeMemberName, { fontSize: isSmallDevice ? 13 : 14 }]}>
-                      {item.fullName || 'Unknown'}
+                  <View style={styles.directMemberInfo}>
+                    <Text style={[styles.directMemberName, { fontSize: isSmallDevice ? 13 : 14 }]}>
+                      {member.fullName || 'Unknown Member'}
                     </Text>
-                    <Text style={[styles.nodeMemberDetails, { fontSize: isSmallDevice ? 11 : 12 }]}>
-                      {item.phone || item.email || 'No contact'}
+                    <Text style={[styles.directMemberDetails, { fontSize: isSmallDevice ? 10 : 11 }]}>
+                      {member.email || member.phone || 'No contact'}
                     </Text>
-                    <View style={styles.nodeMemberMeta}>
+                    <View style={styles.directMemberMeta}>
                       <View style={[
-                        styles.nodeMemberStatus,
-                        { backgroundColor: item.status === 'active' ? '#d1fae5' : '#fee2e2' }
+                        styles.directMemberStatus,
+                        { backgroundColor: member.status === 'active' ? '#d1fae5' : '#fee2e2' }
                       ]}>
                         <Text style={[
-                          styles.nodeMemberStatusText,
-                          { color: item.status === 'active' ? '#10b981' : '#ef4444' }
+                          styles.directMemberStatusText,
+                          { color: member.status === 'active' ? '#10b981' : '#ef4444' }
                         ]}>
-                          {item.status || 'inactive'}
+                          {member.status || 'unknown'}
                         </Text>
                       </View>
-                      {item.level && (
-                        <Text style={[styles.nodeMemberLevel, { fontSize: isSmallDevice ? 9 : 10 }]}>
-                          Level {item.level}
+                      {member.level && (
+                        <Text style={styles.directMemberLevel}>
+                          Level {member.level}
                         </Text>
                       )}
                     </View>
                   </View>
                   <MaterialIcons name="chevron-right" size={20} color="#d1d5db" />
-                </View>
-              )}
-              contentContainerStyle={styles.nodeMembersList}
-              showsVerticalScrollIndicator={false}
-            />
-          )}
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+
+          {/* ============ STATUS SECTION (Matches Working Member Detail) ============ */}
+          <View style={styles.detailSection}>
+            <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
+              {translations.status}
+            </Text>
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {translations.status}:
+              </Text>
+              <View style={[styles.detailStatusBadge, { backgroundColor: statusColor + '15' }]}>
+                <Text style={[styles.detailStatusText, { color: statusColor, fontSize: isSmallDevice ? 10 : 11 }]}>
+                  {statusLabel}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {translations.level}:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {getLevelLabel(memberDetails.level)}
+              </Text>
+            </View>
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {translations.nextLevel}:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.nextLevel ? getLevelLabel(memberDetails.nextLevel) : translations.max}
+              </Text>
+            </View>
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {translations.donationsReq}:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13, color: '#f59e0b' }]}>
+                ₹{memberDetails.donationsRequired?.toLocaleString() || 0}
+              </Text>
+            </View>
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {translations.wallet}:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13, color: '#10b981' }]}>
+                ₹{memberDetails.walletBalance?.toLocaleString() || 0}
+              </Text>
+            </View>
+            {memberDetails.promotionEligible && (
+              <View style={styles.detailStatusRow}>
+                <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                  {translations.promotion}:
+                </Text>
+                <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13, color: '#10b981' }]}>
+                  {translations.eligible}
+                </Text>
+              </View>
+            )}
+            {!memberDetails.promotionEligible && memberDetails.donationsRequired > 0 && (
+              <View style={styles.detailStatusRow}>
+                <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                  {translations.promotion}:
+                </Text>
+                <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13, color: '#f59e0b' }]}>
+                  ₹{memberDetails.membersNeededForPromotion?.toLocaleString() || 0} {translations.moreNeeded}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* ============ PERSONAL INFORMATION ============ */}
+          <View style={styles.detailSection}>
+            <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
+              Personal Information
+            </Text>
+            
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Full Name:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.fullName || 'N/A'}
+              </Text>
+            </View>
+
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Father/Husband:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.fatherName || 'N/A'}
+              </Text>
+            </View>
+
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Date of Birth:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.dob || 'N/A'}
+              </Text>
+            </View>
+
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Aadhar Number:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.aadharNumber || 'N/A'}
+              </Text>
+            </View>
+
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Membership Status:
+              </Text>
+              <View style={[styles.detailStatusBadge, { backgroundColor: statusColor + '15' }]}>
+                <Text style={[styles.detailStatusText, { color: statusColor, fontSize: isSmallDevice ? 10 : 11 }]}>
+                  {memberDetails.membershipStatus === 'active' || memberDetails.membershipStatus === 'Active' ? 'Active' : 'Inactive'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Email:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.email && memberDetails.email !== 'N/A' && memberDetails.email !== 'Not provided' 
+                  ? memberDetails.email 
+                  : 'Not provided'}
+              </Text>
+            </View>
+
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Phone:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.phone && memberDetails.phone !== 'N/A' && memberDetails.phone !== 'Not provided' 
+                  ? memberDetails.phone 
+                  : 'Not provided'}
+              </Text>
+            </View>
+
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Address:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.address || 'N/A'}
+              </Text>
+            </View>
+          </View>
+
+          {/* ============ EMPLOYMENT INFORMATION ============ */}
+          <View style={styles.detailSection}>
+            <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
+              Employment Information
+            </Text>
+
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Department:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.department || 'Not assigned'}
+              </Text>
+            </View>
+
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Position:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.position || 'Member'}
+              </Text>
+            </View>
+
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Member ID:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.employeeId || 'N/A'}
+              </Text>
+            </View>
+
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Reporting To:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.reportingTo || 'N/A'}
+              </Text>
+            </View>
+
+            <View style={styles.detailStatusRow}>
+              <Text style={[styles.detailLabel, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                Joined Date:
+              </Text>
+              <Text style={[styles.detailValue, { fontSize: isSmallDevice ? 12 : 13 }]}>
+                {memberDetails.joinedDate || 'N/A'}
+              </Text>
+            </View>
+          </View>
 
           <TouchableOpacity 
             style={styles.closeButton}
             onPress={() => setNodeMembersModalVisible(false)}
           >
-            <Text style={[styles.closeButtonText, { fontSize: isSmallDevice ? 13 : 14 }]}>Close</Text>
+            <Text style={[styles.closeButtonText, { fontSize: isSmallDevice ? 13 : 14 }]}>
+              {translations.close}
+            </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -3048,13 +3939,29 @@ const NodeMembersModal = () => {
                   </View>
 {/* Direct Members Section */}
 <View style={styles.detailSection}>
-  <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
-    {translations.directMembers}
-  </Text>
+  <View style={styles.hierarchyHeader}>
+    <Text style={[styles.detailSectionTitle, { fontSize: isSmallDevice ? 13 : 14 }]}>
+      {translations.directMembers}
+    </Text>
+    {(() => {
+      // Get the current member's registered members
+      const currentMember = workingMembers.find(m => m.id === selectedMember?.id);
+      const allMembers = currentMember?.registeredMembersList || [];
+      const filtered = allMembers.filter(m => 
+        m.role !== 'working' && m.role !== 'workingMember'
+      );
+      return filtered.length > 0 && (
+        <Text style={styles.hierarchyCount}>
+          ({filtered.length})
+        </Text>
+      );
+    })()}
+  </View>
   
   {(() => {
-    // Use registeredMembersList from selectedMember
-    const allMembers = selectedMember?.registeredMembersList || [];
+    // Get the current member's registered members
+    const currentMember = workingMembers.find(m => m.id === selectedMember?.id);
+    const allMembers = currentMember?.registeredMembersList || [];
     // Filter out working members
     const filteredMembers = allMembers.filter(m => 
       m.role !== 'working' && m.role !== 'workingMember'
@@ -3062,49 +3969,67 @@ const NodeMembersModal = () => {
     
     if (filteredMembers.length === 0) {
       return (
-        <Text style={[styles.detailEmptyText, { fontSize: isSmallDevice ? 12 : 13 }]}>
-          No direct members yet
-        </Text>
+        <View style={styles.hierarchyEmptyState}>
+          <MaterialIcons name="people-outline" size={30} color="#d1d5db" />
+          <Text style={[styles.detailEmptyText, { fontSize: isSmallDevice ? 12 : 13 }]}>
+            No direct members yet
+          </Text>
+          <Text style={[styles.hierarchyEmptySubtext, { fontSize: isSmallDevice ? 10 : 11 }]}>
+            Members registered by this working member will appear here
+          </Text>
+        </View>
       );
     }
     
     return filteredMembers.map((member, index) => (
-      <View key={index} style={styles.registeredMemberItem}>
-        <View style={styles.directMemberRow}>
-          <View style={styles.directMemberAvatar}>
-            <Text style={styles.directMemberAvatarText}>
-              {member.fullName?.charAt(0)?.toUpperCase() || '?'}
-            </Text>
-          </View>
-          <View style={styles.directMemberInfo}>
-            <Text style={[styles.directMemberName, { fontSize: isSmallDevice ? 13 : 14 }]}>
-              {member.fullName || 'Unknown Member'}
-            </Text>
-            <Text style={[styles.directMemberDetails, { fontSize: isSmallDevice ? 10 : 11 }]}>
-              {member.email || member.phone || 'No contact'}
-            </Text>
-            <View style={styles.directMemberMeta}>
-              <View style={[
-                styles.directMemberStatus,
-                { backgroundColor: member.status === 'active' ? '#d1fae5' : '#fee2e2' }
-              ]}>
-                <Text style={[
-                  styles.directMemberStatusText,
-                  { color: member.status === 'active' ? '#10b981' : '#ef4444' }
-                ]}>
-                  {member.status || 'unknown'}
-                </Text>
-              </View>
-              {member.level && (
-                <Text style={styles.directMemberLevel}>
-                  Level {member.level}
-                </Text>
-              )}
-            </View>
-          </View>
-          <MaterialIcons name="chevron-right" size={20} color="#d1d5db" />
+      <TouchableOpacity 
+        key={index} 
+        style={styles.directMemberRow}
+        onPress={() => {
+          Alert.alert(
+            'Member Details',
+            `👤 Name: ${member.fullName || 'Unknown'}\n` +
+            `📧 Email: ${member.email || 'N/A'}\n` +
+            `📱 Phone: ${member.phone || 'N/A'}\n` +
+            `📊 Status: ${member.status || 'N/A'}\n` +
+            `🏅 Level: ${member.level || 'N/A'}`
+          );
+        }}
+        activeOpacity={0.7}
+      >
+        <View style={styles.directMemberAvatar}>
+          <Text style={styles.directMemberAvatarText}>
+            {member.fullName?.charAt(0)?.toUpperCase() || '?'}
+          </Text>
         </View>
-      </View>
+        <View style={styles.directMemberInfo}>
+          <Text style={[styles.directMemberName, { fontSize: isSmallDevice ? 13 : 14 }]}>
+            {member.fullName || 'Unknown Member'}
+          </Text>
+          <Text style={[styles.directMemberDetails, { fontSize: isSmallDevice ? 10 : 11 }]}>
+            {member.email || member.phone || 'No contact'}
+          </Text>
+          <View style={styles.directMemberMeta}>
+            <View style={[
+              styles.directMemberStatus,
+              { backgroundColor: member.status === 'active' ? '#d1fae5' : '#fee2e2' }
+            ]}>
+              <Text style={[
+                styles.directMemberStatusText,
+                { color: member.status === 'active' ? '#10b981' : '#ef4444' }
+              ]}>
+                {member.status || 'unknown'}
+              </Text>
+            </View>
+            {member.level && (
+              <Text style={styles.directMemberLevel}>
+                Level {member.level}
+              </Text>
+            )}
+          </View>
+        </View>
+        <MaterialIcons name="chevron-right" size={20} color="#d1d5db" />
+      </TouchableOpacity>
     ));
   })()}
 </View>
@@ -3199,12 +4124,43 @@ const NodeMembersModal = () => {
     isGrandChild && styles.hierarchyGrandChildItem
   ]}
   onPress={() => {
-    // Don't fetch for current member (selected)
-    if (!member.isCurrent) {
-      fetchNodeDirectMembers(member.id, member.fullName);
+    // ✅ SIMPLE FIX: Find the actual member from workingMembers
+    const actualMember = workingMembers.find(m => m.id === member.id);
+    if (actualMember) {
+      // Use the actual member data directly
+      const directMembers = actualMember.registeredMembersList || [];
+      const filteredMembers = directMembers.filter(m => 
+        m.role !== 'working' && m.role !== 'workingMember'
+      );
+      setSelectedNodeMembers({
+        memberDetails: actualMember,  // ← USE THE ACTUAL MEMBER FROM workingMembers
+        directMembers: filteredMembers
+      });
+      setSelectedNodeName(actualMember.fullName);
+      setNodeMembersModalVisible(true);
     } else {
-      // For current member, show their own direct members
-      fetchNodeDirectMembers(member.id, 'You');
+      // Fallback: try to find by ID
+      const fallbackMember = workingMembers.find(m => m.id === member.id);
+      if (fallbackMember) {
+        const directMembers = fallbackMember.registeredMembersList || [];
+        const filteredMembers = directMembers.filter(m => 
+          m.role !== 'working' && m.role !== 'workingMember'
+        );
+        setSelectedNodeMembers({
+          memberDetails: fallbackMember,
+          directMembers: filteredMembers
+        });
+        setSelectedNodeName(fallbackMember.fullName);
+        setNodeMembersModalVisible(true);
+      } else {
+        // Final fallback
+        setSelectedNodeMembers({
+          memberDetails: member,
+          directMembers: []
+        });
+        setSelectedNodeName(member.fullName);
+        setNodeMembersModalVisible(true);
+      }
     }
   }}
   activeOpacity={0.7}
@@ -4765,6 +5721,54 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF7722',
     borderColor: '#FF7722',
   },
+// Node Member Details Styles
+nodeMemberDetailsSection: {
+  backgroundColor: '#f8fafc',
+  borderRadius: 10,
+  padding: 12,
+  marginBottom: 12,
+},
+nodeMemberDetailRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 8,
+  paddingVertical: 4,
+},
+nodeMemberDetailText: {
+  fontFamily: Fonts.Regular,
+  color: '#1f2937',
+  flex: 1,
+},
+nodeMemberStatsRow: {
+  flexDirection: 'row',
+  justifyContent: 'space-around',
+  marginTop: 8,
+  paddingTop: 8,
+  borderTopWidth: 1,
+  borderTopColor: '#e5e7eb',
+},
+nodeMemberStat: {
+  alignItems: 'center',
+},
+nodeMemberStatValue: {
+  fontFamily: Fonts.Bold,
+  color: '#1f2937',
+},
+nodeMemberStatLabel: {
+  fontFamily: Fonts.Regular,
+  color: '#6b7280',
+  marginTop: 2,
+},
+nodeMembersDivider: {
+  height: 1,
+  backgroundColor: '#e5e7eb',
+  marginVertical: 8,
+},
+nodeMembersSectionTitle: {
+  fontFamily: Fonts.SemiBold,
+  color: '#1f2937',
+  marginBottom: 8,
+},
   statusButtonText: {
     fontFamily: Fonts.SemiBold,
     color: '#6b7280',
@@ -5106,6 +6110,148 @@ directMemberLevel: {
     gap: 12,
     marginTop: 8,
   },
+// Node Modal Styles
+nodeModalHeaderLeft: {
+  flex: 1,
+},
+nodeModalStatusRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 10,
+  marginTop: 4,
+},
+nodeModalStatusBadge: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: 10,
+  paddingVertical: 3,
+  borderRadius: 12,
+  gap: 4,
+},
+nodeModalStatusDot: {
+  width: 6,
+  height: 6,
+  borderRadius: 3,
+},
+nodeModalStatusText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 11,
+},
+nodeModalLevelText: {
+  fontFamily: Fonts.Regular,
+  color: '#6b7280',
+},
+nodeModalProfileSection: {
+  alignItems: 'center',
+  marginBottom: 16,
+  paddingBottom: 16,
+  borderBottomWidth: 1,
+  borderBottomColor: '#f3f4f6',
+},
+nodeModalProfileImageContainer: {
+  position: 'relative',
+  marginBottom: 8,
+},
+nodeModalProfileImage: {
+  width: 80,
+  height: 80,
+  borderRadius: 40,
+  borderWidth: 3,
+  borderColor: '#FF7722',
+},
+nodeModalProfilePlaceholder: {
+  width: 80,
+  height: 80,
+  borderRadius: 40,
+  backgroundColor: '#fff5eb',
+  justifyContent: 'center',
+  alignItems: 'center',
+  borderWidth: 3,
+  borderColor: '#FF7722',
+},
+nodeModalProfileName: {
+  fontFamily: Fonts.Bold,
+  color: '#1f2937',
+  textAlign: 'center',
+},
+nodeModalProfileBio: {
+  fontFamily: Fonts.Regular,
+  color: '#6b7280',
+  textAlign: 'center',
+},
+nodeModalCard: {
+  backgroundColor: '#f9fafb',
+  borderRadius: 10,
+  padding: 12,
+  marginBottom: 12,
+},
+nodeModalCardTitle: {
+  fontFamily: Fonts.SemiBold,
+  color: '#1f2937',
+  marginBottom: 8,
+  borderBottomWidth: 1,
+  borderBottomColor: '#e5e7eb',
+  paddingBottom: 6,
+},
+nodeModalField: {
+  marginBottom: 6,
+},
+nodeModalLabel: {
+  fontFamily: Fonts.SemiBold,
+  color: '#6b7280',
+  marginBottom: 1,
+},
+nodeModalValue: {
+  fontFamily: Fonts.Regular,
+  color: '#1f2937',
+},
+nodeModalStatusBadgeInline: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#d1fae5',
+  paddingHorizontal: 12,
+  paddingVertical: 4,
+  borderRadius: 12,
+  alignSelf: 'flex-start',
+  gap: 6,
+},
+nodeModalStatusDotInline: {
+  width: 8,
+  height: 8,
+  borderRadius: 4,
+},
+nodeModalStatusTextInline: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 13,
+},
+nodeModalStatsRow: {
+  flexDirection: 'row',
+  justifyContent: 'space-around',
+  marginTop: 4,
+},
+nodeModalStat: {
+  alignItems: 'center',
+},
+nodeModalStatValue: {
+  fontFamily: Fonts.Bold,
+  color: '#1f2937',
+},
+nodeModalStatLabel: {
+  fontFamily: Fonts.Regular,
+  color: '#6b7280',
+  marginTop: 2,
+  fontSize: 10,
+},
+nodeModalDivider: {
+  height: 1,
+  backgroundColor: '#e5e7eb',
+  marginVertical: 12,
+},
+nodeModalSectionTitle: {
+  fontFamily: Fonts.SemiBold,
+  color: '#1f2937',
+  marginBottom: 8,
+},
   assignCancelButton: {
     backgroundColor: '#f3f4f6',
     borderWidth: 1,

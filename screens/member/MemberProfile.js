@@ -474,9 +474,17 @@ export default function MemberProfile({ navigation }) {
             <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>{translations.memberProfile}</Text>
-          <TouchableOpacity onPress={() => setEditing(!editing)} activeOpacity={0.7}>
-            <Text style={styles.editButton}>{editing ? translations.cancel : translations.edit}</Text>
-          </TouchableOpacity>
+          {editing ? (
+            <TouchableOpacity onPress={handleSave} disabled={saving} activeOpacity={0.7}>
+              <Text style={styles.editButton}>
+                {saving ? translations.saving : translations.saveChanges}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={() => setEditing(true)} activeOpacity={0.7}>
+              <Text style={styles.editButton}>{translations.edit}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 

@@ -316,11 +316,19 @@ const auth = getAuthInstance(); // ✅ ADD THIS
               <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { fontSize: isSmallDevice ? 18 : 20 }]}>{translations.adminProfile}</Text>
-            <TouchableOpacity onPress={() => setEditing(!editing)}>
-              <Text style={[styles.editButton, { fontSize: isSmallDevice ? 12 : 14 }]}>
-                {editing ? translations.cancel : translations.edit}
-              </Text>
-            </TouchableOpacity>
+            {editing ? (
+              <TouchableOpacity onPress={handleSave} disabled={saving}>
+                <Text style={[styles.editButton, { fontSize: isSmallDevice ? 12 : 14 }]}>
+                  {saving ? translations.saving : translations.saveChanges}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={() => setEditing(true)}>
+                <Text style={[styles.editButton, { fontSize: isSmallDevice ? 12 : 14 }]}>
+                  {translations.edit}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -482,16 +490,6 @@ const auth = getAuthInstance(); // ✅ ADD THIS
             </View>
 
           </View>
-
-          {/* Action Buttons */}
-          {editing && (
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-              <MaterialIcons name="save" size={20} color="#ffffff" />
-              <Text style={[styles.saveButtonText, { fontSize: isSmallDevice ? 15 : 16 }]}>
-                {saving ? translations.saving : translations.saveChanges}
-              </Text>
-            </TouchableOpacity>
-          )}
 
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <MaterialIcons name="logout" size={20} color="#ffffff" />

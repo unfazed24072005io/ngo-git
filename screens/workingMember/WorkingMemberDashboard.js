@@ -1081,40 +1081,72 @@ const NodeMembersModal = () => (
   };
 
   // ============ REFERRAL FUNCTIONS ============
-  const generateReferralCode = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let code = '';
-    for (let i = 0; i < 8; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-  };
+  // ============ REFERRAL FUNCTIONS ============
+const generateReferralCode = () => {
+  console.log('🔑 [REFERRAL] Generating new referral code...');
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  console.log('🔑 [REFERRAL] Generated code:', code);
+  return code;
+};
 
-  const handleGenerateReferral = async () => {
-    const auth = getAuthInstance();
-    const userId = auth.currentUser?.uid;
-    if (!userId) return;
+const handleGenerateReferral = async () => {
+  console.log('🔑 [REFERRAL] ===== STARTING REFERRAL GENERATION =====');
+  
+  const auth = getAuthInstance();
+  console.log('🔑 [REFERRAL] Auth instance:', auth ? '✅ EXISTS' : '❌ NULL');
+  
+  const currentUser = auth.currentUser;
+  console.log('🔑 [REFERRAL] Current user:', currentUser ? '✅ EXISTS' : '❌ NULL');
+  console.log('🔑 [REFERRAL] Current user UID:', currentUser?.uid || '❌ NO UID');
+  console.log('🔑 [REFERRAL] Current user email:', currentUser?.email || '❌ NO EMAIL');
+  
+  const userId = currentUser?.uid;
+  console.log('🔑 [REFERRAL] User ID:', userId || '❌ UNDEFINED');
+  
+  if (!userId) {
+    console.log('❌ [REFERRAL] No user ID found - user may not be logged in');
+    console.log('❌ [REFERRAL] Auth state:', auth?.currentUser ? 'logged in' : 'not logged in');
+    Alert.alert('Error', 'You must be logged in to generate a referral code');
+    return;
+  }
+  
+  setGeneratingReferral(true);
+  console.log('🔄 [REFERRAL] Generating referral code for user:', userId);
+  
+  try {
+    const newCode = generateReferralCode();
+    console.log('🔑 [REFERRAL] New code generated:', newCode);
     
-    setGeneratingReferral(true);
-    try {
-      const newCode = generateReferralCode();
-      setReferralCode(newCode);
-      
-      await updateDoc(doc(db, 'users', userId), {
-        referralCode: newCode,
-        referralCodeGeneratedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      
-      Alert.alert('Success', `Your referral code: ${newCode}`);
-      
-    } catch (error) {
-      console.error('Error generating referral code:', error);
-      Alert.alert('Error', 'Failed to generate referral code. Please try again.');
-    } finally {
-      setGeneratingReferral(false);
-    }
-  };
+    setReferralCode(newCode);
+    console.log('✅ [REFERRAL] Referral code set in state');
+    
+    const userRef = doc(db, 'users', userId);
+    console.log('📡 [REFERRAL] Updating Firestore for user:', userId);
+    
+    await updateDoc(userRef, {
+      referralCode: newCode,
+      referralCodeGeneratedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    console.log('✅ [REFERRAL] Firestore updated successfully');
+    
+    Alert.alert('Success', `Your referral code: ${newCode}`);
+    console.log('✅ [REFERRAL] Alert shown to user');
+    
+  } catch (error) {
+    console.error('❌ [REFERRAL] Error generating referral code:', error);
+    console.error('❌ [REFERRAL] Error code:', error.code);
+    console.error('❌ [REFERRAL] Error message:', error.message);
+    Alert.alert('Error', 'Failed to generate referral code. Please try again.');
+  } finally {
+    setGeneratingReferral(false);
+    console.log('🔑 [REFERRAL] ===== REFERRAL GENERATION COMPLETE =====');
+  }
+};
 
   const handleShareReferral = async () => {
     if (!referralCode) {

@@ -16,22 +16,14 @@ import { Picker } from '@react-native-picker/picker';
 import { useLanguage } from '../context/LanguageContext';
 import { initiateRazorpayPayment, verifyRazorpayPayment } from '../services/paymentService';
 
-// ============ MESSAGECENTRAL (TWILIO) OTP SERVICE ============
-const MESSAGECENTRAL_BACKEND_URL = 'https://twilio-2tjp.onrender.com';
-
 export default function RegisterScreen({ navigation, route }) {
   const { t, counter } = useLanguage();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState('member');
   const [registrationMethod, setRegistrationMethod] = useState('email');
-  const [verificationId, setVerificationId] = useState('');
-  const [showOtpInput, setShowOtpInput] = useState(false);
-  const [otp, setOtp] = useState('');
   const [feesLoaded, setFeesLoaded] = useState(false);
   const [memberTypes, setMemberTypes] = useState([]);
-  const [generatedOtp, setGeneratedOtp] = useState('');
-  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [memberFees, setMemberFees] = useState({});
   const [referralCode, setReferralCode] = useState('');
   const [referralValid, setReferralValid] = useState(false);
@@ -39,11 +31,6 @@ export default function RegisterScreen({ navigation, route }) {
   const [checkingReferral, setCheckingReferral] = useState(false);
   const [showNoPaymentOption, setShowNoPaymentOption] = useState(false);
   const [noPaymentReason, setNoPaymentReason] = useState('');
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
-  const [otpTimer, setOtpTimer] = useState(0);
-  const [otpResendDisabled, setOtpResendDisabled] = useState(false);
-  const timerIntervalRef = useRef(null);
   
   // Payment States
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -78,7 +65,7 @@ export default function RegisterScreen({ navigation, route }) {
     emailRegistration: t('auth.emailRegistration') || 'Email Registration',
     registerUsingEmail: t('auth.registerUsingEmail') || 'Register using your email and password',
     phoneRegistration: t('auth.phoneRegistration') || 'Phone Registration',
-    registerUsingPhone: t('auth.registerUsingPhone') || 'Register using your phone number and OTP',
+    registerUsingPhone: t('auth.registerUsingPhone') || 'Register using your phone number and password',
     personalInformation: t('auth.personalInformation') || 'Personal Information',
     enterPersonalDetails: t('auth.enterPersonalDetails') || 'Enter your basic personal details',
     fullName: t('auth.fullName') || 'Full Name',
@@ -94,9 +81,8 @@ export default function RegisterScreen({ navigation, route }) {
     aadharNumber: t('auth.aadharNumber') || 'Aadhar Number',
     email: t('auth.email') || 'Email',
     phoneNumber: t('auth.phoneNumber') || 'Phone Number',
-    enterOtp: t('auth.enterOtp') || 'Enter OTP',
-    sendOtp: t('auth.sendOtp') || 'Send OTP',
-    verifyOtp: t('auth.verifyOtp') || 'Verify OTP',
+    password: t('auth.password') || 'Password',
+    confirmPassword: t('auth.confirmPassword') || 'Confirm Password',
     back: t('common.back') || 'Back',
     addressLocation: t('auth.addressLocation') || 'Address & Location',
     enterAddressDetails: t('auth.enterAddressDetails') || 'Enter your address and location details',
@@ -124,8 +110,6 @@ export default function RegisterScreen({ navigation, route }) {
     contributionAmount: t('auth.contributionAmount') || 'Contribution Amount (₹)',
     accountSecurity: t('auth.accountSecurity') || 'Account Security',
     setPassword: t('auth.setPassword') || 'Set your password for account security',
-    password: t('auth.password') || 'Password',
-    confirmPassword: t('auth.confirmPassword') || 'Confirm Password',
     profilePhoto: t('auth.profilePhoto') || 'Profile Photo',
     uploadProfilePhoto: t('auth.uploadProfilePhoto') || 'Upload your profile photo',
     changePhoto: t('auth.changePhoto') || 'Change Photo',
@@ -162,12 +146,6 @@ export default function RegisterScreen({ navigation, route }) {
     weakPassword: t('auth.weakPassword') || 'Password is too weak. Please use at least 6 characters.',
     networkError: t('auth.networkError') || 'Network error. Please check your internet connection.',
     validPhoneNumber: t('auth.validPhoneNumber') || 'Please enter a valid phone number',
-    invalidOtp: t('auth.invalidOtp') || 'Invalid OTP. Please try again.',
-    otpSent: t('auth.otpSent') || 'OTP Sent',
-    checkPhone: t('auth.checkPhone') || 'Please check your phone for the OTP',
-    failedToSendOtp: t('auth.failedToSendOtp') || 'Failed to send OTP. Please try again.',
-    invalidPhone: t('auth.invalidPhone') || 'Invalid phone number. Please enter a valid number.',
-    tooManyRequests: t('auth.tooManyRequests') || 'Too many requests. Please try again later.',
     fillAllFields: t('auth.fillAllFields') || 'Please fill all fields',
     fullNameRequired: t('auth.fullNameRequired') || 'Please enter your full name',
     phoneRequired: t('auth.phoneRequired') || 'Please enter your phone number',
@@ -318,214 +296,6 @@ export default function RegisterScreen({ navigation, route }) {
     }
   }, [formData.memberType, memberFees]);
 
-  useEffect(() => {
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (registrationMethod === 'phone') {
-      setIsPhoneVerified(false);
-      setShowOtpInput(false);
-      setOtp('');
-      setVerificationId('');
-    }
-  }, [registrationMethod]);
-
-  // ============ OTP TIMER FUNCTION ============
-  const startOtpTimer = (duration = 60) => {
-    setOtpTimer(duration);
-    setOtpResendDisabled(true);
-    
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-    }
-    
-    timerIntervalRef.current = setInterval(() => {
-      setOtpTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerIntervalRef.current);
-          timerIntervalRef.current = null;
-          setOtpResendDisabled(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  // ============ MESSAGECENTRAL (TWILIO) OTP FUNCTIONS ============
-  
-  const sendOTP = async (to, channel = 'SMS') => {
-    try {
-      setIsSendingOtp(true);
-      setLoading(true);
-
-      console.log('📤 Sending OTP to:', to, 'via:', channel);
-      console.log('📤 Backend URL:', MESSAGECENTRAL_BACKEND_URL);
-      
-      const response = await fetch(`${MESSAGECENTRAL_BACKEND_URL}/start-verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          to: to,
-          channel: channel,
-          otpLength: 6
-        })
-      });
-
-      console.log('📥 Response status:', response.status);
-      
-      const data = await response.json();
-      console.log('📥 Send OTP Response:', data);
-      
-      if (data.success) {
-        setVerificationId(data.verificationId);
-        setShowOtpInput(true);
-        setIsPhoneVerified(false);
-        startOtpTimer(parseInt(data.timeout) || 60);
-        Alert.alert(
-          translations.otpSent || 'OTP Sent',
-          `${translations.checkPhone || 'Please check your phone for the OTP'}\n${to}`
-        );
-      } else {
-        Alert.alert('Error', 'Failed to send OTP: ' + (data.error || 'Unknown error'));
-      }
-    } catch (error) {
-      console.error('❌ Send OTP error:', error);
-      
-      Alert.alert(
-        '⚠️ OTP Service Unavailable',
-        'Unable to send OTP. Please check your internet connection and try again.\n\nWould you like to use Test Mode? (OTP: 123456)',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Use Test Mode', 
-            onPress: () => {
-              const testOtp = '123456';
-              setGeneratedOtp(testOtp);
-              setVerificationId('test_verification_id');
-              setShowOtpInput(true);
-              Alert.alert('🧪 Test Mode', `OTP: ${testOtp}\nPhone: ${formData.phone}\n\n(No SMS sent - testing only)`);
-            }
-          }
-        ]
-      );
-    } finally {
-      setIsSendingOtp(false);
-      setLoading(false);
-    }
-  };
-
-  const verifyOTP = async (verificationId, code) => {
-    try {
-      setIsVerifyingOtp(true);
-      setLoading(true);
-
-      console.log('🔐 Verifying OTP for verificationId:', verificationId, 'code:', code);
-      
-      const response = await fetch(`${MESSAGECENTRAL_BACKEND_URL}/check-verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          verificationId: verificationId,
-          code: code
-        })
-      });
-
-      const data = await response.json();
-      console.log('✅ Verify OTP Response:', data);
-      
-      if (data.success) {
-        setIsPhoneVerified(true);
-        setShowOtpInput(false);
-        setOtp('');
-        setOtpTimer(0);
-        setOtpResendDisabled(false);
-        
-        if (timerIntervalRef.current) {
-          clearInterval(timerIntervalRef.current);
-          timerIntervalRef.current = null;
-        }
-        
-        Alert.alert('✅ Success', 'Phone number verified successfully!');
-        setStep(4);
-      } else {
-        Alert.alert('Error', data.message || 'Invalid OTP. Please try again.');
-        setOtp('');
-      }
-    } catch (error) {
-      console.error('❌ Verify OTP Error:', error);
-      Alert.alert('Error', 'Failed to verify OTP. Please try again.');
-    } finally {
-      setIsVerifyingOtp(false);
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    console.log('🔐 handleVerifyOtp called');
-    console.log('🔐 OTP:', otp);
-    console.log('🔐 VerificationId:', verificationId);
-    
-    if (!otp || otp.length < 6) {
-      Alert.alert(translations.error, 'Please enter complete 6-digit OTP');
-      return;
-    }
-
-    if (!verificationId) {
-      Alert.alert('Error', 'Verification ID missing. Please request OTP again.');
-      return;
-    }
-
-    if (verificationId === 'test_verification_id') {
-      if (otp !== generatedOtp) {
-        Alert.alert(translations.error, translations.invalidOtp);
-        return;
-      }
-      setIsPhoneVerified(true);
-      setShowOtpInput(false);
-      setOtp('');
-      Alert.alert('✅ Success', 'Phone number verified successfully!');
-      setStep(4);
-      return;
-    }
-
-    console.log('🔐 Calling verifyOTP with ID:', verificationId);
-    await verifyOTP(verificationId, otp);
-  };
-
-  const resendOTP = () => {
-    if (otpResendDisabled) {
-      Alert.alert('Please wait', `Please wait ${otpTimer} seconds before requesting a new OTP`);
-      return;
-    }
-    const to = `+91${formData.phone}`;
-    sendOTP(to, 'SMS');
-  };
-
-  const handleSendOtp = async () => {
-    console.log('📞 handleSendOtp called');
-    console.log('📞 Phone:', formData.phone);
-    
-    if (!formData.phone || formData.phone.length < 10) {
-      Alert.alert(translations.error, translations.validPhoneNumber);
-      return;
-    }
-
-    const to = `+91${formData.phone}`;
-    console.log('📤 Sending to MessageCentral:', to);
-    await sendOTP(to, 'SMS');
-  };
-
   const handleRegistrationFeePayment = async () => {
     console.log('🔵 [PAYMENT] Starting payment flow');
     console.log('🔵 [PAYMENT] Member Type:', formData.memberType);
@@ -662,29 +432,56 @@ export default function RegisterScreen({ navigation, route }) {
   };
 
   const handlePhoneRegister = async () => {
-    if (!isDonorFlow && !isPhoneVerified) {
-      Alert.alert(translations.error, 'Please verify your phone number first');
+  console.log('🔵 [PHONE] ===== PHONE REGISTER CALLED =====');
+  console.log('🔵 [PHONE] Full name:', formData.fullName);
+  console.log('🔵 [PHONE] Phone:', formData.phone);
+  console.log('🔵 [PHONE] Password length:', formData.password?.length || 0);
+  console.log('🔵 [PHONE] Confirm password length:', formData.confirmPassword?.length || 0);
+  console.log('🔵 [PHONE] Passwords match:', formData.password === formData.confirmPassword);
+  
+  if (!formData.fullName.trim()) {
+    console.log('❌ [PHONE] No full name');
+    Alert.alert(translations.error, translations.fullNameRequired);
+    return;
+  }
+
+  if (!formData.phone.trim()) {
+    console.log('❌ [PHONE] No phone number');
+    Alert.alert(translations.error, translations.phoneRequired);
+    return;
+  }
+
+  if (!formData.password || formData.password.length < 6) {
+    console.log('❌ [PHONE] Password too short or missing');
+    Alert.alert(translations.error, translations.passwordMinLength);
+    return;
+  }
+
+  if (formData.password !== formData.confirmPassword) {
+    console.log('❌ [PHONE] Passwords do not match');
+    Alert.alert(translations.error, translations.passwordMismatch);
+    return;
+  }
+
+  console.log('✅ [PHONE] All validations passed!');
+  console.log('🔵 [PHONE] Password to store:', formData.password);
+
+  if (!isDonorFlow && !isDonationFlow && role !== 'donor') {
+    const fee = parseFloat(feeAmount);
+    console.log('🔵 [PHONE] Fee check:', { fee, memberType: formData.memberType });
+    if (fee > 0 && formData.memberType) {
+      console.log('🔵 [PHONE] Opening payment modal');
+      setShowPaymentModal(true);
       return;
     }
+  }
 
-    if (!formData.fullName.trim()) {
-      Alert.alert(translations.error, translations.fullNameRequired);
-      return;
-    }
-
-    if (!isDonorFlow && !isDonationFlow && role !== 'donor') {
-      const fee = parseFloat(feeAmount);
-      if (fee > 0 && formData.memberType) {
-        setShowPaymentModal(true);
-        return;
-      }
-    }
-
-    await completePhoneRegistration({
-      uid: `phone_${Date.now()}`,
-      phoneNumber: formData.phone
-    });
-  };
+  console.log('🔵 [PHONE] Proceeding with phone registration');
+  await completePhoneRegistration({
+    uid: `phone_${Date.now()}`,
+    phoneNumber: formData.phone
+  });
+};
 
   const handleRegistrationWithoutPayment = async () => {
     console.log('🔵 [NO_PAYMENT] Starting registration without payment');
@@ -721,105 +518,213 @@ export default function RegisterScreen({ navigation, route }) {
   };
 
   const completePhoneRegistrationWithoutPayment = async (user) => {
-    console.log('🔵 [NO_PAYMENT] Starting silent phone registration');
-    
-    const userId = user.uid;
-    const finalRole = isDonationFlow ? 'donor' : role;
+  console.log('🔵 [NO_PAYMENT] ===== STARTING SILENT PHONE REGISTRATION WITHOUT PAYMENT =====');
+  console.log('🔵 [NO_PAYMENT] User UID:', user.uid);
+  console.log('🔵 [NO_PAYMENT] Phone number:', user.phoneNumber);
+  console.log('🔵 [NO_PAYMENT] Is Donation Flow:', isDonationFlow);
+  console.log('🔵 [NO_PAYMENT] Role:', role);
+  console.log('🔵 [NO_PAYMENT] Full Name:', formData.fullName);
+  console.log('🔵 [NO_PAYMENT] Phone:', formData.phone);
+  console.log('🔵 [NO_PAYMENT] Password provided:', !!formData.password);
+  console.log('🔵 [NO_PAYMENT] Password length:', formData.password?.length || 0);
+  console.log('🔵 [NO_PAYMENT] Confirm password provided:', !!formData.confirmPassword);
+  console.log('🔵 [NO_PAYMENT] Passwords match:', formData.password === formData.confirmPassword);
+  
+  const userId = user.uid;
+  const finalRole = isDonationFlow ? 'donor' : role;
+  
+  console.log('🔵 [NO_PAYMENT] Final role:', finalRole);
 
-    const userData = {
-      fullName: formData.fullName.trim(),
-      fatherName: formData.fatherName.trim(),
-      dob: formData.dob,
-      gender: formData.gender,
-      education: formData.education,
-      caste: formData.caste,
-      spouseName: formData.spouseName,
-      aadharNumber: formData.aadharNumber,
-      phone: formData.phone.trim(),
-      email: formData.email.trim().toLowerCase() || '',
-      address: formData.address.trim(),
-      village: formData.village,
-      postOffice: formData.postOffice,
-      thana: formData.thana,
-      district: formData.district,
-      state: formData.state,
-      pinCode: formData.pinCode,
-      nationality: formData.nationality,
-      otherNationality: formData.otherNationality || '',
-      profession: formData.profession,
-      membershipNumber: formData.membershipNumber,
-      membershipDate: formData.membershipDate,
-      guruAshram: formData.guruAshram,
-      memberType: formData.memberType,
-      contributionAmount: formData.contributionAmount,
+  const userData = {
+    fullName: formData.fullName.trim(),
+    fatherName: formData.fatherName.trim(),
+    dob: formData.dob,
+    gender: formData.gender,
+    education: formData.education,
+    caste: formData.caste,
+    spouseName: formData.spouseName,
+    aadharNumber: formData.aadharNumber,
+    phone: formData.phone.trim(),
+    email: formData.email.trim().toLowerCase() || '',
+    address: formData.address.trim(),
+    village: formData.village,
+    postOffice: formData.postOffice,
+    thana: formData.thana,
+    district: formData.district,
+    state: formData.state,
+    pinCode: formData.pinCode,
+    nationality: formData.nationality,
+    otherNationality: formData.otherNationality || '',
+    profession: formData.profession,
+    membershipNumber: formData.membershipNumber,
+    membershipDate: formData.membershipDate,
+    guruAshram: formData.guruAshram,
+    memberType: formData.memberType,
+    contributionAmount: formData.contributionAmount,
+    role: finalRole,
+    status: 'pending',
+    profilePhoto: formData.profilePhoto || null,
+    aadharFront: formData.aadharFront || null,
+    aadharBack: formData.aadharBack || null,
+    panCard: formData.panCard || null,
+    signature: formData.signature || null,
+    registrationFeePaid: false,
+    registrationFeeAmount: parseFloat(feeAmount) || 0,
+    registrationFeePaidAt: null,
+    paymentSkipped: true,
+    paymentSkippedReason: noPaymentReason || 'Payment skipped by user',
+    paymentSkippedAt: new Date().toISOString(),
+    requiresAdminApproval: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    uid: userId,
+    phoneNumber: formData.phone.trim(),
+    registrationMethod: 'phone',
+    referredBy: referrerData ? referrerData.id : null,
+    referredByName: referrerData ? referrerData.name : null,
+    referralCodeUsed: referralCode || null,
+    referralDate: referrerData ? new Date().toISOString() : null,
+    // ✅ CRITICAL FIX: Store password for phone login!
+    password: formData.password,
+    phonePassword: formData.password,
+  };
+
+  console.log('🔵 [NO_PAYMENT] ===== USER DATA SUMMARY =====');
+  console.log('🔵 [NO_PAYMENT] - Full Name:', userData.fullName);
+  console.log('🔵 [NO_PAYMENT] - Phone:', userData.phone);
+  console.log('🔵 [NO_PAYMENT] - Email:', userData.email || '(empty)');
+  console.log('🔵 [NO_PAYMENT] - Role:', userData.role);
+  console.log('🔵 [NO_PAYMENT] - Status:', userData.status);
+  console.log('🔵 [NO_PAYMENT] - Registration Method:', userData.registrationMethod);
+  console.log('🔵 [NO_PAYMENT] - password field exists:', 'password' in userData);
+  console.log('🔵 [NO_PAYMENT] - password value:', userData.password ? '✅ SET (length: ' + userData.password.length + ')' : '❌ MISSING');
+  console.log('🔵 [NO_PAYMENT] - phonePassword field exists:', 'phonePassword' in userData);
+  console.log('🔵 [NO_PAYMENT] - phonePassword value:', userData.phonePassword ? '✅ SET (length: ' + userData.phonePassword.length + ')' : '❌ MISSING');
+  console.log('🔵 [NO_PAYMENT] - referredBy:', userData.referredBy || 'none');
+  console.log('🔵 [NO_PAYMENT] - referralCodeUsed:', userData.referralCodeUsed || 'none');
+  console.log('🔵 [NO_PAYMENT] - paymentSkippedReason:', userData.paymentSkippedReason);
+  console.log('🔵 [NO_PAYMENT] ==============================================');
+
+  console.log('🔵 [NO_PAYMENT] Saving user data to Firestore collection:', finalRole === 'donor' ? 'donors' : 'users');
+
+  try {
+    if (finalRole === 'donor') {
+      console.log('🔵 [NO_PAYMENT] Saving to donors collection with ID:', userId);
+      await setDoc(doc(db, 'donors', userId), {
+        ...userData,
+        totalDonations: 0,
+        donationCount: 0,
+        lastDonation: null,
+      });
+      console.log('✅ [NO_PAYMENT] Donor saved successfully to Firestore');
+    } else {
+      console.log('🔵 [NO_PAYMENT] Saving to users collection with ID:', userId);
+      await setDoc(doc(db, 'users', userId), userData);
+      console.log('✅ [NO_PAYMENT] User saved successfully to Firestore');
+    }
+    console.log('✅ [NO_PAYMENT] User saved with pending status');
+    
+    // ✅ VERIFY: Immediately check if password was actually saved
+    console.log('🔵 [NO_PAYMENT] ===== VERIFYING DATA WAS SAVED =====');
+    const verifyCollection = finalRole === 'donor' ? 'donors' : 'users';
+    const verifyDoc = await getDoc(doc(db, verifyCollection, userId));
+    
+    if (verifyDoc.exists()) {
+      const savedData = verifyDoc.data();
+      console.log('✅ [NO_PAYMENT] Verification: Document exists in', verifyCollection);
+      console.log('🔵 [NO_PAYMENT] Verification results:');
+      console.log('🔵 [NO_PAYMENT] - password field exists:', 'password' in savedData);
+      console.log('🔵 [NO_PAYMENT] - password value:', savedData.password ? '✅ SET (length: ' + savedData.password.length + ')' : '❌ MISSING');
+      console.log('🔵 [NO_PAYMENT] - phonePassword field exists:', 'phonePassword' in savedData);
+      console.log('🔵 [NO_PAYMENT] - phonePassword value:', savedData.phonePassword ? '✅ SET (length: ' + savedData.phonePassword.length + ')' : '❌ MISSING');
+      console.log('🔵 [NO_PAYMENT] - fullName:', savedData.fullName || '❌ MISSING');
+      console.log('🔵 [NO_PAYMENT] - phone:', savedData.phone || '❌ MISSING');
+      console.log('🔵 [NO_PAYMENT] - role:', savedData.role || '❌ MISSING');
+      console.log('🔵 [NO_PAYMENT] - status:', savedData.status || '❌ MISSING');
+      
+      // Log all keys for debugging
+      console.log('🔵 [NO_PAYMENT] All keys in saved document:', Object.keys(savedData).join(', '));
+      
+      if (!savedData.password || !savedData.phonePassword) {
+        console.log('⚠️ [NO_PAYMENT] WARNING: Password fields were NOT saved correctly!');
+        console.log('⚠️ [NO_PAYMENT] This will prevent users from logging in.');
+      } else {
+        console.log('✅ [NO_PAYMENT] Password fields verified successfully!');
+      }
+    } else {
+      console.log('❌ [NO_PAYMENT] Verification FAILED: Document does not exist in', verifyCollection);
+    }
+    console.log('🔵 [NO_PAYMENT] ===== VERIFICATION COMPLETE =====');
+    
+  } catch (error) {
+    console.log('❌ [NO_PAYMENT] Error saving user data:', error);
+    console.log('❌ [NO_PAYMENT] Error code:', error.code);
+    console.log('❌ [NO_PAYMENT] Error message:', error.message);
+    console.log('❌ [NO_PAYMENT] Error stack:', error.stack);
+    throw error;
+  }
+
+  // Save phone mapping
+  try {
+    console.log('🔵 [NO_PAYMENT] ===== SAVING PHONE MAPPING =====');
+    console.log('🔵 [NO_PAYMENT] Phone number:', userData.phone);
+    console.log('🔵 [NO_PAYMENT] User ID:', userId);
+    console.log('🔵 [NO_PAYMENT] Role:', finalRole);
+    console.log('🔵 [NO_PAYMENT] Status: pending');
+    
+    await setDoc(doc(db, 'phoneUsers', userData.phone), {
+      userId: userId,
+      phone: userData.phone,
       role: finalRole,
       status: 'pending',
-      profilePhoto: formData.profilePhoto || null,
-      aadharFront: formData.aadharFront || null,
-      aadharBack: formData.aadharBack || null,
-      panCard: formData.panCard || null,
-      signature: formData.signature || null,
-      registrationFeePaid: false,
-      registrationFeeAmount: parseFloat(feeAmount) || 0,
-      registrationFeePaidAt: null,
-      paymentSkipped: true,
-      paymentSkippedReason: noPaymentReason || 'Payment skipped by user',
-      paymentSkippedAt: new Date().toISOString(),
-      requiresAdminApproval: true,
+      referredBy: referrerData ? referrerData.id : null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      uid: userId,
-      phoneNumber: formData.phone.trim(),
-      phoneVerified: true,
-      registrationMethod: 'phone',
-      referredBy: referrerData ? referrerData.id : null,
-      referredByName: referrerData ? referrerData.name : null,
-      referralCodeUsed: referralCode || null,
-      referralDate: referrerData ? new Date().toISOString() : null,
-    };
-
-    try {
-      if (finalRole === 'donor') {
-        await setDoc(doc(db, 'donors', userId), {
-          ...userData,
-          totalDonations: 0,
-          donationCount: 0,
-          lastDonation: null,
-        });
-      } else {
-        await setDoc(doc(db, 'users', userId), userData);
-      }
-      console.log('✅ [NO_PAYMENT] User saved with pending status');
-    } catch (error) {
-      console.log('❌ [NO_PAYMENT] Error saving user data:', error);
-      throw error;
-    }
-
-    try {
-      await setDoc(doc(db, 'phoneUsers', userData.phone), {
-        userId: userId,
-        phone: userData.phone,
-        role: finalRole,
-        status: 'pending',
-        referredBy: referrerData ? referrerData.id : null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error('❌ [NO_PAYMENT] Error saving phone mapping:', error);
-    }
-
-    try {
-      const auth = getAuthInstance();
-      await auth.signOut();
-    } catch (error) {
-      console.log('❌ [NO_PAYMENT] Error signing out:', error);
-    }
+    });
+    console.log('✅ [NO_PAYMENT] Phone mapping saved successfully');
     
-    setVerificationId('');
-    setShowOtpInput(false);
-    setOtp('');
-  };
+    // Verify phone mapping
+    const verifyPhoneMap = await getDoc(doc(db, 'phoneUsers', userData.phone));
+    if (verifyPhoneMap.exists()) {
+      console.log('✅ [NO_PAYMENT] Phone mapping verified: exists');
+      const mapData = verifyPhoneMap.data();
+      console.log('🔵 [NO_PAYMENT] Phone mapping data:', {
+        userId: mapData.userId,
+        phone: mapData.phone,
+        role: mapData.role,
+        status: mapData.status
+      });
+    } else {
+      console.log('❌ [NO_PAYMENT] Phone mapping verification FAILED');
+    }
+    console.log('🔵 [NO_PAYMENT] ===== PHONE MAPPING COMPLETE =====');
+    
+  } catch (error) {
+    console.error('❌ [NO_PAYMENT] Error saving phone mapping:', error);
+    console.error('❌ [NO_PAYMENT] Error stack:', error.stack);
+  }
+
+  // Sign out user
+  try {
+    const auth = getAuthInstance();
+    console.log('🔵 [NO_PAYMENT] Signing out user...');
+    await auth.signOut();
+    console.log('✅ [NO_PAYMENT] User signed out successfully');
+  } catch (error) {
+    console.log('❌ [NO_PAYMENT] Error signing out:', error);
+    console.log('❌ [NO_PAYMENT] Error stack:', error.stack);
+  }
+  
+  console.log('✅ [NO_PAYMENT] ===== SILENT PHONE REGISTRATION WITHOUT PAYMENT COMPLETE =====');
+  console.log('✅ [NO_PAYMENT] Summary:');
+  console.log('✅ [NO_PAYMENT] - User ID:', userId);
+  console.log('✅ [NO_PAYMENT] - Phone:', userData.phone);
+  console.log('✅ [NO_PAYMENT] - Role:', finalRole);
+  console.log('✅ [NO_PAYMENT] - Status: pending');
+  console.log('✅ [NO_PAYMENT] - Password stored:', !!userData.password);
+  console.log('✅ [NO_PAYMENT] - Phone mapping saved: yes');
+  console.log('✅ [NO_PAYMENT] ===========================================================');
+};
 
   const handleEmailRegisterWithoutPayment = async () => {
     console.log('🔵 [NO_PAYMENT] Starting email registration without payment');
@@ -909,228 +814,380 @@ export default function RegisterScreen({ navigation, route }) {
   };
 
   const completePhoneRegistrationSilent = async (user) => {
-    console.log('🔵 [SILENT] Starting silent phone registration');
-    console.log('🔵 [SILENT] User UID:', user.uid);
-    console.log('🔵 [SILENT] Phone number:', user.phoneNumber);
-    console.log('🔵 [SILENT] Is Donor Flow:', isDonorFlow);
-    
-    const userId = user.uid;
-    const finalRole = isDonorFlow ? 'donor' : (isDonationFlow ? 'donor' : role);
-    
-    console.log('🔵 [SILENT] Final role:', finalRole);
+  console.log('🔵 [SILENT] ===== STARTING SILENT PHONE REGISTRATION =====');
+  console.log('🔵 [SILENT] User UID:', user.uid);
+  console.log('🔵 [SILENT] Phone number:', user.phoneNumber);
+  console.log('🔵 [SILENT] Is Donor Flow:', isDonorFlow);
+  console.log('🔵 [SILENT] Is Donation Flow:', isDonationFlow);
+  console.log('🔵 [SILENT] Selected Role:', role);
+  console.log('🔵 [SILENT] Full Name:', formData.fullName);
+  console.log('🔵 [SILENT] Password provided:', !!formData.password);
+  console.log('🔵 [SILENT] Password length:', formData.password?.length || 0);
+  console.log('🔵 [SILENT] Confirm password provided:', !!formData.confirmPassword);
+  console.log('🔵 [SILENT] Passwords match:', formData.password === formData.confirmPassword);
+  
+  const userId = user.uid;
+  const finalRole = isDonorFlow ? 'donor' : (isDonationFlow ? 'donor' : role);
+  
+  console.log('🔵 [SILENT] Final role determined:', finalRole);
 
-    let userData;
-    
-    if (isDonorFlow) {
-      userData = {
-        fullName: formData.fullName.trim(),
-        phone: formData.phone.trim(),
-        email: formData.email.trim().toLowerCase() || '',
-        address: formData.address.trim() || '',
-        role: 'donor',
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        uid: userId,
-        phoneNumber: formData.phone.trim(),
-        phoneVerified: registrationMethod === 'phone' ? true : false,
-        registrationMethod: registrationMethod,
-        totalDonations: 0,
-        donationCount: 0,
-        lastDonation: null,
-        profilePhoto: null,
-        referredBy: referrerData ? referrerData.id : null,
-        referredByName: referrerData ? referrerData.name : null,
-        referralCodeUsed: referralCode || null,
-        referralDate: referrerData ? new Date().toISOString() : null,
-      };
+  let userData;
+  
+  if (isDonorFlow) {
+    console.log('🔵 [SILENT] Creating DONOR user data structure');
+    userData = {
+      fullName: formData.fullName.trim(),
+      phone: formData.phone.trim(),
+      email: formData.email.trim().toLowerCase() || '',
+      address: formData.address.trim() || '',
+      role: 'donor',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      uid: userId,
+      phoneNumber: formData.phone.trim(),
+      registrationMethod: registrationMethod,
+      totalDonations: 0,
+      donationCount: 0,
+      lastDonation: null,
+      profilePhoto: null,
+      referredBy: referrerData ? referrerData.id : null,
+      referredByName: referrerData ? referrerData.name : null,
+      referralCodeUsed: referralCode || null,
+      referralDate: referrerData ? new Date().toISOString() : null,
+      // ✅ STORE PASSWORD FOR DONOR
+      password: formData.password,
+      phonePassword: formData.password,
+    };
+    console.log('✅ [SILENT] Donor data created with password fields');
+  } else {
+    console.log('🔵 [SILENT] Creating USER data structure with role:', finalRole);
+    userData = {
+      fullName: formData.fullName.trim(),
+      fatherName: formData.fatherName.trim(),
+      dob: formData.dob,
+      gender: formData.gender,
+      education: formData.education,
+      caste: formData.caste,
+      spouseName: formData.spouseName,
+      aadharNumber: formData.aadharNumber,
+      phone: formData.phone.trim(),
+      email: formData.email.trim().toLowerCase() || '',
+      address: formData.address.trim(),
+      village: formData.village,
+      postOffice: formData.postOffice,
+      thana: formData.thana,
+      district: formData.district,
+      state: formData.state,
+      pinCode: formData.pinCode,
+      nationality: formData.nationality,
+      otherNationality: formData.otherNationality || '',
+      profession: formData.profession,
+      membershipNumber: formData.membershipNumber,
+      membershipDate: formData.membershipDate,
+      guruAshram: formData.guruAshram,
+      memberType: formData.memberType,
+      contributionAmount: formData.contributionAmount,
+      role: finalRole,
+      status: 'active',
+      profilePhoto: formData.profilePhoto || null,
+      aadharFront: formData.aadharFront || null,
+      aadharBack: formData.aadharBack || null,
+      panCard: formData.panCard || null,
+      signature: formData.signature || null,
+      registrationFeePaid: parseFloat(feeAmount) > 0 ? true : false,
+      registrationFeeAmount: parseFloat(feeAmount) || 0,
+      registrationFeePaidAt: parseFloat(feeAmount) > 0 ? new Date().toISOString() : null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      uid: userId,
+      phoneNumber: formData.phone.trim(),
+      registrationMethod: 'phone',
+      referredBy: referrerData ? referrerData.id : null,
+      referredByName: referrerData ? referrerData.name : null,
+      referralCodeUsed: referralCode || null,
+      referralDate: referrerData ? new Date().toISOString() : null,
+      // ✅ STORE PASSWORD - THIS WAS PREVIOUSLY MISSING!
+      password: formData.password,
+      phonePassword: formData.password,
+    };
+    console.log('✅ [SILENT] User data created with password fields');
+  }
+
+  console.log('🔵 [SILENT] ===== USER DATA SUMMARY =====');
+  console.log('🔵 [SILENT] - Full Name:', userData.fullName);
+  console.log('🔵 [SILENT] - Phone:', userData.phone);
+  console.log('🔵 [SILENT] - Email:', userData.email || '(empty)');
+  console.log('🔵 [SILENT] - Role:', userData.role);
+  console.log('🔵 [SILENT] - Status:', userData.status);
+  console.log('🔵 [SILENT] - Registration Method:', userData.registrationMethod);
+  console.log('🔵 [SILENT] - password field exists:', 'password' in userData);
+  console.log('🔵 [SILENT] - password value:', userData.password ? '✅ SET (length: ' + userData.password.length + ')' : '❌ MISSING');
+  console.log('🔵 [SILENT] - phonePassword field exists:', 'phonePassword' in userData);
+  console.log('🔵 [SILENT] - phonePassword value:', userData.phonePassword ? '✅ SET (length: ' + userData.phonePassword.length + ')' : '❌ MISSING');
+  console.log('🔵 [SILENT] - referralCodeUsed:', userData.referralCodeUsed || 'none');
+  console.log('🔵 [SILENT] - paymentSkipped:', userData.paymentSkipped || false);
+  console.log('🔵 [SILENT] ===================================');
+
+  console.log('🔵 [SILENT] Saving user data to Firestore collection:', finalRole === 'donor' ? 'donors' : 'users');
+
+  try {
+    if (finalRole === 'donor') {
+      console.log('🔵 [SILENT] Saving to donors collection with ID:', userId);
+      await setDoc(doc(db, 'donors', userId), userData);
+      console.log('✅ [SILENT] Donor saved successfully to Firestore');
     } else {
-      userData = {
-        fullName: formData.fullName.trim(),
-        fatherName: formData.fatherName.trim(),
-        dob: formData.dob,
-        gender: formData.gender,
-        education: formData.education,
-        caste: formData.caste,
-        spouseName: formData.spouseName,
-        aadharNumber: formData.aadharNumber,
-        phone: formData.phone.trim(),
-        email: formData.email.trim().toLowerCase() || '',
-        address: formData.address.trim(),
-        village: formData.village,
-        postOffice: formData.postOffice,
-        thana: formData.thana,
-        district: formData.district,
-        state: formData.state,
-        pinCode: formData.pinCode,
-        nationality: formData.nationality,
-        otherNationality: formData.otherNationality || '',
-        profession: formData.profession,
-        membershipNumber: formData.membershipNumber,
-        membershipDate: formData.membershipDate,
-        guruAshram: formData.guruAshram,
-        memberType: formData.memberType,
-        contributionAmount: formData.contributionAmount,
-        role: finalRole,
-        status: 'active',
-        profilePhoto: formData.profilePhoto || null,
-        aadharFront: formData.aadharFront || null,
-        aadharBack: formData.aadharBack || null,
-        panCard: formData.panCard || null,
-        signature: formData.signature || null,
-        registrationFeePaid: parseFloat(feeAmount) > 0 ? true : false,
-        registrationFeeAmount: parseFloat(feeAmount) || 0,
-        registrationFeePaidAt: parseFloat(feeAmount) > 0 ? new Date().toISOString() : null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        uid: userId,
-        phoneNumber: formData.phone.trim(),
-        phoneVerified: true,
-        registrationMethod: 'phone',
-        referredBy: referrerData ? referrerData.id : null,
-        referredByName: referrerData ? referrerData.name : null,
-        referralCodeUsed: referralCode || null,
-        referralDate: referrerData ? new Date().toISOString() : null,
-      };
+      console.log('🔵 [SILENT] Saving to users collection with ID:', userId);
+      await setDoc(doc(db, 'users', userId), userData);
+      console.log('✅ [SILENT] User saved successfully to Firestore');
     }
-
-    console.log('🔵 [SILENT] User data prepared:', JSON.stringify(userData, null, 2));
-    console.log('🔵 [SILENT] Saving user data to Firestore...');
-
-    try {
-      if (finalRole === 'donor') {
-        console.log('🔵 [SILENT] Saving as donor');
-        await setDoc(doc(db, 'donors', userId), userData);
-        console.log('✅ [SILENT] Donor saved successfully');
-      } else {
-        console.log('🔵 [SILENT] Saving as user (role:', finalRole + ')');
-        await setDoc(doc(db, 'users', userId), userData);
-        console.log('✅ [SILENT] User saved successfully');
-      }
-    } catch (error) {
-      console.log('❌ [SILENT] Error saving user data:', error);
-      throw error;
-    }
-
-    if (!isDonorFlow && referrerData && referrerData.id) {
-      console.log('🔵 [SILENT] Updating referrer:', referrerData.id);
-      console.log('🔵 [SILENT] Referrer name:', referrerData.name);
+    
+    // ✅ VERIFY: Immediately check if password was actually saved
+    console.log('🔵 [SILENT] ===== VERIFYING DATA WAS SAVED =====');
+    const verifyCollection = finalRole === 'donor' ? 'donors' : 'users';
+    const verifyDoc = await getDoc(doc(db, verifyCollection, userId));
+    
+    if (verifyDoc.exists()) {
+      const savedData = verifyDoc.data();
+      console.log('✅ [SILENT] Verification: Document exists in', verifyCollection);
+      console.log('🔵 [SILENT] Verification results:');
+      console.log('🔵 [SILENT] - password field exists:', 'password' in savedData);
+      console.log('🔵 [SILENT] - password value:', savedData.password ? '✅ SET (length: ' + savedData.password.length + ')' : '❌ MISSING');
+      console.log('🔵 [SILENT] - phonePassword field exists:', 'phonePassword' in savedData);
+      console.log('🔵 [SILENT] - phonePassword value:', savedData.phonePassword ? '✅ SET (length: ' + savedData.phonePassword.length + ')' : '❌ MISSING');
+      console.log('🔵 [SILENT] - fullName:', savedData.fullName || '❌ MISSING');
+      console.log('🔵 [SILENT] - phone:', savedData.phone || '❌ MISSING');
+      console.log('🔵 [SILENT] - role:', savedData.role || '❌ MISSING');
+      console.log('🔵 [SILENT] - status:', savedData.status || '❌ MISSING');
       
-      try {
-        const referrerRef = doc(db, 'users', referrerData.id);
-        const referrerDoc = await getDoc(referrerRef);
-        
-        if (referrerDoc.exists()) {
-          const referrer = referrerDoc.data();
-          const currentReferrals = referrer.directReferrals || [];
-          console.log('🔵 [SILENT] Current referrals count:', currentReferrals.length);
-          
-          await updateDoc(referrerRef, {
-            directReferrals: [...currentReferrals, userId],
-            updatedAt: new Date().toISOString()
-          });
-          console.log('✅ [SILENT] Referrer updated successfully');
-        } else {
-          console.log('⚠️ [SILENT] Referrer document not found');
-        }
-      } catch (error) {
-        console.log('❌ [SILENT] Error updating referrer:', error);
+      // Log all keys for debugging
+      console.log('🔵 [SILENT] All keys in saved document:', Object.keys(savedData).join(', '));
+      
+      if (!savedData.password || !savedData.phonePassword) {
+        console.log('⚠️ [SILENT] WARNING: Password fields were NOT saved correctly!');
+        console.log('⚠️ [SILENT] This will prevent users from logging in.');
+      } else {
+        console.log('✅ [SILENT] Password fields verified successfully!');
       }
     } else {
-      console.log('🔵 [SILENT] No referrer to update (donor flow or no referrer)');
+      console.log('❌ [SILENT] Verification FAILED: Document does not exist in', verifyCollection);
     }
+    console.log('🔵 [SILENT] ===== VERIFICATION COMPLETE =====');
+    
+  } catch (error) {
+    console.log('❌ [SILENT] ERROR saving user data:', error);
+    console.log('❌ [SILENT] Error code:', error.code);
+    console.log('❌ [SILENT] Error message:', error.message);
+    console.log('❌ [SILENT] Error stack:', error.stack);
+    throw error;
+  }
 
+  // Update referrer if applicable
+  if (!isDonorFlow && referrerData && referrerData.id) {
+    console.log('🔵 [SILENT] ===== UPDATING REFERRER =====');
+    console.log('🔵 [SILENT] Referrer ID:', referrerData.id);
+    console.log('🔵 [SILENT] Referrer Name:', referrerData.name);
+    console.log('🔵 [SILENT] Referrer Level:', referrerData.level);
+    
     try {
-      console.log('🔵 [SILENT] Saving phone mapping for:', userData.phone);
-      await setDoc(doc(db, 'phoneUsers', userData.phone), {
-        userId: userId,
-        phone: userData.phone,
-        role: finalRole,
-        referredBy: referrerData ? referrerData.id : null,
+      const referrerRef = doc(db, 'users', referrerData.id);
+      const referrerDoc = await getDoc(referrerRef);
+      
+      if (referrerDoc.exists()) {
+        const referrer = referrerDoc.data();
+        const currentReferrals = referrer.directReferrals || [];
+        console.log('🔵 [SILENT] Current referral count:', currentReferrals.length);
+        console.log('🔵 [SILENT] Adding new referral:', userId);
+        
+        await updateDoc(referrerRef, {
+          directReferrals: [...currentReferrals, userId],
+          updatedAt: new Date().toISOString()
+        });
+        console.log('✅ [SILENT] Referrer updated successfully');
+        console.log('✅ [SILENT] New referral count:', currentReferrals.length + 1);
+      } else {
+        console.log('⚠️ [SILENT] Referrer document not found for ID:', referrerData.id);
+      }
+    } catch (error) {
+      console.log('❌ [SILENT] Error updating referrer:', error);
+      console.log('❌ [SILENT] Error stack:', error.stack);
+    }
+    console.log('🔵 [SILENT] ===== REFERRER UPDATE COMPLETE =====');
+  } else {
+    console.log('🔵 [SILENT] No referrer to update (donor flow or no referrer)');
+  }
+
+  // Save phone mapping
+  try {
+    console.log('🔵 [SILENT] ===== SAVING PHONE MAPPING =====');
+    console.log('🔵 [SILENT] Phone number:', userData.phone);
+    console.log('🔵 [SILENT] User ID:', userId);
+    console.log('🔵 [SILENT] Role:', finalRole);
+    
+    await setDoc(doc(db, 'phoneUsers', userData.phone), {
+      userId: userId,
+      phone: userData.phone,
+      role: finalRole,
+      referredBy: referrerData ? referrerData.id : null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    console.log('✅ [SILENT] Phone mapping saved successfully in phoneUsers collection');
+    
+    // Verify phone mapping
+    const verifyPhoneMap = await getDoc(doc(db, 'phoneUsers', userData.phone));
+    if (verifyPhoneMap.exists()) {
+      console.log('✅ [SILENT] Phone mapping verified: exists');
+      const mapData = verifyPhoneMap.data();
+      console.log('🔵 [SILENT] Phone mapping data:', {
+        userId: mapData.userId,
+        phone: mapData.phone,
+        role: mapData.role
+      });
+    } else {
+      console.log('❌ [SILENT] Phone mapping verification FAILED');
+    }
+    console.log('🔵 [SILENT] ===== PHONE MAPPING COMPLETE =====');
+    
+  } catch (error) {
+    console.log('❌ [SILENT] Error saving phone mapping:', error);
+    console.log('❌ [SILENT] Error stack:', error.stack);
+  }
+
+  // Create wallet for working member
+  if (!isDonorFlow && finalRole === 'working') {
+    console.log('🔵 [SILENT] ===== CREATING WALLET =====');
+    console.log('🔵 [SILENT] User ID:', userId);
+    console.log('🔵 [SILENT] Role: working');
+    
+    try {
+      await setDoc(doc(db, 'wallets', userId), {
+        balance: 0,
+        totalEarned: 0,
+        pendingCommission: 0,
+        totalWithdrawn: 0,
+        pendingWithdrawals: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      console.log('✅ [SILENT] Phone mapping saved successfully');
-    } catch (error) {
-      console.log('❌ [SILENT] Error saving phone mapping:', error);
-    }
-
-    if (!isDonorFlow && finalRole === 'working') {
-      console.log('🔵 [SILENT] Creating wallet for working member');
-      try {
-        await setDoc(doc(db, 'wallets', userId), {
-          balance: 0,
-          totalEarned: 0,
-          pendingCommission: 0,
-          totalWithdrawn: 0,
-          pendingWithdrawals: 0,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-        console.log('✅ [SILENT] Wallet created successfully');
-      } catch (error) {
-        console.log('❌ [SILENT] Error creating wallet:', error);
+      console.log('✅ [SILENT] Wallet created successfully');
+      
+      // Verify wallet
+      const verifyWallet = await getDoc(doc(db, 'wallets', userId));
+      if (verifyWallet.exists()) {
+        console.log('✅ [SILENT] Wallet verified: exists');
+      } else {
+        console.log('❌ [SILENT] Wallet verification FAILED');
       }
-    }
-
-    try {
-      const auth = getAuthInstance();
-      console.log('🔵 [SILENT] Signing out user...');
-      await auth.signOut();
-      console.log('✅ [SILENT] User signed out');
     } catch (error) {
-      console.log('❌ [SILENT] Error signing out:', error);
+      console.log('❌ [SILENT] Error creating wallet:', error);
+      console.log('❌ [SILENT] Error stack:', error.stack);
     }
+    console.log('🔵 [SILENT] ===== WALLET CREATION COMPLETE =====');
+  }
 
-    const navigateTo = (isDonorFlow || finalRole === 'donor') ? 'DonationTabs' : 'Login';
-    console.log('🔵 [SILENT] Navigating to:', navigateTo);
-    
-    setVerificationId('');
-    setShowOtpInput(false);
-    setOtp('');
-    console.log('🔵 [SILENT] States reset');
-    
-    console.log('✅ [SILENT] Navigation starting...');
-    if (isDonorFlow || finalRole === 'donor') {
-      console.log('✅ [SILENT] Resetting to DonationTabs');
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'DonationTabs' }],
-      });
-    } else {
-      console.log('✅ [SILENT] Navigating to', navigateTo);
-      navigation.navigate(navigateTo);
-    }
-    console.log('✅ [SILENT] Navigation complete');
-  };
+  // Sign out user
+  try {
+    const auth = getAuthInstance();
+    console.log('🔵 [SILENT] Signing out user...');
+    await auth.signOut();
+    console.log('✅ [SILENT] User signed out successfully');
+  } catch (error) {
+    console.log('❌ [SILENT] Error signing out:', error);
+    console.log('❌ [SILENT] Error stack:', error.stack);
+  }
 
-  const handlePhoneRegisterWithoutAlert = async () => {
-    console.log('🔵 [PHONE_SILENT] Starting phone registration without alert');
-    console.log('🔵 [PHONE_SILENT] isPhoneVerified:', isPhoneVerified);
-    console.log('🔵 [PHONE_SILENT] Full name:', formData.fullName);
-    
-    if (!isPhoneVerified) {
-      console.log('❌ [PHONE_SILENT] Phone not verified, going back');
-      navigation.goBack();
-      return;
-    }
+  // Navigate to appropriate screen
+  const navigateTo = (isDonorFlow || finalRole === 'donor') ? 'DonationTabs' : 'Login';
+  console.log('🔵 [SILENT] ===== NAVIGATION =====');
+  console.log('🔵 [SILENT] Target screen:', navigateTo);
+  console.log('🔵 [SILENT] Is donor flow:', isDonorFlow);
+  console.log('🔵 [SILENT] Final role:', finalRole);
+  
+  console.log('✅ [SILENT] Navigation starting...');
+  if (isDonorFlow || finalRole === 'donor') {
+    console.log('✅ [SILENT] Resetting navigation to DonationTabs');
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'DonationTabs' }],
+    });
+  } else {
+    console.log('✅ [SILENT] Navigating to:', navigateTo);
+    navigation.navigate(navigateTo);
+  }
+  
+  console.log('✅ [SILENT] ===== SILENT PHONE REGISTRATION COMPLETE =====');
+  console.log('✅ [SILENT] Summary:');
+  console.log('✅ [SILENT] - User ID:', userId);
+  console.log('✅ [SILENT] - Phone:', userData.phone);
+  console.log('✅ [SILENT] - Role:', finalRole);
+  console.log('✅ [SILENT] - Password stored:', !!userData.password);
+  console.log('✅ [SILENT] - Phone mapping saved: yes');
+  console.log('✅ [SILENT] - Navigation to:', navigateTo);
+  console.log('✅ [SILENT] ==============================================');
+};
 
-    if (!formData.fullName.trim()) {
-      console.log('❌ [PHONE_SILENT] No full name, going back');
-      navigation.goBack();
-      return;
-    }
+const handlePhoneRegisterWithoutAlert = async () => {
+  console.log('🔵 [PHONE_SILENT] ===== STARTING PHONE REGISTRATION WITHOUT ALERT =====');
+  console.log('🔵 [PHONE_SILENT] Full name:', formData.fullName);
+  console.log('🔵 [PHONE_SILENT] Phone:', formData.phone);
+  console.log('🔵 [PHONE_SILENT] Password length:', formData.password?.length || 0);
+  console.log('🔵 [PHONE_SILENT] Confirm password length:', formData.confirmPassword?.length || 0);
+  console.log('🔵 [PHONE_SILENT] Password provided:', !!formData.password);
+  console.log('🔵 [PHONE_SILENT] Confirm password provided:', !!formData.confirmPassword);
+  console.log('🔵 [PHONE_SILENT] Passwords match:', formData.password === formData.confirmPassword);
+  console.log('🔵 [PHONE_SILENT] Is Donor Flow:', isDonorFlow);
+  console.log('🔵 [PHONE_SILENT] Is Donation Flow:', isDonationFlow);
+  console.log('🔵 [PHONE_SILENT] Selected Role:', role);
+  
+  if (!formData.fullName.trim()) {
+    console.log('❌ [PHONE_SILENT] Validation failed: No full name');
+    Alert.alert('Error', 'Please enter your full name');
+    return;
+  }
 
-    console.log('✅ [PHONE_SILENT] Validation passed, proceeding with silent registration');
-    console.log('🔵 [PHONE_SILENT] Creating user with UID: phone_' + Date.now());
-    
+  if (!formData.phone.trim()) {
+    console.log('❌ [PHONE_SILENT] Validation failed: No phone number');
+    Alert.alert('Error', 'Please enter your phone number');
+    return;
+  }
+
+  if (!formData.password || formData.password.length < 6) {
+    console.log('❌ [PHONE_SILENT] Validation failed: Password too short or missing');
+    console.log('🔵 [PHONE_SILENT] Password length:', formData.password?.length || 0);
+    Alert.alert('Error', 'Password must be at least 6 characters');
+    return;
+  }
+
+  if (formData.password !== formData.confirmPassword) {
+    console.log('❌ [PHONE_SILENT] Validation failed: Passwords do not match');
+    console.log('🔵 [PHONE_SILENT] Password:', formData.password);
+    console.log('🔵 [PHONE_SILENT] Confirm Password:', formData.confirmPassword);
+    Alert.alert('Error', 'Passwords do not match');
+    return;
+  }
+
+  console.log('✅ [PHONE_SILENT] All validations passed!');
+  console.log('🔵 [PHONE_SILENT] Password to store (length):', formData.password.length);
+  console.log('🔵 [PHONE_SILENT] Creating user with UID: phone_' + Date.now());
+  console.log('🔵 [PHONE_SILENT] Phone number:', formData.phone);
+  
+  try {
     await completePhoneRegistrationSilent({
       uid: `phone_${Date.now()}`,
       phoneNumber: formData.phone
     });
-    
-    console.log('✅ [PHONE_SILENT] Phone registration complete');
-  };
+    console.log('✅ [PHONE_SILENT] Phone registration completed successfully!');
+  } catch (error) {
+    console.log('❌ [PHONE_SILENT] Registration failed with error:', error);
+    console.log('❌ [PHONE_SILENT] Error code:', error.code);
+    console.log('❌ [PHONE_SILENT] Error message:', error.message);
+    console.log('❌ [PHONE_SILENT] Error stack:', error.stack);
+    Alert.alert('Registration Failed', 'Please try again. Error: ' + error.message);
+  }
+  
+  console.log('✅ [PHONE_SILENT] ===== PHONE REGISTRATION WITHOUT ALERT COMPLETE =====');
+};
 
   const handleEmailRegisterWithoutAlert = async () => {
     console.log('🔵 [EMAIL_SILENT] Starting email registration without alert');
@@ -1280,6 +1337,313 @@ export default function RegisterScreen({ navigation, route }) {
       navigation.goBack();
     }
   };
+
+  const completePhoneRegistration = async (user) => {
+  console.log('🔵 [PHONE] ===== STARTING PHONE REGISTRATION =====');
+  console.log('🔵 [PHONE] User UID:', user.uid);
+  console.log('🔵 [PHONE] Phone number:', user.phoneNumber);
+  console.log('🔵 [PHONE] Is Donor Flow:', isDonorFlow);
+  console.log('🔵 [PHONE] Is Donation Flow:', isDonationFlow);
+  console.log('🔵 [PHONE] Selected Role:', role);
+  console.log('🔵 [PHONE] Full Name:', formData.fullName);
+  console.log('🔵 [PHONE] Password provided:', !!formData.password);
+  console.log('🔵 [PHONE] Password length:', formData.password?.length || 0);
+  console.log('🔵 [PHONE] Confirm password provided:', !!formData.confirmPassword);
+  console.log('🔵 [PHONE] Passwords match:', formData.password === formData.confirmPassword);
+  
+  const userId = user.uid;
+  const finalRole = isDonorFlow ? 'donor' : (isDonationFlow ? 'donor' : role);
+  
+  console.log('🔵 [PHONE] Final role determined:', finalRole);
+
+  let userData;
+  
+  if (isDonorFlow) {
+    console.log('🔵 [PHONE] Creating DONOR user data structure');
+    userData = {
+      fullName: formData.fullName.trim(),
+      phone: formData.phone.trim(),
+      email: formData.email.trim().toLowerCase() || '',
+      address: formData.address.trim() || '',
+      role: 'donor',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      uid: userId,
+      phoneNumber: formData.phone.trim(),
+      registrationMethod: registrationMethod,
+      totalDonations: 0,
+      donationCount: 0,
+      lastDonation: null,
+      profilePhoto: null,
+      referredBy: referrerData ? referrerData.id : null,
+      referredByName: referrerData ? referrerData.name : null,
+      referralCodeUsed: referralCode || null,
+      referralDate: referrerData ? new Date().toISOString() : null,
+      // ✅ STORE PASSWORD FOR DONOR
+      password: formData.password,
+      phonePassword: formData.password,
+    };
+    console.log('✅ [PHONE] Donor data created with password field');
+  } else {
+    console.log('🔵 [PHONE] Creating USER data structure with role:', finalRole);
+    userData = {
+      fullName: formData.fullName.trim(),
+      fatherName: formData.fatherName.trim(),
+      dob: formData.dob,
+      gender: formData.gender,
+      education: formData.education,
+      caste: formData.caste,
+      spouseName: formData.spouseName,
+      aadharNumber: formData.aadharNumber,
+      phone: formData.phone.trim(),
+      email: formData.email.trim().toLowerCase() || '',
+      address: formData.address.trim(),
+      village: formData.village,
+      postOffice: formData.postOffice,
+      thana: formData.thana,
+      district: formData.district,
+      state: formData.state,
+      pinCode: formData.pinCode,
+      nationality: formData.nationality,
+      otherNationality: formData.otherNationality || '',
+      profession: formData.profession,
+      membershipNumber: formData.membershipNumber,
+      membershipDate: formData.membershipDate,
+      guruAshram: formData.guruAshram,
+      memberType: formData.memberType,
+      contributionAmount: formData.contributionAmount,
+      role: finalRole,
+      status: 'active',
+      profilePhoto: formData.profilePhoto || null,
+      aadharFront: formData.aadharFront || null,
+      aadharBack: formData.aadharBack || null,
+      panCard: formData.panCard || null,
+      signature: formData.signature || null,
+      registrationFeePaid: parseFloat(feeAmount) > 0 ? true : false,
+      registrationFeeAmount: parseFloat(feeAmount) || 0,
+      registrationFeePaidAt: parseFloat(feeAmount) > 0 ? new Date().toISOString() : null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      uid: userId,
+      phoneNumber: formData.phone.trim(),
+      registrationMethod: 'phone',
+      referredBy: referrerData ? referrerData.id : null,
+      referredByName: referrerData ? referrerData.name : null,
+      referralCodeUsed: referralCode || null,
+      referralDate: referrerData ? new Date().toISOString() : null,
+      // ✅ STORE PASSWORD - THIS WAS PREVIOUSLY MISSING!
+      password: formData.password,
+      phonePassword: formData.password,
+    };
+    console.log('✅ [PHONE] User data created with password fields');
+  }
+
+  console.log('🔵 [PHONE] ===== USER DATA SUMMARY =====');
+  console.log('🔵 [PHONE] - Full Name:', userData.fullName);
+  console.log('🔵 [PHONE] - Phone:', userData.phone);
+  console.log('🔵 [PHONE] - Email:', userData.email || '(empty)');
+  console.log('🔵 [PHONE] - Role:', userData.role);
+  console.log('🔵 [PHONE] - Status:', userData.status);
+  console.log('🔵 [PHONE] - Registration Method:', userData.registrationMethod);
+  console.log('🔵 [PHONE] - password field exists:', 'password' in userData);
+  console.log('🔵 [PHONE] - password value:', userData.password ? '✅ SET (length: ' + userData.password.length + ')' : '❌ MISSING');
+  console.log('🔵 [PHONE] - phonePassword field exists:', 'phonePassword' in userData);
+  console.log('🔵 [PHONE] - phonePassword value:', userData.phonePassword ? '✅ SET (length: ' + userData.phonePassword.length + ')' : '❌ MISSING');
+  console.log('🔵 [PHONE] - referralCodeUsed:', userData.referralCodeUsed || 'none');
+  console.log('🔵 [PHONE] ===================================');
+
+  console.log('🔵 [PHONE] Saving user data to Firestore collection:', finalRole === 'donor' ? 'donors' : 'users');
+
+  try {
+    if (finalRole === 'donor') {
+      console.log('🔵 [PHONE] Saving to donors collection with ID:', userId);
+      await setDoc(doc(db, 'donors', userId), userData);
+      console.log('✅ [PHONE] Donor saved successfully to Firestore');
+    } else {
+      console.log('🔵 [PHONE] Saving to users collection with ID:', userId);
+      await setDoc(doc(db, 'users', userId), userData);
+      console.log('✅ [PHONE] User saved successfully to Firestore');
+    }
+    
+    // ✅ VERIFY: Immediately check if password was actually saved
+    console.log('🔵 [PHONE] ===== VERIFYING DATA WAS SAVED =====');
+    const verifyCollection = finalRole === 'donor' ? 'donors' : 'users';
+    const verifyDoc = await getDoc(doc(db, verifyCollection, userId));
+    
+    if (verifyDoc.exists()) {
+      const savedData = verifyDoc.data();
+      console.log('✅ [PHONE] Verification: Document exists in', verifyCollection);
+      console.log('🔵 [PHONE] Verification results:');
+      console.log('🔵 [PHONE] - password field exists:', 'password' in savedData);
+      console.log('🔵 [PHONE] - password value:', savedData.password ? '✅ SET (length: ' + savedData.password.length + ')' : '❌ MISSING');
+      console.log('🔵 [PHONE] - phonePassword field exists:', 'phonePassword' in savedData);
+      console.log('🔵 [PHONE] - phonePassword value:', savedData.phonePassword ? '✅ SET (length: ' + savedData.phonePassword.length + ')' : '❌ MISSING');
+      console.log('🔵 [PHONE] - fullName:', savedData.fullName || '❌ MISSING');
+      console.log('🔵 [PHONE] - phone:', savedData.phone || '❌ MISSING');
+      console.log('🔵 [PHONE] - role:', savedData.role || '❌ MISSING');
+      console.log('🔵 [PHONE] - status:', savedData.status || '❌ MISSING');
+      
+      // Log all keys for debugging
+      console.log('🔵 [PHONE] All keys in saved document:', Object.keys(savedData).join(', '));
+      
+      if (!savedData.password || !savedData.phonePassword) {
+        console.log('⚠️ [PHONE] WARNING: Password fields were NOT saved correctly!');
+        console.log('⚠️ [PHONE] This will prevent users from logging in.');
+      } else {
+        console.log('✅ [PHONE] Password fields verified successfully!');
+      }
+    } else {
+      console.log('❌ [PHONE] Verification FAILED: Document does not exist in', verifyCollection);
+    }
+    console.log('🔵 [PHONE] ===== VERIFICATION COMPLETE =====');
+    
+  } catch (error) {
+    console.log('❌ [PHONE] ERROR saving user data:', error);
+    console.log('❌ [PHONE] Error code:', error.code);
+    console.log('❌ [PHONE] Error message:', error.message);
+    console.log('❌ [PHONE] Error stack:', error.stack);
+    throw error;
+  }
+
+  // Update referrer if applicable
+  if (!isDonorFlow && referrerData && referrerData.id) {
+    console.log('🔵 [PHONE] ===== UPDATING REFERRER =====');
+    console.log('🔵 [PHONE] Referrer ID:', referrerData.id);
+    console.log('🔵 [PHONE] Referrer Name:', referrerData.name);
+    console.log('🔵 [PHONE] Referrer Level:', referrerData.level);
+    
+    try {
+      const referrerRef = doc(db, 'users', referrerData.id);
+      const referrerDoc = await getDoc(referrerRef);
+      
+      if (referrerDoc.exists()) {
+        const referrer = referrerDoc.data();
+        const currentReferrals = referrer.directReferrals || [];
+        console.log('🔵 [PHONE] Current referral count:', currentReferrals.length);
+        console.log('🔵 [PHONE] Adding new referral:', userId);
+        
+        await updateDoc(referrerRef, {
+          directReferrals: [...currentReferrals, userId],
+          updatedAt: new Date().toISOString()
+        });
+        console.log('✅ [PHONE] Referrer updated successfully');
+        console.log('✅ [PHONE] New referral count:', currentReferrals.length + 1);
+      } else {
+        console.log('⚠️ [PHONE] Referrer document not found for ID:', referrerData.id);
+      }
+    } catch (error) {
+      console.log('❌ [PHONE] Error updating referrer:', error);
+      console.log('❌ [PHONE] Error stack:', error.stack);
+    }
+    console.log('🔵 [PHONE] ===== REFERRER UPDATE COMPLETE =====');
+  } else {
+    console.log('🔵 [PHONE] No referrer to update (donor flow or no referrer)');
+  }
+
+  // Save phone mapping
+  try {
+    console.log('🔵 [PHONE] ===== SAVING PHONE MAPPING =====');
+    console.log('🔵 [PHONE] Phone number:', userData.phone);
+    console.log('🔵 [PHONE] User ID:', userId);
+    console.log('🔵 [PHONE] Role:', finalRole);
+    
+    await setDoc(doc(db, 'phoneUsers', userData.phone), {
+      userId: userId,
+      phone: userData.phone,
+      role: finalRole,
+      referredBy: referrerData ? referrerData.id : null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    console.log('✅ [PHONE] Phone mapping saved successfully in phoneUsers collection');
+    
+    // Verify phone mapping
+    const verifyPhoneMap = await getDoc(doc(db, 'phoneUsers', userData.phone));
+    if (verifyPhoneMap.exists()) {
+      console.log('✅ [PHONE] Phone mapping verified: exists');
+    } else {
+      console.log('❌ [PHONE] Phone mapping verification FAILED');
+    }
+    console.log('🔵 [PHONE] ===== PHONE MAPPING COMPLETE =====');
+    
+  } catch (error) {
+    console.log('❌ [PHONE] Error saving phone mapping:', error);
+    console.log('❌ [PHONE] Error stack:', error.stack);
+  }
+
+  // Create wallet for working member
+  if (!isDonorFlow && finalRole === 'working') {
+    console.log('🔵 [PHONE] ===== CREATING WALLET =====');
+    console.log('🔵 [PHONE] User ID:', userId);
+    console.log('🔵 [PHONE] Role: working');
+    
+    try {
+      await setDoc(doc(db, 'wallets', userId), {
+        balance: 0,
+        totalEarned: 0,
+        pendingCommission: 0,
+        totalWithdrawn: 0,
+        pendingWithdrawals: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      console.log('✅ [PHONE] Wallet created successfully');
+      
+      // Verify wallet
+      const verifyWallet = await getDoc(doc(db, 'wallets', userId));
+      if (verifyWallet.exists()) {
+        console.log('✅ [PHONE] Wallet verified: exists');
+      } else {
+        console.log('❌ [PHONE] Wallet verification FAILED');
+      }
+    } catch (error) {
+      console.log('❌ [PHONE] Error creating wallet:', error);
+      console.log('❌ [PHONE] Error stack:', error.stack);
+    }
+    console.log('🔵 [PHONE] ===== WALLET CREATION COMPLETE =====');
+  }
+
+  // Sign out user
+  try {
+    const auth = getAuthInstance();
+    console.log('🔵 [PHONE] Signing out user...');
+    await auth.signOut();
+    console.log('✅ [PHONE] User signed out successfully');
+  } catch (error) {
+    console.log('❌ [PHONE] Error signing out:', error);
+    console.log('❌ [PHONE] Error stack:', error.stack);
+  }
+
+  // Navigate to appropriate screen
+  const navigateTo = (isDonorFlow || finalRole === 'donor') ? 'DonationTabs' : 'Login';
+  console.log('🔵 [PHONE] ===== NAVIGATION =====');
+  console.log('🔵 [PHONE] Target screen:', navigateTo);
+  console.log('🔵 [PHONE] Is donor flow:', isDonorFlow);
+  console.log('🔵 [PHONE] Final role:', finalRole);
+  
+  console.log('✅ [PHONE] Navigation starting...');
+  if (isDonorFlow || finalRole === 'donor') {
+    console.log('✅ [PHONE] Resetting navigation to DonationTabs');
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'DonationTabs' }],
+    });
+  } else {
+    console.log('✅ [PHONE] Navigating to:', navigateTo);
+    navigation.navigate(navigateTo);
+  }
+  
+  console.log('✅ [PHONE] ===== PHONE REGISTRATION COMPLETE =====');
+  console.log('✅ [PHONE] Summary:');
+  console.log('✅ [PHONE] - User ID:', userId);
+  console.log('✅ [PHONE] - Phone:', userData.phone);
+  console.log('✅ [PHONE] - Role:', finalRole);
+  console.log('✅ [PHONE] - Password stored:', !!userData.password);
+  console.log('✅ [PHONE] - Phone mapping saved: yes');
+  console.log('✅ [PHONE] - Navigation to:', navigateTo);
+  console.log('✅ [PHONE] ==========================================');
+};
 
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1530,10 +1894,6 @@ export default function RegisterScreen({ navigation, route }) {
         style={[styles.methodCard, registrationMethod === 'email' && styles.methodCardActive]}
         onPress={() => {
           setRegistrationMethod('email');
-          setIsPhoneVerified(false);
-          setShowOtpInput(false);
-          setOtp('');
-          setVerificationId('');
         }}
       >
         <View style={[styles.methodIcon, { backgroundColor: registrationMethod === 'email' ? '#FF7722' : '#e5e7eb' }]}>
@@ -1541,7 +1901,6 @@ export default function RegisterScreen({ navigation, route }) {
         </View>
         <View style={styles.methodContent}>
           <Text style={[styles.methodTitle, registrationMethod === 'email' && styles.methodTitleActive]}>{translations.emailRegistration}</Text>
-          <Text style={styles.methodDescription}>{translations.registerUsingEmail}</Text>
         </View>
         {registrationMethod === 'email' && (
           <MaterialIcons name="check-circle" size={20} color="#FF7722" />
@@ -1552,10 +1911,6 @@ export default function RegisterScreen({ navigation, route }) {
         style={[styles.methodCard, registrationMethod === 'phone' && styles.methodCardActive]}
         onPress={() => {
           setRegistrationMethod('phone');
-          setIsPhoneVerified(false);
-          setShowOtpInput(false);
-          setOtp('');
-          setVerificationId('');
         }}
       >
         <View style={[styles.methodIcon, { backgroundColor: registrationMethod === 'phone' ? '#10b981' : '#e5e7eb' }]}>
@@ -1563,7 +1918,6 @@ export default function RegisterScreen({ navigation, route }) {
         </View>
         <View style={styles.methodContent}>
           <Text style={[styles.methodTitle, registrationMethod === 'phone' && styles.methodTitleActive]}>{translations.phoneRegistration}</Text>
-          <Text style={styles.methodDescription}>{translations.registerUsingPhone}</Text>
         </View>
         {registrationMethod === 'phone' && (
           <MaterialIcons name="check-circle" size={20} color="#10b981" />
@@ -1572,7 +1926,7 @@ export default function RegisterScreen({ navigation, route }) {
 
       <TouchableOpacity style={styles.nextButton} onPress={() => {
         if (registrationMethod === 'phone') {
-          setStep(3);
+          setStep(4);
         } else {
           setStep(4);
         }
@@ -1582,160 +1936,13 @@ export default function RegisterScreen({ navigation, route }) {
     </View>
   );
 
-  // ============ STEP 3: OTP Verification (Phone Only) ============
-  const renderOtpVerification = () => {
-    if (registrationMethod !== 'phone') return null;
-
-    return (
-      <View>
-        <Text style={styles.stepTitle}>Verify Your Phone Number</Text>
-        <Text style={styles.subStep}>Enter your phone number to receive OTP</Text>
-
-        <View style={styles.fieldContainer}>
-          <View style={styles.phoneInputWrapper}>
-            <Text style={styles.countryCode}>+91</Text>
-            <TextInput
-              style={styles.phoneInput}
-              placeholder="Enter phone number"
-              placeholderTextColor="#9ca3af"
-              value={formData.phone}
-              onChangeText={(text) => {
-                const cleaned = text.replace(/\D/g, '').slice(0, 10);
-                setFormData({...formData, phone: cleaned});
-                if (isPhoneVerified) {
-                  setIsPhoneVerified(false);
-                  setShowOtpInput(false);
-                  setOtp('');
-                  setVerificationId('');
-                }
-              }}
-              keyboardType="phone-pad"
-              maxLength={10}
-              editable={!isPhoneVerified}
-            />
-          </View>
-          <View style={styles.bottomLine} />
-        </View>
-
-        {isPhoneVerified && (
-          <View style={styles.phoneDisplayContainer}>
-            <MaterialIcons name="phone" size={24} color="#10b981" />
-            <Text style={styles.phoneDisplayText}>+91 {formData.phone}</Text>
-            <TouchableOpacity onPress={() => {
-              setIsPhoneVerified(false);
-              setShowOtpInput(false);
-              setOtp('');
-              setVerificationId('');
-            }}>
-              <Text style={styles.changePhoneText}>Change</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {!isPhoneVerified && (
-          <>
-            {!showOtpInput && (
-              <TouchableOpacity
-                style={[styles.sendOtpButton, (isSendingOtp) && styles.disabledButton]}
-                onPress={handleSendOtp}
-                disabled={isSendingOtp || !formData.phone || formData.phone.length < 10}
-              >
-                {isSendingOtp ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text style={styles.sendOtpText}>Send OTP</Text>
-                )}
-              </TouchableOpacity>
-            )}
-
-            {showOtpInput && (
-              <>
-                <View style={styles.fieldContainer}>
-                  <TextInput
-                    style={[styles.input, styles.otpInputLarge]}
-                    placeholder="Enter 6-digit OTP"
-                    placeholderTextColor="#9ca3af"
-                    value={otp}
-                    onChangeText={setOtp}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                  />
-                  <View style={styles.bottomLine} />
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.sendOtpButton, (isVerifyingOtp) && styles.disabledButton]}
-                  onPress={handleVerifyOtp}
-                  disabled={isVerifyingOtp || otp.length < 6}
-                >
-                  {isVerifyingOtp ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <Text style={styles.sendOtpText}>Verify OTP</Text>
-                  )}
-                </TouchableOpacity>
-
-                <View style={styles.otpTimerContainer}>
-                  <Text style={styles.otpTimerText}>
-                    {otpResendDisabled ? `Resend OTP in ${otpTimer}s` : ''}
-                  </Text>
-                  {!otpResendDisabled && (
-                    <TouchableOpacity onPress={resendOTP}>
-                      <Text style={styles.resendOtpText}>Resend OTP</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </>
-            )}
-          </>
-        )}
-
-        {isPhoneVerified && (
-          <View style={styles.verifiedContainer}>
-            <MaterialIcons name="check-circle" size={24} color="#10b981" />
-            <Text style={styles.verifiedText}>Phone Verified Successfully!</Text>
-          </View>
-        )}
-
-        <View style={styles.stepButtons}>
-          <TouchableOpacity style={styles.backButton} onPress={() => setStep(2)}>
-            <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
-            <Text style={styles.buttonText}>{translations.back}</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[
-              styles.nextButton, 
-              !isPhoneVerified && styles.disabledButton
-            ]} 
-            onPress={() => setStep(4)}
-            disabled={!isPhoneVerified}
-          >
-            <Text style={styles.buttonText}>{translations.next} →</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
-
   // ============ STEP 4: Personal Information ============
   const renderPersonalInfo = () => {
-    if (registrationMethod === 'phone' && !isPhoneVerified) {
-      return null;
-    }
-
     if (isDonorFlow) {
       return (
         <View>
           <Text style={styles.stepTitle}>Donor Registration</Text>
           <Text style={styles.subStep}>Enter your basic details to register as a donor</Text>
-          
-          {registrationMethod === 'phone' && isPhoneVerified && (
-            <View style={styles.verifiedBadge}>
-              <MaterialIcons name="verified" size={16} color="#10b981" />
-              <Text style={styles.verifiedBadgeText}>Phone Verified</Text>
-            </View>
-          )}
           
           <View style={styles.fieldContainer}>
             <TextInput
@@ -1771,18 +1978,12 @@ export default function RegisterScreen({ navigation, route }) {
               placeholderTextColor="#9ca3af"
               value={formData.phone}
               onChangeText={(text) => {
-                if (registrationMethod !== 'phone') {
-                  setFormData({...formData, phone: text});
-                }
+                setFormData({...formData, phone: text});
               }}
               keyboardType="phone-pad"
               maxLength={10}
-              editable={registrationMethod !== 'phone'}
             />
             <View style={styles.bottomLine} />
-            {registrationMethod === 'phone' && (
-              <Text style={styles.phoneLockedText}>Phone number verified and locked</Text>
-            )}
           </View>
 
           <View style={styles.fieldContainer}>
@@ -1802,7 +2003,7 @@ export default function RegisterScreen({ navigation, route }) {
           <View style={styles.stepButtons}>
             <TouchableOpacity 
               style={styles.backButton} 
-              onPress={() => setStep(registrationMethod === 'phone' ? 3 : 2)}
+              onPress={() => setStep(2)}
             >
               <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
               <Text style={styles.buttonText}>Back</Text>
@@ -1823,13 +2024,6 @@ export default function RegisterScreen({ navigation, route }) {
       <View>
         <Text style={styles.stepTitle}>{translations.personalInformation}</Text>
         <Text style={styles.subStep}>{translations.enterPersonalDetails}</Text>
-        
-        {registrationMethod === 'phone' && isPhoneVerified && (
-          <View style={styles.verifiedBadge}>
-            <MaterialIcons name="verified" size={16} color="#10b981" />
-            <Text style={styles.verifiedBadgeText}>Phone Verified</Text>
-          </View>
-        )}
         
         <View style={styles.fieldContainer}>
           <TextInput
@@ -2007,27 +2201,21 @@ export default function RegisterScreen({ navigation, route }) {
 
         <View style={styles.fieldContainer}>
           <TextInput
-            style={[styles.input, registrationMethod === 'phone' && styles.disabledInput]}
+            style={styles.input}
             placeholder={`${translations.phoneNumber} *`}
             placeholderTextColor="#9ca3af"
             value={formData.phone}
             onChangeText={(text) => {
-              if (registrationMethod !== 'phone') {
-                setFormData({...formData, phone: text});
-              }
+              setFormData({...formData, phone: text});
             }}
             keyboardType="phone-pad"
             maxLength={10}
-            editable={registrationMethod !== 'phone'}
           />
           <View style={styles.bottomLine} />
-          {registrationMethod === 'phone' && (
-            <Text style={styles.phoneLockedText}>Phone number verified and locked</Text>
-          )}
         </View>
 
         <View style={styles.stepButtons}>
-          <TouchableOpacity style={styles.backButton} onPress={() => setStep(registrationMethod === 'phone' ? 3 : 2)}>
+          <TouchableOpacity style={styles.backButton} onPress={() => setStep(2)}>
             <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
             <Text style={styles.buttonText}>{translations.back}</Text>
           </TouchableOpacity>
@@ -2155,7 +2343,7 @@ export default function RegisterScreen({ navigation, route }) {
   // ============ STEP 6: Membership Details ============
   const renderMembershipDetails = () => {
     if (isDonationFlow) {
-      setTimeout(() => setStep(9), 100);
+      setTimeout(() => setStep(7), 100);
       return null;
     }
 
@@ -2288,11 +2476,6 @@ export default function RegisterScreen({ navigation, route }) {
 
   // ============ STEP 7: Password ============
   const renderPassword = () => {
-    if (registrationMethod === 'phone') {
-      setTimeout(() => setStep(8), 100);
-      return null;
-    }
-
     if (isDonorFlow) {
       return (
         <View>
@@ -2402,7 +2585,7 @@ export default function RegisterScreen({ navigation, route }) {
       </View>
 
       <View style={styles.stepButtons}>
-        <TouchableOpacity style={styles.backButton} onPress={() => setStep(registrationMethod === 'phone' ? 6 : 7)}>
+        <TouchableOpacity style={styles.backButton} onPress={() => setStep(7)}>
           <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
           <Text style={styles.buttonText}>{translations.back}</Text>
         </TouchableOpacity>
@@ -2819,10 +3002,6 @@ export default function RegisterScreen({ navigation, route }) {
       return renderRegistrationMethod();
     }
     
-    if (step === 3) {
-      return renderOtpVerification();
-    }
-    
     if (step === 4) {
       return renderPersonalInfo();
     }
@@ -2916,28 +3095,14 @@ export default function RegisterScreen({ navigation, route }) {
   }, [step, isDonorFlow]);
 
   useEffect(() => {
-    if (registrationMethod === 'phone' && step === 7) {
-      console.log('🔵 [PHONE] Skipping password step, moving to step 8');
-      setTimeout(() => setStep(8), 100);
-    }
-  }, [step, registrationMethod]);
-
-  useEffect(() => {
     if (isDonationFlow && step === 1) {
       console.log('🔵 [DONATION] Skipping step 1, moving to step 2');
       setTimeout(() => setStep(2), 100);
     }
     if (isDonationFlow && step === 6) {
-      console.log('🔵 [DONATION] Skipping step 6, moving to step 9');
-      setTimeout(() => setStep(9), 100);
+      console.log('🔵 [DONATION] Skipping step 6, moving to step 7');
+      setTimeout(() => setStep(7), 100);
     }
-    if (isDonationFlow && step === 9) {
-      console.log('🔵 [DONATION] Skipping step 9, moving to step 12');
-      setTimeout(() => setStep(12), 100);
-    }
-  }, [step, isDonationFlow]);
-
-  useEffect(() => {
     if (isDonationFlow && step >= 9 && step <= 11) {
       console.log('🔵 [DONATION] Skipping aadhar/pan steps, moving to step 12');
       setTimeout(() => setStep(12), 100);
@@ -2947,23 +3112,6 @@ export default function RegisterScreen({ navigation, route }) {
   useEffect(() => {
     fetchMemberFees();
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (registrationMethod === 'phone') {
-      setIsPhoneVerified(false);
-      setShowOtpInput(false);
-      setOtp('');
-      setVerificationId('');
-    }
-  }, [registrationMethod]);
 
   useEffect(() => {
     if (formData.memberType) {
@@ -3242,25 +3390,6 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 5,
   },
-  sendOtpButton: {
-    backgroundColor: '#FF7722',
-    paddingVertical: 14,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    marginBottom: 16,
-    shadowColor: '#FF7722',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  sendOtpText: {
-    fontFamily: Fonts.SemiBold,
-    color: '#ffffff',
-    fontSize: 16,
-  },
   disabledButton: {
     opacity: 0.6,
   },
@@ -3364,113 +3493,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
   },
-  phoneInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-  },
-  countryCode: {
-    fontFamily: Fonts.SemiBold,
-    fontSize: 18,
-    color: '#1f2937',
-    paddingRight: 8,
-    paddingVertical: 12,
-  },
-  phoneInput: {
-    fontFamily: Fonts.Regular,
-    fontSize: 18,
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    color: '#1f2937',
-    backgroundColor: 'transparent',
-    flex: 1,
-  },
-  phoneDisplayContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 20,
-    gap: 12,
-  },
-  phoneDisplayText: {
-    fontFamily: Fonts.SemiBold,
-    fontSize: 16,
-    color: '#1f2937',
-    flex: 1,
-  },
-  changePhoneText: {
-    fontFamily: Fonts.SemiBold,
-    fontSize: 14,
-    color: '#FF7722',
-  },
-  otpInputLarge: {
-    fontSize: 20,
-    textAlign: 'center',
-    letterSpacing: 8,
-    paddingVertical: 16,
-  },
-  verifiedContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f0fdf4',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-    marginVertical: 10,
-    gap: 8,
-  },
-  verifiedText: {
-    fontFamily: Fonts.SemiBold,
-    fontSize: 16,
-    color: '#10b981',
-  },
-  otpTimerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    marginBottom: 8,
-  },
-  otpTimerText: {
-    fontFamily: Fonts.Regular,
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  resendOtpText: {
-    fontFamily: Fonts.SemiBold,
-    fontSize: 14,
-    color: '#FF7722',
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0fdf4',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 16,
-    alignSelf: 'flex-start',
-    gap: 4,
-  },
-  verifiedBadgeText: {
-    fontFamily: Fonts.SemiBold,
-    fontSize: 12,
-    color: '#10b981',
-  },
   disabledInput: {
     color: '#9ca3af',
-  },
-  phoneLockedText: {
-    fontFamily: Fonts.Regular,
-    fontSize: 12,
-    color: '#10b981',
-    marginTop: 4,
-    marginLeft: 4,
   },
   feeContainer: {
     marginVertical: 12,
@@ -3612,6 +3636,28 @@ const styles = StyleSheet.create({
   paymentModalCloseText: {
     fontFamily: Fonts.Regular,
     fontSize: 14,
+    color: '#6b7280',
+  },
+  referralValidContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 4,
+  },
+  referralValidText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
+    color: '#10b981',
+  },
+  referralCheckingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 8,
+  },
+  referralCheckingText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 12,
     color: '#6b7280',
   },
 });

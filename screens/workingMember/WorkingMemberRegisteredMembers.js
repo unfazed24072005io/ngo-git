@@ -1276,13 +1276,26 @@ const [registerData, setRegisterData] = useState({
   }}
 >
   <View style={styles.modalOverlay}>
+    <TouchableOpacity 
+      style={styles.modalBackdrop}
+      activeOpacity={1}
+      onPress={() => {
+        if (!registerLoading) {
+          setRegisterModalVisible(false);
+          setStep(1);
+        }
+      }}
+    />
     <KeyboardAvoidingView 
-      style={{ flex: 1, justifyContent: 'center' }}
+      style={styles.modalKeyboardView}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
     >
       <View style={styles.modalContent}>
         <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle} numberOfLines={1}>{translations.registerNewMember}</Text>
+          <Text style={[styles.modalTitle, { fontSize: isSmallDevice ? 16 : 20 }]} numberOfLines={1}>
+            {translations.registerNewMember}
+          </Text>
           <TouchableOpacity 
             onPress={() => {
               if (!registerLoading) {
@@ -1298,17 +1311,25 @@ const [registerData, setRegisterData] = useState({
 
         {/* Progress Bar */}
         <View style={styles.progressContainer}>
-          <Text style={styles.progressText}>{translations.step} {step} {translations.of} {getTotalSteps()}</Text>
+          <Text style={[styles.progressText, { fontSize: isSmallDevice ? 10 : 12 }]}>
+            {translations.step} {step} {translations.of} {getTotalSteps()}
+          </Text>
           <View style={styles.progressBar}>
             <View style={[styles.progressFill, { width: `${(step / getTotalSteps()) * 100}%` }]} />
           </View>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          showsVerticalScrollIndicator={true}
+          contentContainerStyle={styles.scrollContent}
+          style={{ flex: 1 }}
+        >
           {/* Step 1: Personal Information */}
           {step === 1 && (
             <View style={styles.stepContainer}>
-              <Text style={styles.stepTitle}>{translations.personalInformation}</Text>
+              <Text style={[styles.stepTitle, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                {translations.personalInformation}
+              </Text>
               
               {/* Full Name */}
               <View style={styles.formField}>
@@ -1429,19 +1450,19 @@ const [registerData, setRegisterData] = useState({
               </View>
 
               {/* Date of Birth */}
-<View style={styles.formField}>
-  <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
-    {translations.dateOfBirth}
-  </Text>
-  <TextInput
-    style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-    value={registerData.dob}
-    onChangeText={(text) => setRegisterData({ ...registerData, dob: text })}
-    placeholder="DD/MM/YYYY"
-    placeholderTextColor="#9ca3af"
-    editable={!registerLoading}
-  />
-</View>
+              <View style={styles.formField}>
+                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                  {translations.dateOfBirth}
+                </Text>
+                <TextInput
+                  style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                  value={registerData.dob}
+                  onChangeText={(text) => setRegisterData({ ...registerData, dob: text })}
+                  placeholder="DD/MM/YYYY"
+                  placeholderTextColor="#9ca3af"
+                  editable={!registerLoading}
+                />
+              </View>
 
               {/* Address */}
               <View style={styles.formField}>
@@ -1465,7 +1486,9 @@ const [registerData, setRegisterData] = useState({
           {/* Step 2: Account Details */}
           {step === 2 && (
             <View style={styles.stepContainer}>
-              <Text style={styles.stepTitle}>{translations.accountDetails}</Text>
+              <Text style={[styles.stepTitle, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                {translations.accountDetails}
+              </Text>
               
               {/* Email or Phone for login */}
               <View style={styles.formField}>
@@ -1548,7 +1571,6 @@ const [registerData, setRegisterData] = useState({
                 </View>
               </View>
 
-              
               {/* Password Match Indicator */}
               {registerData.password && registerData.confirmPassword && (
                 <View style={styles.passwordMatchContainer}>
@@ -1573,53 +1595,89 @@ const [registerData, setRegisterData] = useState({
           {/* Step 3: Review & Submit */}
           {step === 3 && (
             <View style={styles.stepContainer}>
-              <Text style={styles.stepTitle}>{translations.reviewAndSubmit}</Text>
+              <Text style={[styles.stepTitle, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                {translations.reviewAndSubmit}
+              </Text>
               
               <View style={styles.reviewCard}>
-                <Text style={styles.reviewSectionTitle}>{translations.personalInformation}</Text>
+                <Text style={[styles.reviewSectionTitle, { fontSize: isSmallDevice ? 12 : 14 }]}>
+                  {translations.personalInformation}
+                </Text>
                 <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>{translations.fullName}</Text>
-                  <Text style={styles.reviewValue}>{registerData.fullName || translations.notProvided}</Text>
+                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {translations.fullName}
+                  </Text>
+                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {registerData.fullName || translations.notProvided}
+                  </Text>
                 </View>
                 <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>{translations.phone}</Text>
-                  <Text style={styles.reviewValue}>{registerData.phone || translations.notProvided}</Text>
+                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {translations.phone}
+                  </Text>
+                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {registerData.phone || translations.notProvided}
+                  </Text>
                 </View>
                 <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>{translations.email}</Text>
-                  <Text style={styles.reviewValue}>{registerData.email || translations.notProvided}</Text>
+                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {translations.email}
+                  </Text>
+                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {registerData.email || translations.notProvided}
+                  </Text>
                 </View>
                 <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>{translations.gender}</Text>
-                  <Text style={styles.reviewValue}>
+                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {translations.gender}
+                  </Text>
+                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
                     {registerData.gender ? translations[registerData.gender] || registerData.gender : translations.notProvided}
                   </Text>
                 </View>
                 <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>{translations.dateOfBirth}</Text>
-                  <Text style={styles.reviewValue}>{registerData.dob || translations.notProvided}</Text>
+                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {translations.dateOfBirth}
+                  </Text>
+                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {registerData.dob || translations.notProvided}
+                  </Text>
                 </View>
                 <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>{translations.address}</Text>
-                  <Text style={styles.reviewValue}>{registerData.address || translations.notProvided}</Text>
+                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {translations.address}
+                  </Text>
+                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {registerData.address || translations.notProvided}
+                  </Text>
                 </View>
               </View>
 
               <View style={styles.reviewCard}>
-                <Text style={styles.reviewSectionTitle}>{translations.accountDetails}</Text>
+                <Text style={[styles.reviewSectionTitle, { fontSize: isSmallDevice ? 12 : 14 }]}>
+                  {translations.accountDetails}
+                </Text>
                 <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>{translations.loginId}</Text>
-                  <Text style={styles.reviewValue}>
+                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {translations.loginId}
+                  </Text>
+                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
                     {registrationMethod === 'email' ? registerData.email : registerData.phone}
                   </Text>
                 </View>
                 <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>{translations.password}</Text>
-                  <Text style={styles.reviewValue}>••••••••</Text>
+                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {translations.password}
+                  </Text>
+                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    ••••••••
+                  </Text>
                 </View>
                 <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLabel}>{translations.registrationMethod}</Text>
-                  <Text style={styles.reviewValue}>
+                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
+                    {translations.registrationMethod}
+                  </Text>
+                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
                     {registrationMethod === 'email' ? translations.email : translations.phone}
                   </Text>
                 </View>
@@ -1632,12 +1690,14 @@ const [registerData, setRegisterData] = useState({
         <View style={styles.modalButtons}>
           {step > 1 && (
             <TouchableOpacity
-              style={[styles.modalButton, styles.modalButtonSecondary]}
+              style={[styles.modalButton, styles.modalButtonSecondary, { flex: 0.4 }]}
               onPress={() => setStep(step - 1)}
               disabled={registerLoading}
               activeOpacity={0.7}
             >
-              <Text style={styles.modalButtonTextSecondary}>{translations.back}</Text>
+              <Text style={[styles.modalButtonTextSecondary, { fontSize: isSmallDevice ? 12 : 14 }]}>
+                {translations.back}
+              </Text>
             </TouchableOpacity>
           )}
           
@@ -1645,6 +1705,7 @@ const [registerData, setRegisterData] = useState({
             style={[
               styles.modalButton,
               styles.modalButtonPrimary,
+              { flex: step > 1 ? 0.6 : 1 },
               registerLoading && styles.modalButtonDisabled
             ]}
             onPress={() => {
@@ -1660,7 +1721,7 @@ const [registerData, setRegisterData] = useState({
             {registerLoading ? (
               <ActivityIndicator size="small" color="#ffffff" />
             ) : (
-              <Text style={styles.modalButtonTextPrimary}>
+              <Text style={[styles.modalButtonTextPrimary, { fontSize: isSmallDevice ? 12 : 14 }]}>
                 {step === getTotalSteps() ? translations.submit : translations.next}
               </Text>
             )}
@@ -2353,25 +2414,29 @@ passwordMatchError: {
   },
 
   // ============ MODAL STYLES ============
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 20,
-    width: '100%',
-    maxHeight: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
-  },
+  // Replace the modalOverlay and modalContent styles:
+
+modalOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.5)',
+  justifyContent: 'center',
+  alignItems: 'center',
+  padding: 16,
+},
+modalContent: {
+  backgroundColor: '#ffffff',
+  borderRadius: 20,
+  padding: 20,
+  width: '100%',
+  maxWidth: 400,
+  maxHeight: '85%',
+  minHeight: 400,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.25,
+  shadowRadius: 8,
+  elevation: 8,
+},
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2478,6 +2543,40 @@ passwordMatchError: {
     color: '#6b7280',
     marginBottom: 6,
   },
+// Add these styles to your StyleSheet:
+
+modalBackdrop: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0,0,0,0.5)',
+},
+modalKeyboardView: {
+  width: '100%',
+  maxWidth: 400,
+  maxHeight: '85%',
+  minHeight: 400,
+  justifyContent: 'center',
+},
+modalContent: {
+  backgroundColor: '#ffffff',
+  borderRadius: 20,
+  padding: 20,
+  width: '100%',
+  maxHeight: '85%',
+  minHeight: 400,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.25,
+  shadowRadius: 8,
+  elevation: 8,
+},
+scrollContent: {
+  flexGrow: 1,
+  paddingBottom: 8,
+},
   passwordRequirementItem: {
     flexDirection: 'row',
     alignItems: 'center',

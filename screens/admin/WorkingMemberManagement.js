@@ -1543,144 +1543,256 @@ const fetchSubMembersForHierarchy = async (parentId) => {
   };
 
   const handleAddWorkingMember = async () => {
-    if (!newMemberData.fullName.trim()) {
-      Alert.alert('Error', 'Full Name is required');
+  console.log('🔵 [ADD_WORKING_MEMBER] ===== STARTING =====');
+  console.log('🔵 [ADD_WORKING_MEMBER] Registration Method:', registrationMethod);
+  console.log('🔵 [ADD_WORKING_MEMBER] Full Name:', newMemberData.fullName);
+  console.log('🔵 [ADD_WORKING_MEMBER] Email:', newMemberData.email);
+  console.log('🔵 [ADD_WORKING_MEMBER] Phone:', newMemberData.phone);
+  console.log('🔵 [ADD_WORKING_MEMBER] Password length:', newMemberData.password?.length || 0);
+  
+  if (!newMemberData.fullName.trim()) {
+    Alert.alert('Error', 'Full Name is required');
+    return;
+  }
+  
+  if (registrationMethod === 'email') {
+    if (!newMemberData.email.trim()) {
+      Alert.alert('Error', 'Email is required');
       return;
     }
+    if (!newMemberData.password || newMemberData.password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
+  } else {
+    // Phone registration
+    if (!newMemberData.phone.trim()) {
+      Alert.alert('Error', 'Phone number is required');
+      return;
+    }
+    if (newMemberData.phone.trim().length < 10) {
+      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      return;
+    }
+    if (!newMemberData.password || newMemberData.password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
+    // ✅ Email is optional for phone registration, but if provided, store it
+    // If not provided, use a default format or leave as empty string
+  }
+
+  setSavingMember(true);
+  try {
+    const auth = getAuthInstance();
+    let userCredential;
+    let userId;
     
     if (registrationMethod === 'email') {
-      if (!newMemberData.email.trim()) {
-        Alert.alert('Error', 'Email is required');
-        return;
-      }
-      if (!newMemberData.password || newMemberData.password.length < 6) {
-        Alert.alert('Error', 'Password must be at least 6 characters');
-        return;
-      }
+      console.log('🔵 [ADD_WORKING_MEMBER] Creating user with email:', newMemberData.email);
+      userCredential = await createUserWithEmailAndPassword(
+        auth,
+        newMemberData.email.trim(),
+        newMemberData.password
+      );
+      userId = userCredential.user.uid;
+      console.log('✅ [ADD_WORKING_MEMBER] Email user created with UID:', userId);
     } else {
-      if (!newMemberData.phone.trim()) {
-        Alert.alert('Error', 'Phone number is required');
-        return;
-      }
-      if (!newMemberData.password || newMemberData.password.length < 6) {
-        Alert.alert('Error', 'Password must be at least 6 characters');
-        return;
+      // Phone registration - create Firebase Auth user with email format
+      // Use the phone number as the email for Firebase Auth
+      const phoneEmail = `${newMemberData.phone.trim()}@phone.auth`;
+      console.log('🔵 [ADD_WORKING_MEMBER] Creating user with phone email:', phoneEmail);
+      
+      try {
+        userCredential = await createUserWithEmailAndPassword(
+          auth,
+          phoneEmail,
+          newMemberData.password
+        );
+        userId = userCredential.user.uid;
+        console.log('✅ [ADD_WORKING_MEMBER] Phone user created with UID:', userId);
+      } catch (phoneError) {
+        console.log('❌ [ADD_WORKING_MEMBER] Phone registration error:', phoneError);
+        // If phone email already exists, try with a different format
+        if (phoneError.code === 'auth/email-already-in-use') {
+          const altPhoneEmail = `phone_${newMemberData.phone.trim()}@auth.com`;
+          console.log('🔵 [ADD_WORKING_MEMBER] Trying alternate email:', altPhoneEmail);
+          userCredential = await createUserWithEmailAndPassword(
+            auth,
+            altPhoneEmail,
+            newMemberData.password
+          );
+          userId = userCredential.user.uid;
+          console.log('✅ [ADD_WORKING_MEMBER] Phone user created with alternate UID:', userId);
+        } else {
+          throw phoneError;
+        }
       }
     }
 
-    setSavingMember(true);
-    try {
-      const auth = getAuthInstance();
-      let userCredential;
-      
-      if (registrationMethod === 'email') {
-        userCredential = await createUserWithEmailAndPassword(
-          auth,
-          newMemberData.email.trim(),
-          newMemberData.password
-        );
+    const selectedLevel = dynamicLevels.find(l => l.id === newMemberData.level) || { 
+      id: 'I', 
+      name: 'Customer', 
+      directCommission: 25, 
+      secondaryCommission: 10 
+    };
+
+    // ✅ Determine the email to store
+    // For phone registration, if email is provided, use it; otherwise use phone@email.format
+    let storedEmail = '';
+    if (registrationMethod === 'email') {
+      storedEmail = newMemberData.email.trim().toLowerCase();
+    } else {
+      // Phone registration - store the provided email if available, otherwise use phone number as email
+      if (newMemberData.email && newMemberData.email.trim()) {
+        storedEmail = newMemberData.email.trim().toLowerCase();
       } else {
-        const phoneNumber = `+91${newMemberData.phone.trim()}`;
-        userCredential = await createUserWithEmailAndPassword(
-          auth,
-          `${phoneNumber}@phone.auth`,
-          newMemberData.password
-        );
+        // If no email provided, use phone number with a default domain
+        storedEmail = `${newMemberData.phone.trim()}@phone.user`;
       }
-      
-      const userId = userCredential.user.uid;
+    }
+    console.log('🔵 [ADD_WORKING_MEMBER] Stored Email:', storedEmail);
 
-      const selectedLevel = dynamicLevels.find(l => l.id === newMemberData.level) || { directCommission: 25, secondaryCommission: 10 };
+    // Build user data
+    const userData = {
+      fullName: newMemberData.fullName.trim(),
+      email: storedEmail, // ✅ Always store email
+      phone: newMemberData.phone.trim(),
+      address: newMemberData.address.trim(),
+      village: newMemberData.village,
+      postOffice: newMemberData.postOffice,
+      thana: newMemberData.thana,
+      district: newMemberData.district,
+      state: newMemberData.state,
+      pinCode: newMemberData.pinCode,
+      gender: newMemberData.gender,
+      dob: newMemberData.dob,
+      aadharNumber: newMemberData.aadharNumber,
+      level: newMemberData.level || 'I',
+      directCommission: selectedLevel.directCommission || 25,
+      secondaryCommission: selectedLevel.secondaryCommission || 10,
+      role: 'working',
+      status: 'active',
+      profilePhoto: newMemberData.profilePhoto || null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      directReferrals: [],
+      registeredBy: auth.currentUser?.uid || 'admin',
+      promotionPending: false,
+      walletCreated: false,
+      parentId: parentMemberId || null,
+      parentName: parentMemberName || null,
+      registrationMethod: registrationMethod,
+      // ✅ Store password for phone login
+      password: newMemberData.password,
+      phonePassword: newMemberData.password,
+    };
 
-      const userData = {
-        fullName: newMemberData.fullName.trim(),
-        email: registrationMethod === 'email' ? newMemberData.email.trim().toLowerCase() : '',
-        phone: newMemberData.phone.trim(),
-        address: newMemberData.address.trim(),
-        village: newMemberData.village,
-        postOffice: newMemberData.postOffice,
-        thana: newMemberData.thana,
-        district: newMemberData.district,
-        state: newMemberData.state,
-        pinCode: newMemberData.pinCode,
-        gender: newMemberData.gender,
-        dob: newMemberData.dob,
-        aadharNumber: newMemberData.aadharNumber,
-        level: newMemberData.level,
-        directCommission: selectedLevel.directCommission || 25,
-        secondaryCommission: selectedLevel.secondaryCommission || 10,
-        role: 'working',
-        status: 'active',
-        profilePhoto: newMemberData.profilePhoto || null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        directReferrals: [],
-        registeredBy: auth.currentUser?.uid || 'admin',
-        promotionPending: false,
-        walletCreated: false,
-        parentId: parentMemberId || null,
-        parentName: parentMemberName || null,
-        registrationMethod: registrationMethod,
-      };
+    console.log('🔵 [ADD_WORKING_MEMBER] User data prepared:');
+    console.log('🔵 [ADD_WORKING_MEMBER] - Full Name:', userData.fullName);
+    console.log('🔵 [ADD_WORKING_MEMBER] - Email:', userData.email);
+    console.log('🔵 [ADD_WORKING_MEMBER] - Phone:', userData.phone);
+    console.log('🔵 [ADD_WORKING_MEMBER] - Role:', userData.role);
+    console.log('🔵 [ADD_WORKING_MEMBER] - Status:', userData.status);
+    console.log('🔵 [ADD_WORKING_MEMBER] - Registration Method:', userData.registrationMethod);
+    console.log('🔵 [ADD_WORKING_MEMBER] - Password stored:', !!userData.password);
+    console.log('🔵 [ADD_WORKING_MEMBER] - Phone Password stored:', !!userData.phonePassword);
+    console.log('🔵 [ADD_WORKING_MEMBER] - Parent ID:', userData.parentId || 'none');
+    console.log('🔵 [ADD_WORKING_MEMBER] - Parent Name:', userData.parentName || 'none');
 
-      await setDoc(doc(db, 'users', userId), userData);
+    // Save to Firestore
+    console.log('🔵 [ADD_WORKING_MEMBER] Saving user to Firestore...');
+    await setDoc(doc(db, 'users', userId), userData);
+    console.log('✅ [ADD_WORKING_MEMBER] User saved to Firestore');
 
-      if (parentMemberId) {
-        try {
-          const parentRef = doc(db, 'users', parentMemberId);
-          const parentDoc = await getDoc(parentRef);
-          if (parentDoc.exists()) {
-            const parentData = parentDoc.data();
-            const currentChildren = parentData.childrenIds || [];
+    // If parent is selected, update parent's children list
+    if (parentMemberId) {
+      console.log('🔵 [ADD_WORKING_MEMBER] Updating parent:', parentMemberId);
+      try {
+        const parentRef = doc(db, 'users', parentMemberId);
+        const parentDoc = await getDoc(parentRef);
+        if (parentDoc.exists()) {
+          const parentData = parentDoc.data();
+          const currentChildren = parentData.childrenIds || [];
+          if (!currentChildren.includes(userId)) {
             await updateDoc(parentRef, {
               childrenIds: [...currentChildren, userId],
               updatedAt: new Date().toISOString()
             });
+            console.log('✅ [ADD_WORKING_MEMBER] Parent updated with new child');
           }
-        } catch (error) {
-          console.error('Error updating parent children:', error);
         }
+      } catch (error) {
+        console.error('❌ [ADD_WORKING_MEMBER] Error updating parent children:', error);
       }
-
-      await setDoc(doc(db, 'wallets', userId), {
-        balance: 0,
-        totalEarned: 0,
-        pendingCommission: 0,
-        totalWithdrawn: 0,
-        pendingWithdrawals: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-
-      Alert.alert(
-        'Success',
-        `Working member "${newMemberData.fullName}" added successfully!${parentMemberName ? `\nAttached to: ${parentMemberName}` : ''}`
-      );
-      
-      setAddMemberModalVisible(false);
-      setParentMemberId(null);
-      setParentMemberName('');
-      resetNewMemberForm();
-      onRefresh();
-      
-    } catch (error) {
-      console.error('Error adding working member:', error);
-      let errorMessage = 'Failed to add working member';
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'Email already registered. Please use a different email.';
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Invalid email format.';
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = 'Password is too weak. Use at least 6 characters.';
-      } else if (error.code === 'auth/phone-number-already-exists') {
-        errorMessage = 'Phone number already registered.';
-      }
-      Alert.alert('Error', errorMessage);
-    } finally {
-      setSavingMember(false);
     }
-  };
 
+    // Create wallet
+    console.log('🔵 [ADD_WORKING_MEMBER] Creating wallet...');
+    await setDoc(doc(db, 'wallets', userId), {
+      balance: 0,
+      totalEarned: 0,
+      pendingCommission: 0,
+      totalWithdrawn: 0,
+      pendingWithdrawals: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    console.log('✅ [ADD_WORKING_MEMBER] Wallet created');
+
+    // Create phone mapping for phone registration
+    if (registrationMethod === 'phone') {
+      console.log('🔵 [ADD_WORKING_MEMBER] Creating phone mapping...');
+      try {
+        await setDoc(doc(db, 'phoneUsers', newMemberData.phone.trim()), {
+          userId: userId,
+          phone: newMemberData.phone.trim(),
+          role: 'working',
+          status: 'active',
+          email: storedEmail, // ✅ Store email in phone mapping too
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        console.log('✅ [ADD_WORKING_MEMBER] Phone mapping created');
+      } catch (error) {
+        console.error('❌ [ADD_WORKING_MEMBER] Error creating phone mapping:', error);
+      }
+    }
+
+    Alert.alert(
+      'Success',
+      `Working member "${newMemberData.fullName}" added successfully!${parentMemberName ? `\nAttached to: ${parentMemberName}` : ''}${registrationMethod === 'phone' ? '\n📱 Phone login enabled' : ''}\n📧 Email: ${storedEmail}`
+    );
+    
+    setAddMemberModalVisible(false);
+    setParentMemberId(null);
+    setParentMemberName('');
+    resetNewMemberForm();
+    onRefresh();
+    
+  } catch (error) {
+    console.error('❌ [ADD_WORKING_MEMBER] Error adding working member:', error);
+    console.error('❌ [ADD_WORKING_MEMBER] Error code:', error.code);
+    console.error('❌ [ADD_WORKING_MEMBER] Error message:', error.message);
+    
+    let errorMessage = 'Failed to add working member. Please try again.';
+    if (error.code === 'auth/email-already-in-use') {
+      errorMessage = registrationMethod === 'email' 
+        ? 'Email already registered. Please use a different email.'
+        : 'Phone number already registered. Please use a different phone number.';
+    } else if (error.code === 'auth/invalid-email') {
+      errorMessage = 'Invalid email format.';
+    } else if (error.code === 'auth/weak-password') {
+      errorMessage = 'Password is too weak. Use at least 6 characters.';
+    } else if (error.code === 'auth/phone-number-already-exists') {
+      errorMessage = 'Phone number already registered.';
+    }
+    Alert.alert('Error', errorMessage);
+  } finally {
+    setSavingMember(false);
+    console.log('🔵 [ADD_WORKING_MEMBER] ===== COMPLETE =====');
+  }
+};
   const resetNewMemberForm = () => {
     setNewMemberData({
       fullName: '',

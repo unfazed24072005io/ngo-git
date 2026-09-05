@@ -554,82 +554,85 @@ const auth = getAuthInstance();
   onRequestClose={() => setShowPendingModal(false)}
   statusBarTranslucent={true}
 >
-  <TouchableOpacity 
-    style={styles.pendingModalOverlay}
-    activeOpacity={1} 
-    onPress={() => setShowPendingModal(false)}
-  >
-    <View style={styles.pendingModalContainer}>
-      <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ flex: 1 }}>
-        <View style={styles.pendingModalContent}>
+  <View style={styles.pendingModalOverlay}>
+    <TouchableOpacity 
+      style={styles.pendingModalBackdrop}
+      activeOpacity={1}
+      onPress={() => setShowPendingModal(false)}
+    />
+    <KeyboardAvoidingView 
+      style={styles.pendingModalKeyboardView}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+    >
+      <View style={styles.pendingModalContent}>
+        <View style={styles.pendingModalHeader}>
           <Text style={styles.pendingModalTitle}>Pending Registrations</Text>
-          <Text style={styles.pendingModalSubtitle}>
-            {pendingRegistrations.length} registrations waiting for approval
-          </Text>
-
-          <ScrollView 
-            style={{ flex: 1, width: '100%' }}
-            showsVerticalScrollIndicator={true}
-            contentContainerStyle={{ paddingBottom: 8 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {pendingRegistrations.length > 0 ? (
-              pendingRegistrations.map((item) => (
-                <View key={item.id} style={styles.pendingItem}>
-                  <View style={styles.pendingItemHeader}>
-                    <Text style={styles.pendingItemName}>
-                      {item.fullName || item.name || 'Unknown'}
-                    </Text>
-                    <View style={styles.pendingStatusBadge}>
-                      <Text style={styles.pendingStatusText}>Pending</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.pendingItemEmail}>📧 {item.email || 'No email'}</Text>
-                  <Text style={styles.pendingItemPhone}>📱 {item.phone || 'N/A'}</Text>
-                  {item.paymentSkipped && (
-                    <Text style={styles.pendingItemReason}>
-                      ⚠️ Payment skipped: {item.paymentSkippedReason || 'Not specified'}
-                    </Text>
-                  )}
-                  <View style={styles.pendingItemActions}>
-                    <TouchableOpacity
-                      style={[styles.pendingActionButton, styles.pendingApproveButton]}
-                      onPress={() => approveRegistration(item)}
-                      activeOpacity={0.7}
-                    >
-                      <MaterialIcons name="check" size={18} color="#ffffff" />
-                      <Text style={styles.pendingActionText}>Approve</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.pendingActionButton, styles.pendingRejectButton]}
-                      onPress={() => rejectRegistration(item)}
-                      activeOpacity={0.7}
-                    >
-                      <MaterialIcons name="close" size={18} color="#ffffff" />
-                      <Text style={styles.pendingActionText}>Reject</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <MaterialIcons name="check-circle" size={48} color="#10b981" />
-                <Text style={styles.emptyStateText}>No pending registrations</Text>
-              </View>
-            )}
-          </ScrollView>
-
-          <TouchableOpacity
-            style={styles.pendingModalCloseButton}
+          <TouchableOpacity 
             onPress={() => setShowPendingModal(false)}
             activeOpacity={0.7}
           >
-            <Text style={styles.pendingModalCloseButtonText}>Close</Text>
+            <MaterialIcons name="close" size={24} color="#6b7280" />
           </TouchableOpacity>
         </View>
-      </TouchableOpacity>
-    </View>
-  </TouchableOpacity>
+
+        <Text style={styles.pendingModalSubtitle}>
+          {pendingRegistrations.length} registrations waiting for approval
+        </Text>
+
+        <ScrollView 
+          showsVerticalScrollIndicator={true}
+          contentContainerStyle={styles.pendingScrollContent}
+          style={{ flex: 1 }}
+        >
+          {pendingRegistrations.length > 0 ? (
+            pendingRegistrations.map((item) => (
+              <View key={item.id} style={styles.pendingItem}>
+                <View style={styles.pendingItemHeader}>
+                  <Text style={styles.pendingItemName}>
+                    {item.fullName || item.name || 'Unknown'}
+                  </Text>
+                  <View style={styles.pendingStatusBadge}>
+                    <Text style={styles.pendingStatusText}>Pending</Text>
+                  </View>
+                </View>
+                <Text style={styles.pendingItemEmail}>📧 {item.email || 'No email'}</Text>
+                <Text style={styles.pendingItemPhone}>📱 {item.phone || 'N/A'}</Text>
+                {item.paymentSkipped && (
+                  <Text style={styles.pendingItemReason}>
+                    ⚠️ Payment skipped: {item.paymentSkippedReason || 'Not specified'}
+                  </Text>
+                )}
+                <View style={styles.pendingItemActions}>
+                  <TouchableOpacity
+                    style={[styles.pendingActionButton, styles.pendingApproveButton]}
+                    onPress={() => approveRegistration(item)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="check" size={18} color="#ffffff" />
+                    <Text style={styles.pendingActionText}>Approve</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.pendingActionButton, styles.pendingRejectButton]}
+                    onPress={() => rejectRegistration(item)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="close" size={18} color="#ffffff" />
+                    <Text style={styles.pendingActionText}>Reject</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="check-circle" size={48} color="#10b981" />
+              <Text style={styles.emptyStateText}>No pending registrations</Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    </KeyboardAvoidingView>
+  </View>
 </Modal>
     </View>
   );
@@ -983,152 +986,158 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
 
-  // ============ PENDING REGISTRATIONS MODAL (Centered) ============
-  // ============ PENDING REGISTRATIONS MODAL (Centered) ============
+// ============ PENDING REGISTRATIONS MODAL (Tall & Scrolling) ============
 pendingModalOverlay: {
   flex: 1,
-  backgroundColor: 'rgba(0,0,0,0.6)',
+  backgroundColor: 'rgba(0,0,0,0.5)',
   justifyContent: 'center',
   alignItems: 'center',
-  padding: 12, // Reduced padding for more space
-  width: '100%',
-  height: '100%',
+  padding: 16,
+},
+pendingModalBackdrop: {
   position: 'absolute',
   top: 0,
   left: 0,
   right: 0,
   bottom: 0,
+  backgroundColor: 'rgba(0,0,0,0.5)',
 },
-pendingModalContainer: {
+pendingModalKeyboardView: {
+  width: '100%',
+  maxWidth: 400,
+  maxHeight: '85%',
+  minHeight: 400,
+  justifyContent: 'center',
+},
+pendingModalContent: {
   backgroundColor: '#ffffff',
-  borderRadius: 24,
+  borderRadius: 20,
   padding: 20,
-  paddingBottom: 16,
-  width: '95%', // Increased from 100% with maxWidth
-  maxWidth: 700, // Increased from 500
-  maxHeight: '100%', // Increased from 85%
-  minHeight: 400, // Increased from 200
+  width: '100%',
   shadowColor: '#000',
   shadowOffset: { width: 0, height: 4 },
   shadowOpacity: 0.25,
   shadowRadius: 8,
-  elevation: 5,
+  elevation: 8,
 },
-pendingModalContent: {
+pendingModalHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 4,
+},
+pendingModalTitle: {
+  fontFamily: Fonts.Bold,
+  fontSize: 20,
+  color: '#1f2937',
   flex: 1,
-  width: '100%',
-  minHeight: 250, // Increased from 150
+  includeFontPadding: false,
+  textAlignVertical: 'center',
 },
-  pendingModalTitle: {
-    fontFamily: Fonts.Bold,
-    fontSize: 22,
-    color: '#1f2937',
-    textAlign: 'center',
-    marginBottom: 4,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  pendingModalSubtitle: {
-    fontFamily: Fonts.Regular,
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 16,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  pendingItem: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    width: '100%',
-  },
-  pendingItemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-    flexWrap: 'wrap',
-  },
-  pendingItemName: {
-    fontFamily: Fonts.SemiBold,
-    fontSize: 16,
-    color: '#1f2937',
-    flex: 1,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  pendingStatusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 12,
-    backgroundColor: '#fef3c7',
-    marginLeft: 8,
-  },
-  pendingStatusText: {
-    fontFamily: Fonts.SemiBold,
-    fontSize: 11,
-    color: '#92400e',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  pendingItemEmail: {
-    fontFamily: Fonts.Regular,
-    fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 2,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  pendingItemPhone: {
-    fontFamily: Fonts.Regular,
-    fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 2,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  pendingItemReason: {
-    fontFamily: Fonts.Italic,
-    fontSize: 12,
-    color: '#f59e0b',
-    marginTop: 4,
-    marginBottom: 8,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  pendingItemActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 8,
-    width: '100%',
-  },
-  pendingActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    flex: 1,
-    gap: 6,
-  },
-  pendingApproveButton: {
-    backgroundColor: '#10b981',
-  },
-  pendingRejectButton: {
-    backgroundColor: '#ef4444',
-  },
-  pendingActionText: {
-    fontFamily: Fonts.SemiBold,
-    fontSize: 13,
-    color: '#ffffff',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
+pendingModalSubtitle: {
+  fontFamily: Fonts.Regular,
+  fontSize: 14,
+  color: '#6b7280',
+  marginBottom: 16,
+  includeFontPadding: false,
+  textAlignVertical: 'center',
+},
+pendingScrollContent: {
+  flexGrow: 1,
+  paddingBottom: 8,
+},
+pendingItem: {
+  backgroundColor: '#f9fafb',
+  borderRadius: 12,
+  padding: 14,
+  marginBottom: 12,
+  borderWidth: 1,
+  borderColor: '#e5e7eb',
+  width: '100%',
+},
+pendingItemHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 4,
+  flexWrap: 'wrap',
+},
+pendingItemName: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 16,
+  color: '#1f2937',
+  flex: 1,
+  includeFontPadding: false,
+  textAlignVertical: 'center',
+},
+pendingStatusBadge: {
+  paddingHorizontal: 10,
+  paddingVertical: 3,
+  borderRadius: 12,
+  backgroundColor: '#fef3c7',
+  marginLeft: 8,
+},
+pendingStatusText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 11,
+  color: '#92400e',
+  includeFontPadding: false,
+  textAlignVertical: 'center',
+},
+pendingItemEmail: {
+  fontFamily: Fonts.Regular,
+  fontSize: 13,
+  color: '#6b7280',
+  marginBottom: 2,
+  includeFontPadding: false,
+  textAlignVertical: 'center',
+},
+pendingItemPhone: {
+  fontFamily: Fonts.Regular,
+  fontSize: 13,
+  color: '#6b7280',
+  marginBottom: 2,
+  includeFontPadding: false,
+  textAlignVertical: 'center',
+},
+pendingItemReason: {
+  fontFamily: Fonts.Italic,
+  fontSize: 12,
+  color: '#f59e0b',
+  marginTop: 4,
+  marginBottom: 8,
+  includeFontPadding: false,
+  textAlignVertical: 'center',
+},
+pendingItemActions: {
+  flexDirection: 'row',
+  gap: 10,
+  marginTop: 8,
+  width: '100%',
+},
+pendingActionButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingVertical: 10,
+  paddingHorizontal: 16,
+  borderRadius: 8,
+  flex: 1,
+  gap: 6,
+},
+pendingApproveButton: {
+  backgroundColor: '#10b981',
+},
+pendingRejectButton: {
+  backgroundColor: '#ef4444',
+},
+pendingActionText: {
+  fontFamily: Fonts.SemiBold,
+  fontSize: 13,
+  color: '#ffffff',
+  includeFontPadding: false,
+  textAlignVertical: 'center',
+},
   pendingModalCloseButton: {
     paddingVertical: 12,
     borderRadius: 8,

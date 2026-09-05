@@ -519,21 +519,62 @@ export default function RegisterScreen({ navigation, route }) {
 
   const completePhoneRegistrationWithoutPayment = async (user) => {
   console.log('🔵 [NO_PAYMENT] ===== STARTING SILENT PHONE REGISTRATION WITHOUT PAYMENT =====');
-  console.log('🔵 [NO_PAYMENT] User UID:', user.uid);
-  console.log('🔵 [NO_PAYMENT] Phone number:', user.phoneNumber);
+  console.log('🔵 [NO_PAYMENT] Phone number:', formData.phone);
+  console.log('🔵 [NO_PAYMENT] Password provided:', !!formData.password);
+  console.log('🔵 [NO_PAYMENT] Password length:', formData.password?.length || 0);
   console.log('🔵 [NO_PAYMENT] Is Donation Flow:', isDonationFlow);
   console.log('🔵 [NO_PAYMENT] Role:', role);
   console.log('🔵 [NO_PAYMENT] Full Name:', formData.fullName);
-  console.log('🔵 [NO_PAYMENT] Phone:', formData.phone);
-  console.log('🔵 [NO_PAYMENT] Password provided:', !!formData.password);
-  console.log('🔵 [NO_PAYMENT] Password length:', formData.password?.length || 0);
   console.log('🔵 [NO_PAYMENT] Confirm password provided:', !!formData.confirmPassword);
   console.log('🔵 [NO_PAYMENT] Passwords match:', formData.password === formData.confirmPassword);
   
-  const userId = user.uid;
-  const finalRole = isDonationFlow ? 'donor' : role;
+  const auth = getAuthInstance();
+  let userId;
+  let userCredential;
+  let isNewUser = false;
   
+  // ✅ CREATE FIREBASE AUTH USER FIRST
+  const phoneEmail = `${formData.phone.trim()}@phone.auth`;
+  console.log('🔵 [NO_PAYMENT] Creating Firebase Auth user with email:', phoneEmail);
+  
+  try {
+    userCredential = await createUserWithEmailAndPassword(auth, phoneEmail, formData.password);
+    userId = userCredential.user.uid;
+    isNewUser = true;
+    console.log('✅ [NO_PAYMENT] Firebase Auth user created successfully with UID:', userId);
+    console.log('✅ [NO_PAYMENT] User email:', userCredential.user.email);
+  } catch (authError) {
+    console.log('❌ [NO_PAYMENT] Firebase Auth creation failed:', authError.code);
+    console.log('❌ [NO_PAYMENT] Error message:', authError.message);
+    
+    if (authError.code === 'auth/email-already-in-use') {
+      console.log('📱 Email already in use, trying to sign in...');
+      try {
+        const signInCredential = await signInWithEmailAndPassword(auth, phoneEmail, formData.password);
+        userId = signInCredential.user.uid;
+        console.log('✅ [NO_PAYMENT] Signed in to existing Firebase Auth user:', userId);
+        console.log('✅ [NO_PAYMENT] User email:', signInCredential.user.email);
+      } catch (signInError) {
+        console.log('❌ [NO_PAYMENT] Sign in failed:', signInError.code);
+        console.log('❌ [NO_PAYMENT] Sign in error message:', signInError.message);
+        Alert.alert('Error', 'This phone number is already registered. Please login.');
+        return;
+      }
+    } else if (authError.code === 'auth/weak-password') {
+      Alert.alert('Error', 'Password is too weak. Please use at least 6 characters.');
+      return;
+    } else if (authError.code === 'auth/invalid-email') {
+      Alert.alert('Error', 'Invalid phone number format.');
+      return;
+    } else {
+      Alert.alert('Error', 'Failed to create account. Please try again. Error: ' + authError.message);
+      return;
+    }
+  }
+  
+  const finalRole = isDonationFlow ? 'donor' : role;
   console.log('🔵 [NO_PAYMENT] Final role:', finalRole);
+  console.log('🔵 [NO_PAYMENT] Firebase UID:', userId);
 
   const userData = {
     fullName: formData.fullName.trim(),
@@ -545,7 +586,7 @@ export default function RegisterScreen({ navigation, route }) {
     spouseName: formData.spouseName,
     aadharNumber: formData.aadharNumber,
     phone: formData.phone.trim(),
-    email: formData.email.trim().toLowerCase() || '',
+    email: formData.email.trim().toLowerCase() || phoneEmail,
     address: formData.address.trim(),
     village: formData.village,
     postOffice: formData.postOffice,
@@ -577,7 +618,7 @@ export default function RegisterScreen({ navigation, route }) {
     requiresAdminApproval: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    uid: userId,
+    uid: userId,  // ✅ Use Firebase Auth UID
     phoneNumber: formData.phone.trim(),
     registrationMethod: 'phone',
     referredBy: referrerData ? referrerData.id : null,
@@ -587,25 +628,29 @@ export default function RegisterScreen({ navigation, route }) {
     // ✅ CRITICAL FIX: Store password for phone login!
     password: formData.password,
     phonePassword: formData.password,
+    firebaseUid: userId,
+    isFirebaseUser: true,
+    registrationSource: 'phone_no_payment',
   };
 
   console.log('🔵 [NO_PAYMENT] ===== USER DATA SUMMARY =====');
   console.log('🔵 [NO_PAYMENT] - Full Name:', userData.fullName);
   console.log('🔵 [NO_PAYMENT] - Phone:', userData.phone);
-  console.log('🔵 [NO_PAYMENT] - Email:', userData.email || '(empty)');
+  console.log('🔵 [NO_PAYMENT] - Email:', userData.email);
   console.log('🔵 [NO_PAYMENT] - Role:', userData.role);
   console.log('🔵 [NO_PAYMENT] - Status:', userData.status);
   console.log('🔵 [NO_PAYMENT] - Registration Method:', userData.registrationMethod);
+  console.log('🔵 [NO_PAYMENT] - UID (Firebase):', userData.uid);
   console.log('🔵 [NO_PAYMENT] - password field exists:', 'password' in userData);
   console.log('🔵 [NO_PAYMENT] - password value:', userData.password ? '✅ SET (length: ' + userData.password.length + ')' : '❌ MISSING');
   console.log('🔵 [NO_PAYMENT] - phonePassword field exists:', 'phonePassword' in userData);
   console.log('🔵 [NO_PAYMENT] - phonePassword value:', userData.phonePassword ? '✅ SET (length: ' + userData.phonePassword.length + ')' : '❌ MISSING');
-  console.log('🔵 [NO_PAYMENT] - referredBy:', userData.referredBy || 'none');
-  console.log('🔵 [NO_PAYMENT] - referralCodeUsed:', userData.referralCodeUsed || 'none');
-  console.log('🔵 [NO_PAYMENT] - paymentSkippedReason:', userData.paymentSkippedReason);
+  console.log('🔵 [NO_PAYMENT] - firebaseUid:', userData.firebaseUid);
+  console.log('🔵 [NO_PAYMENT] - isFirebaseUser:', userData.isFirebaseUser);
   console.log('🔵 [NO_PAYMENT] ==============================================');
 
   console.log('🔵 [NO_PAYMENT] Saving user data to Firestore collection:', finalRole === 'donor' ? 'donors' : 'users');
+  console.log('🔵 [NO_PAYMENT] Document ID (Firebase UID):', userId);
 
   try {
     if (finalRole === 'donor') {
@@ -641,6 +686,7 @@ export default function RegisterScreen({ navigation, route }) {
       console.log('🔵 [NO_PAYMENT] - phone:', savedData.phone || '❌ MISSING');
       console.log('🔵 [NO_PAYMENT] - role:', savedData.role || '❌ MISSING');
       console.log('🔵 [NO_PAYMENT] - status:', savedData.status || '❌ MISSING');
+      console.log('🔵 [NO_PAYMENT] - firebaseUid:', savedData.firebaseUid || '❌ MISSING');
       
       // Log all keys for debugging
       console.log('🔵 [NO_PAYMENT] All keys in saved document:', Object.keys(savedData).join(', '));
@@ -676,6 +722,7 @@ export default function RegisterScreen({ navigation, route }) {
       userId: userId,
       phone: userData.phone,
       role: finalRole,
+      email: userData.email || '',
       status: 'pending',
       referredBy: referrerData ? referrerData.id : null,
       createdAt: new Date().toISOString(),
@@ -692,7 +739,8 @@ export default function RegisterScreen({ navigation, route }) {
         userId: mapData.userId,
         phone: mapData.phone,
         role: mapData.role,
-        status: mapData.status
+        status: mapData.status,
+        email: mapData.email
       });
     } else {
       console.log('❌ [NO_PAYMENT] Phone mapping verification FAILED');
@@ -704,9 +752,23 @@ export default function RegisterScreen({ navigation, route }) {
     console.error('❌ [NO_PAYMENT] Error stack:', error.stack);
   }
 
+  // ✅ Generate referral code for the new user
+  console.log('🔵 [NO_PAYMENT] Generating referral code...');
+  try {
+    const referralCode = generateReferralCode();
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      referralCode: referralCode,
+      referralCodeGeneratedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    console.log('✅ [NO_PAYMENT] Referral code generated:', referralCode);
+  } catch (error) {
+    console.log('❌ [NO_PAYMENT] Error generating referral code:', error);
+  }
+
   // Sign out user
   try {
-    const auth = getAuthInstance();
     console.log('🔵 [NO_PAYMENT] Signing out user...');
     await auth.signOut();
     console.log('✅ [NO_PAYMENT] User signed out successfully');
@@ -717,15 +779,17 @@ export default function RegisterScreen({ navigation, route }) {
   
   console.log('✅ [NO_PAYMENT] ===== SILENT PHONE REGISTRATION WITHOUT PAYMENT COMPLETE =====');
   console.log('✅ [NO_PAYMENT] Summary:');
-  console.log('✅ [NO_PAYMENT] - User ID:', userId);
+  console.log('✅ [NO_PAYMENT] - User ID (Firebase):', userId);
   console.log('✅ [NO_PAYMENT] - Phone:', userData.phone);
+  console.log('✅ [NO_PAYMENT] - Email (Firebase):', phoneEmail);
   console.log('✅ [NO_PAYMENT] - Role:', finalRole);
   console.log('✅ [NO_PAYMENT] - Status: pending');
   console.log('✅ [NO_PAYMENT] - Password stored:', !!userData.password);
+  console.log('✅ [NO_PAYMENT] - Firebase Auth user created:', isNewUser);
   console.log('✅ [NO_PAYMENT] - Phone mapping saved: yes');
+  console.log('✅ [NO_PAYMENT] - Referral code generated: yes');
   console.log('✅ [NO_PAYMENT] ===========================================================');
 };
-
   const handleEmailRegisterWithoutPayment = async () => {
     console.log('🔵 [NO_PAYMENT] Starting email registration without payment');
     
@@ -815,21 +879,63 @@ export default function RegisterScreen({ navigation, route }) {
 
   const completePhoneRegistrationSilent = async (user) => {
   console.log('🔵 [SILENT] ===== STARTING SILENT PHONE REGISTRATION =====');
-  console.log('🔵 [SILENT] User UID:', user.uid);
-  console.log('🔵 [SILENT] Phone number:', user.phoneNumber);
+  console.log('🔵 [SILENT] Phone number:', formData.phone);
+  console.log('🔵 [SILENT] Password provided:', !!formData.password);
+  console.log('🔵 [SILENT] Password length:', formData.password?.length || 0);
   console.log('🔵 [SILENT] Is Donor Flow:', isDonorFlow);
   console.log('🔵 [SILENT] Is Donation Flow:', isDonationFlow);
   console.log('🔵 [SILENT] Selected Role:', role);
   console.log('🔵 [SILENT] Full Name:', formData.fullName);
-  console.log('🔵 [SILENT] Password provided:', !!formData.password);
-  console.log('🔵 [SILENT] Password length:', formData.password?.length || 0);
   console.log('🔵 [SILENT] Confirm password provided:', !!formData.confirmPassword);
   console.log('🔵 [SILENT] Passwords match:', formData.password === formData.confirmPassword);
   
-  const userId = user.uid;
-  const finalRole = isDonorFlow ? 'donor' : (isDonationFlow ? 'donor' : role);
+  const auth = getAuthInstance();
+  let userId;
+  let userCredential;
+  let isNewUser = false;
   
+  // ✅ CREATE FIREBASE AUTH USER FIRST
+  const phoneEmail = `${formData.phone.trim()}@phone.auth`;
+  console.log('🔵 [SILENT] Creating Firebase Auth user with email:', phoneEmail);
+  
+  try {
+    userCredential = await createUserWithEmailAndPassword(auth, phoneEmail, formData.password);
+    userId = userCredential.user.uid;
+    isNewUser = true;
+    console.log('✅ [SILENT] Firebase Auth user created successfully with UID:', userId);
+    console.log('✅ [SILENT] User email:', userCredential.user.email);
+  } catch (authError) {
+    console.log('❌ [SILENT] Firebase Auth creation failed:', authError.code);
+    console.log('❌ [SILENT] Error message:', authError.message);
+    
+    if (authError.code === 'auth/email-already-in-use') {
+      console.log('📱 Email already in use, trying to sign in...');
+      try {
+        const signInCredential = await signInWithEmailAndPassword(auth, phoneEmail, formData.password);
+        userId = signInCredential.user.uid;
+        console.log('✅ [SILENT] Signed in to existing Firebase Auth user:', userId);
+        console.log('✅ [SILENT] User email:', signInCredential.user.email);
+      } catch (signInError) {
+        console.log('❌ [SILENT] Sign in failed:', signInError.code);
+        console.log('❌ [SILENT] Sign in error message:', signInError.message);
+        Alert.alert('Error', 'This phone number is already registered. Please login.');
+        return;
+      }
+    } else if (authError.code === 'auth/weak-password') {
+      Alert.alert('Error', 'Password is too weak. Please use at least 6 characters.');
+      return;
+    } else if (authError.code === 'auth/invalid-email') {
+      Alert.alert('Error', 'Invalid phone number format.');
+      return;
+    } else {
+      Alert.alert('Error', 'Failed to create account. Please try again. Error: ' + authError.message);
+      return;
+    }
+  }
+  
+  const finalRole = isDonorFlow ? 'donor' : (isDonationFlow ? 'donor' : role);
   console.log('🔵 [SILENT] Final role determined:', finalRole);
+  console.log('🔵 [SILENT] Firebase UID:', userId);
 
   let userData;
   
@@ -838,7 +944,7 @@ export default function RegisterScreen({ navigation, route }) {
     userData = {
       fullName: formData.fullName.trim(),
       phone: formData.phone.trim(),
-      email: formData.email.trim().toLowerCase() || '',
+      email: formData.email.trim().toLowerCase() || phoneEmail,
       address: formData.address.trim() || '',
       role: 'donor',
       status: 'active',
@@ -858,6 +964,9 @@ export default function RegisterScreen({ navigation, route }) {
       // ✅ STORE PASSWORD FOR DONOR
       password: formData.password,
       phonePassword: formData.password,
+      firebaseUid: userId,
+      isFirebaseUser: true,
+      registrationSource: 'phone_silent',
     };
     console.log('✅ [SILENT] Donor data created with password fields');
   } else {
@@ -872,7 +981,7 @@ export default function RegisterScreen({ navigation, route }) {
       spouseName: formData.spouseName,
       aadharNumber: formData.aadharNumber,
       phone: formData.phone.trim(),
-      email: formData.email.trim().toLowerCase() || '',
+      email: formData.email.trim().toLowerCase() || phoneEmail,
       address: formData.address.trim(),
       village: formData.village,
       postOffice: formData.postOffice,
@@ -907,9 +1016,12 @@ export default function RegisterScreen({ navigation, route }) {
       referredByName: referrerData ? referrerData.name : null,
       referralCodeUsed: referralCode || null,
       referralDate: referrerData ? new Date().toISOString() : null,
-      // ✅ STORE PASSWORD - THIS WAS PREVIOUSLY MISSING!
+      // ✅ STORE PASSWORD - CRITICAL FOR PHONE LOGIN
       password: formData.password,
       phonePassword: formData.password,
+      firebaseUid: userId,
+      isFirebaseUser: true,
+      registrationSource: 'phone_silent',
     };
     console.log('✅ [SILENT] User data created with password fields');
   }
@@ -917,19 +1029,23 @@ export default function RegisterScreen({ navigation, route }) {
   console.log('🔵 [SILENT] ===== USER DATA SUMMARY =====');
   console.log('🔵 [SILENT] - Full Name:', userData.fullName);
   console.log('🔵 [SILENT] - Phone:', userData.phone);
-  console.log('🔵 [SILENT] - Email:', userData.email || '(empty)');
+  console.log('🔵 [SILENT] - Email:', userData.email);
   console.log('🔵 [SILENT] - Role:', userData.role);
   console.log('🔵 [SILENT] - Status:', userData.status);
   console.log('🔵 [SILENT] - Registration Method:', userData.registrationMethod);
+  console.log('🔵 [SILENT] - UID (Firebase):', userData.uid);
   console.log('🔵 [SILENT] - password field exists:', 'password' in userData);
   console.log('🔵 [SILENT] - password value:', userData.password ? '✅ SET (length: ' + userData.password.length + ')' : '❌ MISSING');
   console.log('🔵 [SILENT] - phonePassword field exists:', 'phonePassword' in userData);
   console.log('🔵 [SILENT] - phonePassword value:', userData.phonePassword ? '✅ SET (length: ' + userData.phonePassword.length + ')' : '❌ MISSING');
+  console.log('🔵 [SILENT] - firebaseUid:', userData.firebaseUid);
+  console.log('🔵 [SILENT] - isFirebaseUser:', userData.isFirebaseUser);
   console.log('🔵 [SILENT] - referralCodeUsed:', userData.referralCodeUsed || 'none');
   console.log('🔵 [SILENT] - paymentSkipped:', userData.paymentSkipped || false);
   console.log('🔵 [SILENT] ===================================');
 
   console.log('🔵 [SILENT] Saving user data to Firestore collection:', finalRole === 'donor' ? 'donors' : 'users');
+  console.log('🔵 [SILENT] Document ID (Firebase UID):', userId);
 
   try {
     if (finalRole === 'donor') {
@@ -959,6 +1075,7 @@ export default function RegisterScreen({ navigation, route }) {
       console.log('🔵 [SILENT] - phone:', savedData.phone || '❌ MISSING');
       console.log('🔵 [SILENT] - role:', savedData.role || '❌ MISSING');
       console.log('🔵 [SILENT] - status:', savedData.status || '❌ MISSING');
+      console.log('🔵 [SILENT] - firebaseUid:', savedData.firebaseUid || '❌ MISSING');
       
       // Log all keys for debugging
       console.log('🔵 [SILENT] All keys in saved document:', Object.keys(savedData).join(', '));
@@ -1028,6 +1145,7 @@ export default function RegisterScreen({ navigation, route }) {
       userId: userId,
       phone: userData.phone,
       role: finalRole,
+      email: userData.email || '',
       referredBy: referrerData ? referrerData.id : null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1042,7 +1160,8 @@ export default function RegisterScreen({ navigation, route }) {
       console.log('🔵 [SILENT] Phone mapping data:', {
         userId: mapData.userId,
         phone: mapData.phone,
-        role: mapData.role
+        role: mapData.role,
+        email: mapData.email
       });
     } else {
       console.log('❌ [SILENT] Phone mapping verification FAILED');
@@ -1086,9 +1205,23 @@ export default function RegisterScreen({ navigation, route }) {
     console.log('🔵 [SILENT] ===== WALLET CREATION COMPLETE =====');
   }
 
+  // ✅ Generate referral code for the new user
+  console.log('🔵 [SILENT] Generating referral code...');
+  try {
+    const referralCode = generateReferralCode();
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      referralCode: referralCode,
+      referralCodeGeneratedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    console.log('✅ [SILENT] Referral code generated:', referralCode);
+  } catch (error) {
+    console.log('❌ [SILENT] Error generating referral code:', error);
+  }
+
   // Sign out user
   try {
-    const auth = getAuthInstance();
     console.log('🔵 [SILENT] Signing out user...');
     await auth.signOut();
     console.log('✅ [SILENT] User signed out successfully');
@@ -1118,11 +1251,15 @@ export default function RegisterScreen({ navigation, route }) {
   
   console.log('✅ [SILENT] ===== SILENT PHONE REGISTRATION COMPLETE =====');
   console.log('✅ [SILENT] Summary:');
-  console.log('✅ [SILENT] - User ID:', userId);
+  console.log('✅ [SILENT] - User ID (Firebase):', userId);
   console.log('✅ [SILENT] - Phone:', userData.phone);
+  console.log('✅ [SILENT] - Email (Firebase):', phoneEmail);
   console.log('✅ [SILENT] - Role:', finalRole);
   console.log('✅ [SILENT] - Password stored:', !!userData.password);
+  console.log('✅ [SILENT] - Firebase Auth user created:', isNewUser);
   console.log('✅ [SILENT] - Phone mapping saved: yes');
+  console.log('✅ [SILENT] - Wallet created:', finalRole === 'working');
+  console.log('✅ [SILENT] - Referral code generated: yes');
   console.log('✅ [SILENT] - Navigation to:', navigateTo);
   console.log('✅ [SILENT] ==============================================');
 };
@@ -1169,12 +1306,14 @@ const handlePhoneRegisterWithoutAlert = async () => {
 
   console.log('✅ [PHONE_SILENT] All validations passed!');
   console.log('🔵 [PHONE_SILENT] Password to store (length):', formData.password.length);
-  console.log('🔵 [PHONE_SILENT] Creating user with UID: phone_' + Date.now());
   console.log('🔵 [PHONE_SILENT] Phone number:', formData.phone);
   
+  // ✅ Call the updated function that creates Firebase Auth user
   try {
+    // Pass phone number and password - the function will create Firebase Auth user
     await completePhoneRegistrationSilent({
-      uid: `phone_${Date.now()}`,
+      // The user object is just for compatibility - the function will use formData directly
+      uid: `temp_${Date.now()}`,
       phoneNumber: formData.phone
     });
     console.log('✅ [PHONE_SILENT] Phone registration completed successfully!');
@@ -1188,7 +1327,6 @@ const handlePhoneRegisterWithoutAlert = async () => {
   
   console.log('✅ [PHONE_SILENT] ===== PHONE REGISTRATION WITHOUT ALERT COMPLETE =====');
 };
-
   const handleEmailRegisterWithoutAlert = async () => {
     console.log('🔵 [EMAIL_SILENT] Starting email registration without alert');
     console.log('🔵 [EMAIL_SILENT] Full name:', formData.fullName);
@@ -1340,21 +1478,65 @@ const handlePhoneRegisterWithoutAlert = async () => {
 
   const completePhoneRegistration = async (user) => {
   console.log('🔵 [PHONE] ===== STARTING PHONE REGISTRATION =====');
-  console.log('🔵 [PHONE] User UID:', user.uid);
-  console.log('🔵 [PHONE] Phone number:', user.phoneNumber);
+  console.log('🔵 [PHONE] Phone number:', formData.phone);
+  console.log('🔵 [PHONE] Password provided:', !!formData.password);
+  console.log('🔵 [PHONE] Password length:', formData.password?.length || 0);
   console.log('🔵 [PHONE] Is Donor Flow:', isDonorFlow);
   console.log('🔵 [PHONE] Is Donation Flow:', isDonationFlow);
   console.log('🔵 [PHONE] Selected Role:', role);
   console.log('🔵 [PHONE] Full Name:', formData.fullName);
-  console.log('🔵 [PHONE] Password provided:', !!formData.password);
-  console.log('🔵 [PHONE] Password length:', formData.password?.length || 0);
   console.log('🔵 [PHONE] Confirm password provided:', !!formData.confirmPassword);
   console.log('🔵 [PHONE] Passwords match:', formData.password === formData.confirmPassword);
   
-  const userId = user.uid;
-  const finalRole = isDonorFlow ? 'donor' : (isDonationFlow ? 'donor' : role);
+  const auth = getAuthInstance();
+  let userId;
+  let userCredential;
+  let isNewUser = false;
   
+  // ✅ CREATE FIREBASE AUTH USER FIRST
+  const phoneEmail = `${formData.phone.trim()}@phone.auth`;
+  console.log('🔵 [PHONE] Creating Firebase Auth user with email:', phoneEmail);
+  
+  try {
+    userCredential = await createUserWithEmailAndPassword(auth, phoneEmail, formData.password);
+    userId = userCredential.user.uid;
+    isNewUser = true;
+    console.log('✅ [PHONE] Firebase Auth user created successfully with UID:', userId);
+    console.log('✅ [PHONE] User email:', userCredential.user.email);
+  } catch (authError) {
+    console.log('❌ [PHONE] Firebase Auth creation failed:', authError.code);
+    console.log('❌ [PHONE] Error message:', authError.message);
+    
+    if (authError.code === 'auth/email-already-in-use') {
+      console.log('📱 Email already in use, trying to sign in...');
+      try {
+        const signInCredential = await signInWithEmailAndPassword(auth, phoneEmail, formData.password);
+        userId = signInCredential.user.uid;
+        console.log('✅ [PHONE] Signed in to existing Firebase Auth user:', userId);
+        console.log('✅ [PHONE] User email:', signInCredential.user.email);
+      } catch (signInError) {
+        console.log('❌ [PHONE] Sign in failed:', signInError.code);
+        console.log('❌ [PHONE] Sign in error message:', signInError.message);
+        Alert.alert('Error', 'This phone number is already registered. Please login.');
+        return;
+      }
+    } else if (authError.code === 'auth/weak-password') {
+      Alert.alert('Error', 'Password is too weak. Please use at least 6 characters.');
+      return;
+    } else if (authError.code === 'auth/invalid-email') {
+      Alert.alert('Error', 'Invalid phone number format.');
+      return;
+    } else {
+      Alert.alert('Error', 'Failed to create account. Please try again. Error: ' + authError.message);
+      return;
+    }
+  }
+  
+  // ✅ UPDATE: Use the Firebase Auth UID instead of the passed user.uid
+  const finalUserId = userId;
+  const finalRole = isDonorFlow ? 'donor' : (isDonationFlow ? 'donor' : role);
   console.log('🔵 [PHONE] Final role determined:', finalRole);
+  console.log('🔵 [PHONE] Final user ID (Firebase UID):', finalUserId);
 
   let userData;
   
@@ -1363,13 +1545,13 @@ const handlePhoneRegisterWithoutAlert = async () => {
     userData = {
       fullName: formData.fullName.trim(),
       phone: formData.phone.trim(),
-      email: formData.email.trim().toLowerCase() || '',
+      email: formData.email.trim().toLowerCase() || phoneEmail,
       address: formData.address.trim() || '',
       role: 'donor',
       status: 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      uid: userId,
+      uid: finalUserId,
       phoneNumber: formData.phone.trim(),
       registrationMethod: registrationMethod,
       totalDonations: 0,
@@ -1383,8 +1565,11 @@ const handlePhoneRegisterWithoutAlert = async () => {
       // ✅ STORE PASSWORD FOR DONOR
       password: formData.password,
       phonePassword: formData.password,
+      firebaseUid: finalUserId,
+      isFirebaseUser: true,
+      registrationSource: 'phone',
     };
-    console.log('✅ [PHONE] Donor data created with password field');
+    console.log('✅ [PHONE] Donor data created with password fields');
   } else {
     console.log('🔵 [PHONE] Creating USER data structure with role:', finalRole);
     userData = {
@@ -1397,7 +1582,7 @@ const handlePhoneRegisterWithoutAlert = async () => {
       spouseName: formData.spouseName,
       aadharNumber: formData.aadharNumber,
       phone: formData.phone.trim(),
-      email: formData.email.trim().toLowerCase() || '',
+      email: formData.email.trim().toLowerCase() || phoneEmail,
       address: formData.address.trim(),
       village: formData.village,
       postOffice: formData.postOffice,
@@ -1425,16 +1610,19 @@ const handlePhoneRegisterWithoutAlert = async () => {
       registrationFeePaidAt: parseFloat(feeAmount) > 0 ? new Date().toISOString() : null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      uid: userId,
+      uid: finalUserId,
       phoneNumber: formData.phone.trim(),
       registrationMethod: 'phone',
       referredBy: referrerData ? referrerData.id : null,
       referredByName: referrerData ? referrerData.name : null,
       referralCodeUsed: referralCode || null,
       referralDate: referrerData ? new Date().toISOString() : null,
-      // ✅ STORE PASSWORD - THIS WAS PREVIOUSLY MISSING!
+      // ✅ STORE PASSWORD - CRITICAL FOR PHONE LOGIN
       password: formData.password,
       phonePassword: formData.password,
+      firebaseUid: finalUserId,
+      isFirebaseUser: true,
+      registrationSource: 'phone',
     };
     console.log('✅ [PHONE] User data created with password fields');
   }
@@ -1442,34 +1630,38 @@ const handlePhoneRegisterWithoutAlert = async () => {
   console.log('🔵 [PHONE] ===== USER DATA SUMMARY =====');
   console.log('🔵 [PHONE] - Full Name:', userData.fullName);
   console.log('🔵 [PHONE] - Phone:', userData.phone);
-  console.log('🔵 [PHONE] - Email:', userData.email || '(empty)');
+  console.log('🔵 [PHONE] - Email:', userData.email);
   console.log('🔵 [PHONE] - Role:', userData.role);
   console.log('🔵 [PHONE] - Status:', userData.status);
   console.log('🔵 [PHONE] - Registration Method:', userData.registrationMethod);
+  console.log('🔵 [PHONE] - UID (Firebase):', userData.uid);
   console.log('🔵 [PHONE] - password field exists:', 'password' in userData);
   console.log('🔵 [PHONE] - password value:', userData.password ? '✅ SET (length: ' + userData.password.length + ')' : '❌ MISSING');
   console.log('🔵 [PHONE] - phonePassword field exists:', 'phonePassword' in userData);
   console.log('🔵 [PHONE] - phonePassword value:', userData.phonePassword ? '✅ SET (length: ' + userData.phonePassword.length + ')' : '❌ MISSING');
+  console.log('🔵 [PHONE] - firebaseUid:', userData.firebaseUid);
+  console.log('🔵 [PHONE] - isFirebaseUser:', userData.isFirebaseUser);
   console.log('🔵 [PHONE] - referralCodeUsed:', userData.referralCodeUsed || 'none');
   console.log('🔵 [PHONE] ===================================');
 
   console.log('🔵 [PHONE] Saving user data to Firestore collection:', finalRole === 'donor' ? 'donors' : 'users');
+  console.log('🔵 [PHONE] Document ID (Firebase UID):', finalUserId);
 
   try {
     if (finalRole === 'donor') {
-      console.log('🔵 [PHONE] Saving to donors collection with ID:', userId);
-      await setDoc(doc(db, 'donors', userId), userData);
+      console.log('🔵 [PHONE] Saving to donors collection with ID:', finalUserId);
+      await setDoc(doc(db, 'donors', finalUserId), userData);
       console.log('✅ [PHONE] Donor saved successfully to Firestore');
     } else {
-      console.log('🔵 [PHONE] Saving to users collection with ID:', userId);
-      await setDoc(doc(db, 'users', userId), userData);
+      console.log('🔵 [PHONE] Saving to users collection with ID:', finalUserId);
+      await setDoc(doc(db, 'users', finalUserId), userData);
       console.log('✅ [PHONE] User saved successfully to Firestore');
     }
     
     // ✅ VERIFY: Immediately check if password was actually saved
     console.log('🔵 [PHONE] ===== VERIFYING DATA WAS SAVED =====');
     const verifyCollection = finalRole === 'donor' ? 'donors' : 'users';
-    const verifyDoc = await getDoc(doc(db, verifyCollection, userId));
+    const verifyDoc = await getDoc(doc(db, verifyCollection, finalUserId));
     
     if (verifyDoc.exists()) {
       const savedData = verifyDoc.data();
@@ -1483,6 +1675,7 @@ const handlePhoneRegisterWithoutAlert = async () => {
       console.log('🔵 [PHONE] - phone:', savedData.phone || '❌ MISSING');
       console.log('🔵 [PHONE] - role:', savedData.role || '❌ MISSING');
       console.log('🔵 [PHONE] - status:', savedData.status || '❌ MISSING');
+      console.log('🔵 [PHONE] - firebaseUid:', savedData.firebaseUid || '❌ MISSING');
       
       // Log all keys for debugging
       console.log('🔵 [PHONE] All keys in saved document:', Object.keys(savedData).join(', '));
@@ -1521,10 +1714,10 @@ const handlePhoneRegisterWithoutAlert = async () => {
         const referrer = referrerDoc.data();
         const currentReferrals = referrer.directReferrals || [];
         console.log('🔵 [PHONE] Current referral count:', currentReferrals.length);
-        console.log('🔵 [PHONE] Adding new referral:', userId);
+        console.log('🔵 [PHONE] Adding new referral:', finalUserId);
         
         await updateDoc(referrerRef, {
-          directReferrals: [...currentReferrals, userId],
+          directReferrals: [...currentReferrals, finalUserId],
           updatedAt: new Date().toISOString()
         });
         console.log('✅ [PHONE] Referrer updated successfully');
@@ -1545,13 +1738,14 @@ const handlePhoneRegisterWithoutAlert = async () => {
   try {
     console.log('🔵 [PHONE] ===== SAVING PHONE MAPPING =====');
     console.log('🔵 [PHONE] Phone number:', userData.phone);
-    console.log('🔵 [PHONE] User ID:', userId);
+    console.log('🔵 [PHONE] User ID:', finalUserId);
     console.log('🔵 [PHONE] Role:', finalRole);
     
     await setDoc(doc(db, 'phoneUsers', userData.phone), {
-      userId: userId,
+      userId: finalUserId,
       phone: userData.phone,
       role: finalRole,
+      email: userData.email || '',
       referredBy: referrerData ? referrerData.id : null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1562,6 +1756,13 @@ const handlePhoneRegisterWithoutAlert = async () => {
     const verifyPhoneMap = await getDoc(doc(db, 'phoneUsers', userData.phone));
     if (verifyPhoneMap.exists()) {
       console.log('✅ [PHONE] Phone mapping verified: exists');
+      const mapData = verifyPhoneMap.data();
+      console.log('🔵 [PHONE] Phone mapping data:', {
+        userId: mapData.userId,
+        phone: mapData.phone,
+        role: mapData.role,
+        email: mapData.email
+      });
     } else {
       console.log('❌ [PHONE] Phone mapping verification FAILED');
     }
@@ -1575,11 +1776,11 @@ const handlePhoneRegisterWithoutAlert = async () => {
   // Create wallet for working member
   if (!isDonorFlow && finalRole === 'working') {
     console.log('🔵 [PHONE] ===== CREATING WALLET =====');
-    console.log('🔵 [PHONE] User ID:', userId);
+    console.log('🔵 [PHONE] User ID:', finalUserId);
     console.log('🔵 [PHONE] Role: working');
     
     try {
-      await setDoc(doc(db, 'wallets', userId), {
+      await setDoc(doc(db, 'wallets', finalUserId), {
         balance: 0,
         totalEarned: 0,
         pendingCommission: 0,
@@ -1591,7 +1792,7 @@ const handlePhoneRegisterWithoutAlert = async () => {
       console.log('✅ [PHONE] Wallet created successfully');
       
       // Verify wallet
-      const verifyWallet = await getDoc(doc(db, 'wallets', userId));
+      const verifyWallet = await getDoc(doc(db, 'wallets', finalUserId));
       if (verifyWallet.exists()) {
         console.log('✅ [PHONE] Wallet verified: exists');
       } else {
@@ -1604,9 +1805,23 @@ const handlePhoneRegisterWithoutAlert = async () => {
     console.log('🔵 [PHONE] ===== WALLET CREATION COMPLETE =====');
   }
 
+  // ✅ Generate referral code for the new user
+  console.log('🔵 [PHONE] Generating referral code...');
+  try {
+    const referralCode = generateReferralCode();
+    const userRef = doc(db, 'users', finalUserId);
+    await updateDoc(userRef, {
+      referralCode: referralCode,
+      referralCodeGeneratedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    console.log('✅ [PHONE] Referral code generated:', referralCode);
+  } catch (error) {
+    console.log('❌ [PHONE] Error generating referral code:', error);
+  }
+
   // Sign out user
   try {
-    const auth = getAuthInstance();
     console.log('🔵 [PHONE] Signing out user...');
     await auth.signOut();
     console.log('✅ [PHONE] User signed out successfully');
@@ -1636,15 +1851,18 @@ const handlePhoneRegisterWithoutAlert = async () => {
   
   console.log('✅ [PHONE] ===== PHONE REGISTRATION COMPLETE =====');
   console.log('✅ [PHONE] Summary:');
-  console.log('✅ [PHONE] - User ID:', userId);
+  console.log('✅ [PHONE] - User ID (Firebase):', finalUserId);
   console.log('✅ [PHONE] - Phone:', userData.phone);
+  console.log('✅ [PHONE] - Email (Firebase):', phoneEmail);
   console.log('✅ [PHONE] - Role:', finalRole);
-  console.log('✅ [PHONE] - Password stored:', !!userData.password);
+  console.log('✅ [PHONE] - Password stored in Firestore:', !!userData.password);
+  console.log('✅ [PHONE] - Firebase Auth user created:', isNewUser);
   console.log('✅ [PHONE] - Phone mapping saved: yes');
+  console.log('✅ [PHONE] - Wallet created:', finalRole === 'working');
+  console.log('✅ [PHONE] - Referral code generated: yes');
   console.log('✅ [PHONE] - Navigation to:', navigateTo);
   console.log('✅ [PHONE] ==========================================');
 };
-
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator, ScrollView, KeyboardAvoidingView, Dimensions } from 'react-native';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { 
   doc, 
   getDoc, 
@@ -205,6 +205,7 @@ export default function LoginScreen({ navigation, route }) {
     let role = 'member';
     let userDoc = null;
     let isDonor = false;
+    let originalUserId = null;
 
     if (phoneDoc.exists()) {
       const phoneData = phoneDoc.data();
@@ -315,34 +316,107 @@ export default function LoginScreen({ navigation, route }) {
       return;
     }
     
-    // ✅ FIX: Use the phone email format for Firebase Auth login
-    // This is the email that was used when the user was created in Firebase Auth
-    const phoneEmail = `${phoneNumber}@phone.auth`;
-    console.log('📱 Attempting Firebase Auth login with phone email:', phoneEmail);
+    // ✅ CHECK IF USER HAS FIREBASE AUTH ACCOUNT
+    const isFirebaseUser = userId && !userId.startsWith('phone_');
+    console.log('📱 Is Firebase Auth user:', isFirebaseUser);
     
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, phoneEmail, phonePassword);
-      console.log('✅ Firebase Auth login successful for:', userCredential.user.uid);
-      console.log('✅ User signed in:', auth.currentUser?.uid);
+    let firebaseAuthSuccess = false;
+    
+    if (!isFirebaseUser) {
+      // ✅ CREATE FIREBASE AUTH USER ON THE FLY
+      console.log('🔄 User does not have Firebase Auth account - creating one...');
+      const phoneEmail = `${phoneNumber}@phone.auth`;
       
-    } catch (authError) {
-      console.log('⚠️ Firebase Auth login failed:', authError.code);
-      console.log('⚠️ Error message:', authError.message);
-      
-      // If phone email fails, try the stored email as fallback
-      if (userData.email) {
-        console.log('📱 Trying stored email as fallback:', userData.email);
-        try {
-          const userCredential = await signInWithEmailAndPassword(auth, userData.email, phonePassword);
-          console.log('✅ Firebase Auth login successful with stored email');
-          console.log('✅ User signed in:', auth.currentUser?.uid);
-        } catch (fallbackError) {
-          console.log('⚠️ Fallback email login failed:', fallbackError.code);
-          console.log('⚠️ Proceeding with Firestore-only login (no Firebase Auth session)');
+      try {
+        // Try to create Firebase Auth user
+        const userCredential = await createUserWithEmailAndPassword(auth, phoneEmail, phonePassword);
+        console.log('✅ Firebase Auth user created on the fly with UID:', userCredential.user.uid);
+        
+        // Update user data with new Firebase UID
+        const newUid = userCredential.user.uid;
+        originalUserId = userId;
+        userId = newUid;
+        
+        const userRef = doc(db, 'users', originalUserId);
+        await updateDoc(userRef, {
+          uid: newUid,
+          firebaseUid: newUid,
+          originalUid: originalUserId,
+          updatedAt: new Date().toISOString()
+        });
+        console.log('✅ User document updated with Firebase UID');
+        
+        // Update phone mapping
+        await updateDoc(doc(db, 'phoneUsers', phoneNumber), {
+          userId: newUid,
+          updatedAt: new Date().toISOString()
+        });
+        console.log('✅ Phone mapping updated with Firebase UID');
+        
+        firebaseAuthSuccess = true;
+        
+      } catch (createError) {
+        console.log('⚠️ Could not create Firebase Auth user:', createError.code);
+        console.log('⚠️ Error message:', createError.message);
+        
+        // If email already in use, try to sign in
+        if (createError.code === 'auth/email-already-in-use') {
+          console.log('📱 Email already in use, trying to sign in...');
+          try {
+            const userCredential = await signInWithEmailAndPassword(auth, phoneEmail, phonePassword);
+            console.log('✅ Signed in to existing Firebase Auth user:', userCredential.user.uid);
+            
+            // Update with existing Firebase UID
+            const existingUid = userCredential.user.uid;
+            originalUserId = userId;
+            userId = existingUid;
+            
+            const userRef = doc(db, 'users', originalUserId);
+            await updateDoc(userRef, {
+              uid: existingUid,
+              firebaseUid: existingUid,
+              originalUid: originalUserId,
+              updatedAt: new Date().toISOString()
+            });
+            console.log('✅ User document updated with existing Firebase UID');
+            
+            await updateDoc(doc(db, 'phoneUsers', phoneNumber), {
+              userId: existingUid,
+              updatedAt: new Date().toISOString()
+            });
+            
+            firebaseAuthSuccess = true;
+          } catch (signInError) {
+            console.log('⚠️ Could not sign in to existing Firebase Auth user:', signInError.code);
+          }
         }
-      } else {
-        console.log('⚠️ Proceeding with Firestore-only login (no Firebase Auth session)');
       }
+    } else {
+      // ✅ USER ALREADY HAS FIREBASE AUTH - TRY NORMAL LOGIN
+      console.log('📱 User has Firebase Auth account, trying normal login...');
+      const possibleEmails = [
+        userData.email,
+        `${phoneNumber}@phone.auth`,
+        `phone_${phoneNumber}@auth.com`,
+        `${phoneNumber}@phone.user`
+      ].filter(email => email && email.trim() !== '');
+      
+      for (const email of possibleEmails) {
+        try {
+          console.log(`📱 Trying Firebase Auth login with email: ${email}`);
+          const userCredential = await signInWithEmailAndPassword(auth, email, phonePassword);
+          console.log('✅ Firebase Auth login successful with email:', email);
+          console.log('✅ User signed in:', auth.currentUser?.uid);
+          firebaseAuthSuccess = true;
+          break;
+        } catch (error) {
+          console.log(`⚠️ Failed with email ${email}:`, error.code);
+        }
+      }
+    }
+    
+    if (!firebaseAuthSuccess) {
+      console.log('⚠️ Firebase Auth setup failed - proceeding with Firestore-only login');
     }
     
     // Create mapping if it doesn't exist

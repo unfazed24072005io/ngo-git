@@ -706,9 +706,13 @@ export default function MemberProfile({ navigation }) {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>{translations.email}</Text>
-            <Text style={styles.value} numberOfLines={1}>{formData.email}</Text>
-          </View>
+  <Text style={styles.label}>{translations.email}</Text>
+  <Text style={styles.value} numberOfLines={1}>
+    {formData.email && !formData.email.includes('@phone.auth') && !formData.email.includes('@phone.user') 
+      ? formData.email 
+      : translations.notProvided}
+  </Text>
+</View>
 
           <View style={styles.field}>
             <Text style={styles.label}>{translations.phone}</Text>

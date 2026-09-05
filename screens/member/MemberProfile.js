@@ -531,7 +531,7 @@ export default function MemberProfile({ navigation }) {
               <View style={styles.idCardOverlay}>
                 {/* Personal Details */}
                 <View style={styles.idCardDetailsContainer}>
-                  <View style={[styles.idCardFieldRow, { marginTop: responsiveHeight(122) }]}>
+                  <View style={[styles.idCardFieldRow, { marginTop: responsiveHeight(95) }]}>
                     <Text style={styles.idCardFieldValue} numberOfLines={1}>{formData.fullName || translations.nA}</Text>
                   </View>
                   

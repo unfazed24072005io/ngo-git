@@ -471,157 +471,165 @@ const auth = getAuthInstance();
 
       {/* FAB Modal */}
       <Modal
-        animationType="fade"
-        transparent={true}
-        visible={fabModalVisible}
-        onRequestClose={() => setFabModalVisible(false)}
-      >
+  animationType="fade"
+  transparent={true}
+  visible={fabModalVisible}
+  onRequestClose={() => setFabModalVisible(false)}
+>
+  <TouchableOpacity 
+    style={styles.fabModalOverlay}
+    activeOpacity={1} 
+    onPress={() => setFabModalVisible(false)}
+  >
+    <View style={styles.fabModalContainer}>
+      <View style={styles.fabModalContent}>
+        <Text style={styles.fabModalTitle}>{translations.quickActions}</Text>
+        
         <TouchableOpacity 
-          style={styles.modalOverlay} 
-          activeOpacity={1} 
-          onPress={() => setFabModalVisible(false)}
+          style={styles.modalItem}
+          onPress={() => {
+            setFabModalVisible(false);
+            navigation.navigate('NoticeComplaint');
+          }}
+          activeOpacity={0.7}
         >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>{translations.quickActions}</Text>
-              
-              <TouchableOpacity 
-                style={styles.modalItem}
-                onPress={() => {
-                  setFabModalVisible(false);
-                  navigation.navigate('NoticeComplaint');
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.modalItemIcon, { backgroundColor: '#FF7722' }]}>
-                  <MaterialIcons name="announcement" size={22} color="#ffffff" />
-                </View>
-                <View style={styles.modalItemTextContainer}>
-                  <Text style={styles.modalItemTitle}>{translations.viewNotices}</Text>
-                  <Text style={styles.modalItemSubtitle}>{translations.manageNotices}</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.modalItem}
-                onPress={() => {
-                  setFabModalVisible(false);
-                  navigation.navigate('NoticeComplaint');
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.modalItemIcon, { backgroundColor: '#ef4444' }]}>
-                  <MaterialIcons name="report-problem" size={22} color="#ffffff" />
-                </View>
-                <View style={styles.modalItemTextContainer}>
-                  <Text style={styles.modalItemTitle}>{translations.viewComplaints}</Text>
-                  <Text style={styles.modalItemSubtitle}>{translations.manageComplaints}</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.modalItem}
-                onPress={() => {
-                  setFabModalVisible(false);
-                  navigation.navigate('NoticeComplaint');
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.modalItemIcon, { backgroundColor: '#f59e0b' }]}>
-                  <MaterialIcons name="lightbulb" size={22} color="#ffffff" />
-                </View>
-                <View style={styles.modalItemTextContainer}>
-                  <Text style={styles.modalItemTitle}>{translations.viewSuggestions}</Text>
-                  <Text style={styles.modalItemSubtitle}>{translations.manageSuggestions}</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.modalCloseButton}
-                onPress={() => setFabModalVisible(false)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.modalCloseButtonText}>{translations.close}</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={[styles.modalItemIcon, { backgroundColor: '#FF7722' }]}>
+            <MaterialIcons name="announcement" size={22} color="#ffffff" />
+          </View>
+          <View style={styles.modalItemTextContainer}>
+            <Text style={styles.modalItemTitle}>{translations.viewNotices}</Text>
+            <Text style={styles.modalItemSubtitle}>{translations.manageNotices}</Text>
           </View>
         </TouchableOpacity>
-      </Modal>
+
+        <TouchableOpacity 
+          style={styles.modalItem}
+          onPress={() => {
+            setFabModalVisible(false);
+            navigation.navigate('NoticeComplaint');
+          }}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.modalItemIcon, { backgroundColor: '#ef4444' }]}>
+            <MaterialIcons name="report-problem" size={22} color="#ffffff" />
+          </View>
+          <View style={styles.modalItemTextContainer}>
+            <Text style={styles.modalItemTitle}>{translations.viewComplaints}</Text>
+            <Text style={styles.modalItemSubtitle}>{translations.manageComplaints}</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.modalItem}
+          onPress={() => {
+            setFabModalVisible(false);
+            navigation.navigate('NoticeComplaint');
+          }}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.modalItemIcon, { backgroundColor: '#f59e0b' }]}>
+            <MaterialIcons name="lightbulb" size={22} color="#ffffff" />
+          </View>
+          <View style={styles.modalItemTextContainer}>
+            <Text style={styles.modalItemTitle}>{translations.viewSuggestions}</Text>
+            <Text style={styles.modalItemSubtitle}>{translations.manageSuggestions}</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.fabModalCloseButton}
+          onPress={() => setFabModalVisible(false)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.fabModalCloseButtonText}>{translations.close}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </TouchableOpacity>
+</Modal>
 <Modal
   animationType="slide"
   transparent={true}
   visible={showPendingModal}
   onRequestClose={() => setShowPendingModal(false)}
+  statusBarTranslucent={true}
 >
-  <View style={styles.modalOverlay}>
-    <View style={styles.modalContainer}>
-      <View style={styles.modalContent}>
-        <Text style={styles.modalTitle}>Pending Registrations</Text>
-        <Text style={styles.modalSubtitle}>
-          {pendingRegistrations.length} registrations waiting for approval
-        </Text>
+  <TouchableOpacity 
+    style={styles.pendingModalOverlay}
+    activeOpacity={1} 
+    onPress={() => setShowPendingModal(false)}
+  >
+    <View style={styles.pendingModalContainer}>
+      <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ flex: 1 }}>
+        <View style={styles.pendingModalContent}>
+          <Text style={styles.pendingModalTitle}>Pending Registrations</Text>
+          <Text style={styles.pendingModalSubtitle}>
+            {pendingRegistrations.length} registrations waiting for approval
+          </Text>
 
-        <ScrollView 
-          style={{ flex: 1, width: '100%' }}
-          showsVerticalScrollIndicator={true}
-          contentContainerStyle={{ paddingBottom: 8 }}
-        >
-          {pendingRegistrations.length > 0 ? (
-            pendingRegistrations.map((item) => (
-              <View key={item.id} style={styles.pendingItem}>
-                <View style={styles.pendingItemHeader}>
-                  <Text style={styles.pendingItemName}>
-                    {item.fullName || item.name || 'Unknown'}
-                  </Text>
-                  <View style={styles.pendingStatusBadge}>
-                    <Text style={styles.pendingStatusText}>Pending</Text>
+          <ScrollView 
+            style={{ flex: 1, width: '100%' }}
+            showsVerticalScrollIndicator={true}
+            contentContainerStyle={{ paddingBottom: 8 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {pendingRegistrations.length > 0 ? (
+              pendingRegistrations.map((item) => (
+                <View key={item.id} style={styles.pendingItem}>
+                  <View style={styles.pendingItemHeader}>
+                    <Text style={styles.pendingItemName}>
+                      {item.fullName || item.name || 'Unknown'}
+                    </Text>
+                    <View style={styles.pendingStatusBadge}>
+                      <Text style={styles.pendingStatusText}>Pending</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.pendingItemEmail}>📧 {item.email || 'No email'}</Text>
+                  <Text style={styles.pendingItemPhone}>📱 {item.phone || 'N/A'}</Text>
+                  {item.paymentSkipped && (
+                    <Text style={styles.pendingItemReason}>
+                      ⚠️ Payment skipped: {item.paymentSkippedReason || 'Not specified'}
+                    </Text>
+                  )}
+                  <View style={styles.pendingItemActions}>
+                    <TouchableOpacity
+                      style={[styles.pendingActionButton, styles.pendingApproveButton]}
+                      onPress={() => approveRegistration(item)}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialIcons name="check" size={18} color="#ffffff" />
+                      <Text style={styles.pendingActionText}>Approve</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.pendingActionButton, styles.pendingRejectButton]}
+                      onPress={() => rejectRegistration(item)}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialIcons name="close" size={18} color="#ffffff" />
+                      <Text style={styles.pendingActionText}>Reject</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
-                <Text style={styles.pendingItemEmail}>📧 {item.email || 'No email'}</Text>
-                <Text style={styles.pendingItemPhone}>📱 {item.phone || 'N/A'}</Text>
-                {item.paymentSkipped && (
-                  <Text style={styles.pendingItemReason}>
-                    ⚠️ Payment skipped: {item.paymentSkippedReason || 'Not specified'}
-                  </Text>
-                )}
-                <View style={styles.pendingItemActions}>
-                  <TouchableOpacity
-                    style={[styles.pendingActionButton, styles.pendingApproveButton]}
-                    onPress={() => approveRegistration(item)}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialIcons name="check" size={18} color="#ffffff" />
-                    <Text style={styles.pendingActionText}>Approve</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.pendingActionButton, styles.pendingRejectButton]}
-                    onPress={() => rejectRegistration(item)}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialIcons name="close" size={18} color="#ffffff" />
-                    <Text style={styles.pendingActionText}>Reject</Text>
-                  </TouchableOpacity>
-                </View>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <MaterialIcons name="check-circle" size={48} color="#10b981" />
+                <Text style={styles.emptyStateText}>No pending registrations</Text>
               </View>
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <MaterialIcons name="check-circle" size={48} color="#10b981" />
-              <Text style={styles.emptyStateText}>No pending registrations</Text>
-            </View>
-          )}
-        </ScrollView>
+            )}
+          </ScrollView>
 
-        <TouchableOpacity
-          style={styles.modalCloseButton}
-          onPress={() => setShowPendingModal(false)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.modalCloseButtonText}>Close</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={styles.pendingModalCloseButton}
+            onPress={() => setShowPendingModal(false)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.pendingModalCloseButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
     </View>
-  </View>
+  </TouchableOpacity>
 </Modal>
     </View>
   );
@@ -646,7 +654,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
 
-  // Saffron Header Card
+  // ============ SAFFRON HEADER CARD ============
   headerCard: {
     backgroundColor: '#FF7722',
     paddingHorizontal: 20,
@@ -697,7 +705,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
   },
 
-  // Quick Actions
+  // ============ QUICK ACTIONS ============
   quickActionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -732,7 +740,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
 
-  // Stats Grid
+  // ============ STATS GRID ============
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -754,6 +762,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+  },
+  statCardClickable: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 14,
+    width: '48%',
+    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  statCardClickableActive: {
+    borderColor: '#f59e0b',
+    backgroundColor: '#fffbeb',
   },
   statContent: {
     flex: 1,
@@ -780,8 +809,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  statBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  statBadgeText: {
+    fontFamily: Fonts.Bold,
+    fontSize: 10,
+    color: '#ffffff',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
 
-  // Recent Section
+  // ============ RECENT SECTION ============
   recentSection: {
     paddingHorizontal: 16,
     marginBottom: 16,
@@ -856,30 +904,17 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     textAlignVertical: 'center',
   },
-  emptyState: {
-    paddingVertical: 20,
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
-  },
-  emptyStateText: {
-    fontFamily: Fonts.Regular,
-    fontSize: 13,
-    color: '#9ca3af',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
   bottomSpacing: {
     height: 20,
   },
 
-  // FAB Modal
-  modalOverlay: {
+  // ============ FAB MODAL (Bottom Sheet) ============
+  fabModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
-  modalContainer: {
+  fabModalContainer: {
     backgroundColor: '#ffffff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -887,10 +922,10 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     maxHeight: '50%',
   },
-  modalContent: {
+  fabModalContent: {
     width: '100%',
   },
-  modalTitle: {
+  fabModalTitle: {
     fontFamily: Fonts.Bold,
     fontSize: 20,
     color: '#1f2937',
@@ -908,427 +943,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: '#f9fafb',
   },
-// Add these styles to the styles object in AdminDashboard.js
-
-// ============ PENDING REGISTRATIONS MODAL STYLES ============
-
-modalOverlay: {
-  flex: 1,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  justifyContent: 'center',
-  alignItems: 'center',
-  padding: 20,
-},
-modalContainer: {
-  backgroundColor: '#ffffff',
-  borderRadius: 24,
-  padding: 20,
-  width: '100%',
-  maxWidth: 500,
-  maxHeight: '80%',
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.25,
-  shadowRadius: 8,
-  elevation: 5,
-},
-modalTitle: {
-  fontFamily: Fonts.Bold,
-  fontSize: 22,
-  color: '#1f2937',
-  textAlign: 'center',
-  marginBottom: 4,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-modalSubtitle: {
-  fontFamily: Fonts.Regular,
-  fontSize: 14,
-  color: '#6b7280',
-  textAlign: 'center',
-  marginBottom: 16,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-// Pending Item
-pendingItem: {
-  backgroundColor: '#f9fafb',
-  borderRadius: 12,
-  padding: 14,
-  marginBottom: 12,
-  borderWidth: 1,
-  borderColor: '#e5e7eb',
-},
-pendingItemHeader: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  marginBottom: 4,
-},
-// Updated styles for AdminDashboard.js
-
-// ============ PENDING REGISTRATIONS MODAL STYLES ============
-
-modalOverlay: {
-  flex: 1,
-  backgroundColor: 'rgba(0,0,0,0.6)',
-  justifyContent: 'center',
-  alignItems: 'center',
-  padding: 16,
-},
-
-modalContainer: {
-  backgroundColor: '#ffffff',
-  borderRadius: 24,
-  padding: 20,
-  paddingBottom: 16,
-  width: '100%',
-  maxWidth: 500,
-  maxHeight: '85%', // ✅ Limit height
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.25,
-  shadowRadius: 8,
-  elevation: 5,
-},
-
-modalContent: {
-  flex: 1,
-  width: '100%',
-},
-
-modalTitle: {
-  fontFamily: Fonts.Bold,
-  fontSize: 22,
-  color: '#1f2937',
-  textAlign: 'center',
-  marginBottom: 4,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-modalSubtitle: {
-  fontFamily: Fonts.Regular,
-  fontSize: 14,
-  color: '#6b7280',
-  textAlign: 'center',
-  marginBottom: 16,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-// ✅ Pending Item - Make it scrollable
-pendingItem: {
-  backgroundColor: '#f9fafb',
-  borderRadius: 12,
-  padding: 14,
-  marginBottom: 12,
-  borderWidth: 1,
-  borderColor: '#e5e7eb',
-  width: '100%',
-},
-
-pendingItemHeader: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  marginBottom: 4,
-  flexWrap: 'wrap',
-},
-
-pendingItemName: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 16,
-  color: '#1f2937',
-  flex: 1,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-pendingStatusBadge: {
-  paddingHorizontal: 10,
-  paddingVertical: 3,
-  borderRadius: 12,
-  backgroundColor: '#fef3c7',
-  marginLeft: 8,
-},
-
-pendingStatusText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 11,
-  color: '#92400e',
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-pendingItemEmail: {
-  fontFamily: Fonts.Regular,
-  fontSize: 13,
-  color: '#6b7280',
-  marginBottom: 2,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-pendingItemPhone: {
-  fontFamily: Fonts.Regular,
-  fontSize: 13,
-  color: '#6b7280',
-  marginBottom: 2,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-pendingItemReason: {
-  fontFamily: Fonts.Italic,
-  fontSize: 12,
-  color: '#f59e0b',
-  marginTop: 4,
-  marginBottom: 8,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-pendingItemActions: {
-  flexDirection: 'row',
-  gap: 10,
-  marginTop: 8,
-  width: '100%',
-},
-
-pendingActionButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingVertical: 10,
-  paddingHorizontal: 16,
-  borderRadius: 8,
-  flex: 1,
-  gap: 6,
-},
-
-pendingApproveButton: {
-  backgroundColor: '#10b981',
-},
-
-pendingRejectButton: {
-  backgroundColor: '#ef4444',
-},
-
-pendingActionText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 13,
-  color: '#ffffff',
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-// ✅ Updated modal close button
-modalCloseButton: {
-  paddingVertical: 12,
-  borderRadius: 8,
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: '#f3f4f6',
-  marginTop: 8,
-  width: '100%',
-},
-
-modalCloseButtonText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 14,
-  color: '#6b7280',
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-// ✅ Empty state
-emptyState: {
-  paddingVertical: 30,
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: '#f9fafb',
-  borderRadius: 10,
-  width: '100%',
-},
-
-emptyStateText: {
-  fontFamily: Fonts.Regular,
-  fontSize: 14,
-  color: '#9ca3af',
-  marginTop: 8,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-// ============ END PENDING REGISTRATIONS MODAL STYLES ============
-pendingItemName: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 16,
-  color: '#1f2937',
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-pendingStatusBadge: {
-  paddingHorizontal: 10,
-  paddingVertical: 3,
-  borderRadius: 12,
-  backgroundColor: '#fef3c7',
-},
-pendingStatusText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 11,
-  color: '#92400e',
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-pendingItemEmail: {
-  fontFamily: Fonts.Regular,
-  fontSize: 13,
-  color: '#6b7280',
-  marginBottom: 2,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-modalSubtitle: {
-  fontFamily: Fonts.Regular,
-  fontSize: 14,
-  color: '#6b7280',
-  textAlign: 'center',
-  marginBottom: 16,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-pendingItemPhone: {
-  fontFamily: Fonts.Regular,
-  fontSize: 13,
-  color: '#6b7280',
-  marginBottom: 2,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-pendingItemReason: {
-  fontFamily: Fonts.Italic,
-  fontSize: 12,
-  color: '#f59e0b',
-  marginTop: 4,
-  marginBottom: 8,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-pendingItemActions: {
-  flexDirection: 'row',
-  gap: 10,
-  marginTop: 8,
-},
-pendingActionButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingVertical: 8,
-  paddingHorizontal: 16,
-  borderRadius: 8,
-  flex: 1,
-  gap: 6,
-},
-pendingApproveButton: {
-  backgroundColor: '#10b981',
-},
-pendingRejectButton: {
-  backgroundColor: '#ef4444',
-},
-pendingActionText: {
-  fontFamily: Fonts.SemiBold,
-  fontSize: 13,
-  color: '#ffffff',
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-// Stats Card with Clickable
-statCard: {
-  backgroundColor: '#ffffff',
-  borderRadius: 12,
-  padding: 14,
-  width: '48%',
-  marginBottom: 10,
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 1 },
-  shadowOpacity: 0.05,
-  shadowRadius: 2,
-  elevation: 1,
-},
-statCardClickable: {
-  backgroundColor: '#ffffff',
-  borderRadius: 12,
-  padding: 14,
-  width: '48%',
-  marginBottom: 10,
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 1 },
-  shadowOpacity: 0.05,
-  shadowRadius: 2,
-  elevation: 1,
-  borderWidth: 1,
-  borderColor: 'transparent',
-},
-statCardClickableActive: {
-  borderColor: '#f59e0b',
-  backgroundColor: '#fffbeb',
-},
-statContent: {
-  flex: 1,
-},
-statTitle: {
-  fontFamily: Fonts.Regular,
-  fontSize: 11,
-  color: '#6b7280',
-  marginBottom: 2,
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-statValue: {
-  fontFamily: Fonts.Bold,
-  fontSize: 18,
-  color: '#1f2937',
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-statIconContainer: {
-  width: 34,
-  height: 34,
-  borderRadius: 10,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-statBadge: {
-  position: 'absolute',
-  top: -6,
-  right: -6,
-  backgroundColor: '#ef4444',
-  borderRadius: 10,
-  minWidth: 18,
-  height: 18,
-  justifyContent: 'center',
-  alignItems: 'center',
-  paddingHorizontal: 4,
-},
-statBadgeText: {
-  fontFamily: Fonts.Bold,
-  fontSize: 10,
-  color: '#ffffff',
-  includeFontPadding: false,
-  textAlignVertical: 'center',
-},
-
-// ============ END PENDING REGISTRATIONS MODAL STYLES ============
   modalItemIcon: {
     width: 40,
     height: 40,
@@ -1354,17 +968,197 @@ statBadgeText: {
     includeFontPadding: false,
     textAlignVertical: 'center',
   },
-  modalCloseButton: {
+  fabModalCloseButton: {
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#f3f4f6',
   },
-  modalCloseButtonText: {
+  fabModalCloseButtonText: {
     fontFamily: Fonts.SemiBold,
     fontSize: 14,
     color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+
+  // ============ PENDING REGISTRATIONS MODAL (Centered) ============
+  pendingModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  pendingModalContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 20,
+    paddingBottom: 16,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '85%',
+    minHeight: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  pendingModalContent: {
+    flex: 1,
+    width: '100%',
+    minHeight: 150,
+  },
+  pendingModalTitle: {
+    fontFamily: Fonts.Bold,
+    fontSize: 22,
+    color: '#1f2937',
+    textAlign: 'center',
+    marginBottom: 4,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  pendingModalSubtitle: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 16,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  pendingItem: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    width: '100%',
+  },
+  pendingItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
+  pendingItemName: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 16,
+    color: '#1f2937',
+    flex: 1,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  pendingStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    backgroundColor: '#fef3c7',
+    marginLeft: 8,
+  },
+  pendingStatusText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 11,
+    color: '#92400e',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  pendingItemEmail: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  pendingItemPhone: {
+    fontFamily: Fonts.Regular,
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  pendingItemReason: {
+    fontFamily: Fonts.Italic,
+    fontSize: 12,
+    color: '#f59e0b',
+    marginTop: 4,
+    marginBottom: 8,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  pendingItemActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+    width: '100%',
+  },
+  pendingActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flex: 1,
+    gap: 6,
+  },
+  pendingApproveButton: {
+    backgroundColor: '#10b981',
+  },
+  pendingRejectButton: {
+    backgroundColor: '#ef4444',
+  },
+  pendingActionText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 13,
+    color: '#ffffff',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  pendingModalCloseButton: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f3f4f6',
+    marginTop: 8,
+    width: '100%',
+  },
+  pendingModalCloseButtonText: {
+    fontFamily: Fonts.SemiBold,
+    fontSize: 14,
+    color: '#6b7280',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+
+  // ============ EMPTY STATE ============
+  emptyState: {
+    paddingVertical: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f9fafb',
+    borderRadius: 10,
+    width: '100%',
+  },
+  emptyStateText: {
+    fontFamily: Fonts.Regular,
+    fontSize: 14,
+    color: '#9ca3af',
+    marginTop: 8,
     includeFontPadding: false,
     textAlignVertical: 'center',
   },

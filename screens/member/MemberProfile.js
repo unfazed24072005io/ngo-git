@@ -576,14 +576,6 @@ export default function MemberProfile({ navigation }) {
                   <Text style={styles.idCardPhotoLabel}>{translations.idCardPhoto}</Text>
                 </View>
                 
-                {/* Footer */}
-                <View style={styles.idCardFooter}>
-                  <View style={styles.idCardSignatureContainer}>
-                    <View style={styles.idCardSignatureLine} />
-                    <Text style={styles.idCardSignatureLabel}>{translations.idCardSignature}</Text>
-                  </View>
-                  <Text style={styles.idCardFooterText}>{translations.idCardSecretary}</Text>
-                </View>
               </View>
             </View>
           </View>
@@ -1217,7 +1209,7 @@ const styles = StyleSheet.create({
   },
   idCardFieldValue: {
     fontFamily: Fonts.Regular,
-    fontSize: responsiveFont(10),
+    fontSize: responsiveFont(8),
     marginLeft: responsiveWidth(100),
     color: '#1f2937',
     flex: 1,
@@ -1229,7 +1221,7 @@ const styles = StyleSheet.create({
   idCardPhotoContainer: {
     position: 'absolute',
     right: responsiveWidth(16),
-    top: '35%',
+    top: '40%',
     alignItems: 'center',
   },
   idCardPhotoWrapper: {
@@ -1619,7 +1611,7 @@ const styles = StyleSheet.create({
   },
   certificateNameRow: {
     position: 'absolute',
-    top: '46%',
+    top: '43%',
     left: '35%',
     width: '60%',
   },

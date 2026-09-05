@@ -23,6 +23,11 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+"splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#ffffff"
+    },
     "plugins": [
       "expo-sharing"
     ],

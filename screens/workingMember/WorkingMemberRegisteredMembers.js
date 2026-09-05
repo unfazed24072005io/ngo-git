@@ -1272,6 +1272,7 @@ const [registerData, setRegisterData] = useState({
     if (!registerLoading) {
       setRegisterModalVisible(false);
       setStep(1);
+      resetForm();
     }
   }}
 >
@@ -1283,6 +1284,7 @@ const [registerData, setRegisterData] = useState({
         if (!registerLoading) {
           setRegisterModalVisible(false);
           setStep(1);
+          resetForm();
         }
       }}
     />
@@ -1301,6 +1303,7 @@ const [registerData, setRegisterData] = useState({
               if (!registerLoading) {
                 setRegisterModalVisible(false);
                 setStep(1);
+                resetForm();
               }
             }}
             activeOpacity={0.7}
@@ -1309,13 +1312,13 @@ const [registerData, setRegisterData] = useState({
           </TouchableOpacity>
         </View>
 
-        {/* Progress Bar */}
+        {/* Progress Bar - Shows all 7 steps */}
         <View style={styles.progressContainer}>
           <Text style={[styles.progressText, { fontSize: isSmallDevice ? 10 : 12 }]}>
-            {translations.step} {step} {translations.of} {getTotalSteps()}
+            {translations.step} {step} {translations.of} 7
           </Text>
           <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${(step / getTotalSteps()) * 100}%` }]} />
+            <View style={[styles.progressFill, { width: `${(step / 7) * 100}%` }]} />
           </View>
         </View>
 
@@ -1324,54 +1327,36 @@ const [registerData, setRegisterData] = useState({
           contentContainerStyle={styles.scrollContent}
           style={{ flex: 1 }}
         >
-          {/* Step 1: Personal Information */}
+          {/* STEP 1: Personal Information */}
           {step === 1 && (
             <View style={styles.stepContainer}>
               <Text style={[styles.stepTitle, { fontSize: isSmallDevice ? 14 : 16 }]}>
                 {translations.personalInformation}
               </Text>
+              <Text style={styles.modalSubStep}>{translations.enterBasicDetails}</Text>
               
-              {/* Full Name */}
               <View style={styles.formField}>
                 <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
                   {translations.fullName} *
                 </Text>
                 <TextInput
                   style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-                  value={registerData.fullName}
-                  onChangeText={(text) => setRegisterData({ ...registerData, fullName: text })}
+                  value={formData.fullName}
+                  onChangeText={(text) => setFormData({...formData, fullName: text})}
                   placeholder={translations.enterFullName}
                   placeholderTextColor="#9ca3af"
                   editable={!registerLoading}
                 />
               </View>
 
-              {/* Phone */}
               <View style={styles.formField}>
                 <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
-                  {translations.phone} *
+                  {translations.email} *
                 </Text>
                 <TextInput
                   style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-                  value={registerData.phone}
-                  onChangeText={(text) => setRegisterData({ ...registerData, phone: text })}
-                  placeholder={translations.enterPhone}
-                  placeholderTextColor="#9ca3af"
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  editable={!registerLoading}
-                />
-              </View>
-
-              {/* Email */}
-              <View style={styles.formField}>
-                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
-                  {translations.email}
-                </Text>
-                <TextInput
-                  style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-                  value={registerData.email}
-                  onChangeText={(text) => setRegisterData({ ...registerData, email: text })}
+                  value={formData.email}
+                  onChangeText={(text) => setFormData({...formData, email: text})}
                   placeholder={translations.enterEmail}
                   placeholderTextColor="#9ca3af"
                   keyboardType="email-address"
@@ -1380,99 +1365,74 @@ const [registerData, setRegisterData] = useState({
                 />
               </View>
 
-              {/* Gender */}
+              <View style={styles.formField}>
+                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                  {translations.phoneNumber} *
+                </Text>
+                <TextInput
+                  style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                  value={formData.phone}
+                  onChangeText={(text) => setFormData({...formData, phone: text})}
+                  placeholder={translations.enterPhone}
+                  placeholderTextColor="#9ca3af"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  editable={!registerLoading}
+                />
+              </View>
+
               <View style={styles.formField}>
                 <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
                   {translations.gender}
                 </Text>
                 <View style={styles.genderContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.genderOption,
-                      registerData.gender === 'male' && styles.genderOptionActive
-                    ]}
-                    onPress={() => setRegisterData({ ...registerData, gender: 'male' })}
-                    disabled={registerLoading}
-                  >
-                    <MaterialIcons 
-                      name="male" 
-                      size={20} 
-                      color={registerData.gender === 'male' ? '#ffffff' : '#6b7280'} 
-                    />
-                    <Text style={[
-                      styles.genderOptionText,
-                      registerData.gender === 'male' && styles.genderOptionTextActive
-                    ]}>
-                      {translations.male}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.genderOption,
-                      registerData.gender === 'female' && styles.genderOptionActive
-                    ]}
-                    onPress={() => setRegisterData({ ...registerData, gender: 'female' })}
-                    disabled={registerLoading}
-                  >
-                    <MaterialIcons 
-                      name="female" 
-                      size={20} 
-                      color={registerData.gender === 'female' ? '#ffffff' : '#6b7280'} 
-                    />
-                    <Text style={[
-                      styles.genderOptionText,
-                      registerData.gender === 'female' && styles.genderOptionTextActive
-                    ]}>
-                      {translations.female}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.genderOption,
-                      registerData.gender === 'other' && styles.genderOptionActive
-                    ]}
-                    onPress={() => setRegisterData({ ...registerData, gender: 'other' })}
-                    disabled={registerLoading}
-                  >
-                    <MaterialIcons 
-                      name="person" 
-                      size={20} 
-                      color={registerData.gender === 'other' ? '#ffffff' : '#6b7280'} 
-                    />
-                    <Text style={[
-                      styles.genderOptionText,
-                      registerData.gender === 'other' && styles.genderOptionTextActive
-                    ]}>
-                      {translations.other}
-                    </Text>
-                  </TouchableOpacity>
+                  {['Male', 'Female', 'Other'].map((gender) => (
+                    <TouchableOpacity
+                      key={gender}
+                      style={[
+                        styles.genderOption,
+                        formData.gender === gender && styles.genderOptionActive
+                      ]}
+                      onPress={() => setFormData({...formData, gender})}
+                      disabled={registerLoading}
+                    >
+                      <Text style={[
+                        styles.genderOptionText,
+                        formData.gender === gender && styles.genderOptionTextActive
+                      ]}>
+                        {gender === 'Male' ? translations.male : gender === 'Female' ? translations.female : translations.other}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
 
-              {/* Date of Birth */}
-              <View style={styles.formField}>
-                <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
-                  {translations.dateOfBirth}
-                </Text>
-                <TextInput
-                  style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-                  value={registerData.dob}
-                  onChangeText={(text) => setRegisterData({ ...registerData, dob: text })}
-                  placeholder="DD/MM/YYYY"
-                  placeholderTextColor="#9ca3af"
-                  editable={!registerLoading}
-                />
-              </View>
+              <TouchableOpacity 
+                style={styles.modalNextButton} 
+                onPress={() => setStep(2)}
+                disabled={registerLoading}
+              >
+                <Text style={styles.buttonText}>{translations.next} →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-              {/* Address */}
+          {/* STEP 2: Address & Security */}
+          {step === 2 && (
+            <View style={styles.stepContainer}>
+              <Text style={[styles.stepTitle, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                {translations.addressSecurity}
+              </Text>
+              <Text style={styles.modalSubStep}>{translations.enterAddressPassword}</Text>
+              
               <View style={styles.formField}>
                 <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
                   {translations.address}
                 </Text>
                 <TextInput
                   style={[styles.formInput, styles.formTextArea, { fontSize: isSmallDevice ? 13 : 14 }]}
-                  value={registerData.address}
-                  onChangeText={(text) => setRegisterData({ ...registerData, address: text })}
+                  value={formData.address}
+                  onChangeText={(text) => setFormData({...formData, address: text})}
                   placeholder={translations.enterAddress}
                   placeholderTextColor="#9ca3af"
                   multiline
@@ -1480,40 +1440,51 @@ const [registerData, setRegisterData] = useState({
                   editable={!registerLoading}
                 />
               </View>
-            </View>
-          )}
 
-          {/* Step 2: Account Details */}
-          {step === 2 && (
-            <View style={styles.stepContainer}>
-              <Text style={[styles.stepTitle, { fontSize: isSmallDevice ? 14 : 16 }]}>
-                {translations.accountDetails}
-              </Text>
-              
-              {/* Email or Phone for login */}
+              <View style={styles.formRow}>
+                <View style={[styles.formField, { flex: 1, marginRight: 8 }]}>
+                  <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                    {translations.city}
+                  </Text>
+                  <TextInput
+                    style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                    value={formData.city}
+                    onChangeText={(text) => setFormData({...formData, city: text})}
+                    placeholder={translations.city}
+                    placeholderTextColor="#9ca3af"
+                    editable={!registerLoading}
+                  />
+                </View>
+                <View style={[styles.formField, { flex: 1, marginLeft: 8 }]}>
+                  <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
+                    {translations.state}
+                  </Text>
+                  <TextInput
+                    style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
+                    value={formData.state}
+                    onChangeText={(text) => setFormData({...formData, state: text})}
+                    placeholder={translations.state}
+                    placeholderTextColor="#9ca3af"
+                    editable={!registerLoading}
+                  />
+                </View>
+              </View>
+
               <View style={styles.formField}>
                 <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
-                  {registrationMethod === 'email' ? translations.email : translations.phone} *
+                  {translations.pincode}
                 </Text>
                 <TextInput
                   style={[styles.formInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-                  value={registrationMethod === 'email' ? registerData.email : registerData.phone}
-                  onChangeText={(text) => {
-                    if (registrationMethod === 'email') {
-                      setRegisterData({ ...registerData, email: text });
-                    } else {
-                      setRegisterData({ ...registerData, phone: text });
-                    }
-                  }}
-                  placeholder={registrationMethod === 'email' ? translations.enterEmail : translations.enterPhone}
+                  value={formData.pincode}
+                  onChangeText={(text) => setFormData({...formData, pincode: text})}
+                  placeholder={translations.pincode}
                   placeholderTextColor="#9ca3af"
-                  keyboardType={registrationMethod === 'email' ? 'email-address' : 'phone-pad'}
-                  autoCapitalize="none"
+                  keyboardType="numeric"
                   editable={!registerLoading}
                 />
               </View>
 
-              {/* Password Field with Show/Hide */}
               <View style={styles.formField}>
                 <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
                   {translations.password} * ({translations.minChars})
@@ -1521,8 +1492,8 @@ const [registerData, setRegisterData] = useState({
                 <View style={styles.passwordContainer}>
                   <TextInput
                     style={[styles.passwordInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-                    value={registerData.password}
-                    onChangeText={(text) => setRegisterData({ ...registerData, password: text })}
+                    value={formData.password}
+                    onChangeText={(text) => setFormData({...formData, password: text})}
                     placeholder={translations.enterPassword}
                     placeholderTextColor="#9ca3af"
                     secureTextEntry={!showPassword}
@@ -1542,7 +1513,6 @@ const [registerData, setRegisterData] = useState({
                 </View>
               </View>
 
-              {/* Confirm Password Field with Show/Hide */}
               <View style={styles.formField}>
                 <Text style={[styles.formLabel, { fontSize: isSmallDevice ? 11 : 12 }]}>
                   {translations.confirmPassword} *
@@ -1550,8 +1520,8 @@ const [registerData, setRegisterData] = useState({
                 <View style={styles.passwordContainer}>
                   <TextInput
                     style={[styles.passwordInput, { fontSize: isSmallDevice ? 13 : 14 }]}
-                    value={registerData.confirmPassword}
-                    onChangeText={(text) => setRegisterData({ ...registerData, confirmPassword: text })}
+                    value={formData.confirmPassword}
+                    onChangeText={(text) => setFormData({...formData, confirmPassword: text})}
                     placeholder={translations.confirmPassword}
                     placeholderTextColor="#9ca3af"
                     secureTextEntry={!showConfirmPassword}
@@ -1572,161 +1542,208 @@ const [registerData, setRegisterData] = useState({
               </View>
 
               {/* Password Match Indicator */}
-              {registerData.password && registerData.confirmPassword && (
+              {formData.password && formData.confirmPassword && (
                 <View style={styles.passwordMatchContainer}>
                   <MaterialIcons 
-                    name={registerData.password === registerData.confirmPassword ? "check-circle" : "error"} 
+                    name={formData.password === formData.confirmPassword ? "check-circle" : "error"} 
                     size={18} 
-                    color={registerData.password === registerData.confirmPassword ? "#10b981" : "#ef4444"} 
+                    color={formData.password === formData.confirmPassword ? "#10b981" : "#ef4444"} 
                   />
                   <Text style={[
                     styles.passwordMatchText,
-                    registerData.password === registerData.confirmPassword ? styles.passwordMatchSuccess : styles.passwordMatchError
+                    formData.password === formData.confirmPassword ? styles.passwordMatchSuccess : styles.passwordMatchError
                   ]}>
-                    {registerData.password === registerData.confirmPassword 
-                      ? translations.passwordsMatch 
-                      : translations.passwordsDoNotMatch}
+                    {formData.password === formData.confirmPassword 
+                      ? translations.passwordsMatch || 'Passwords match' 
+                      : translations.passwordsDoNotMatch || 'Passwords do not match'}
                   </Text>
                 </View>
               )}
+
+              <View style={styles.modalStepButtons}>
+                <TouchableOpacity style={styles.modalBackButton} onPress={() => setStep(1)} disabled={registerLoading}>
+                  <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
+                  <Text style={styles.buttonText}>{translations.back}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalNextButton} onPress={() => setStep(3)} disabled={registerLoading}>
+                  <Text style={styles.buttonText}>{translations.next} →</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
-          {/* Step 3: Review & Submit */}
+          {/* STEP 3: Profile Photo */}
           {step === 3 && (
             <View style={styles.stepContainer}>
               <Text style={[styles.stepTitle, { fontSize: isSmallDevice ? 14 : 16 }]}>
-                {translations.reviewAndSubmit}
+                {translations.profilePhoto}
               </Text>
-              
-              <View style={styles.reviewCard}>
-                <Text style={[styles.reviewSectionTitle, { fontSize: isSmallDevice ? 12 : 14 }]}>
-                  {translations.personalInformation}
-                </Text>
-                <View style={styles.reviewRow}>
-                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {translations.fullName}
+              <Text style={styles.modalSubStep}>{translations.uploadProfilePhoto}</Text>
+
+              <View style={styles.uploadContainer}>
+                <TouchableOpacity style={styles.uploadButton} onPress={() => pickImage('profilePhoto')} disabled={registerLoading}>
+                  <MaterialIcons name="photo-camera" size={24} color="#8b5cf6" />
+                  <Text style={styles.uploadButtonText}>
+                    {formData.profilePhoto ? translations.changePhoto : translations.uploadPhoto}
                   </Text>
-                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {registerData.fullName || translations.notProvided}
-                  </Text>
-                </View>
-                <View style={styles.reviewRow}>
-                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {translations.phone}
-                  </Text>
-                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {registerData.phone || translations.notProvided}
-                  </Text>
-                </View>
-                <View style={styles.reviewRow}>
-                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {translations.email}
-                  </Text>
-                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {registerData.email || translations.notProvided}
-                  </Text>
-                </View>
-                <View style={styles.reviewRow}>
-                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {translations.gender}
-                  </Text>
-                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {registerData.gender ? translations[registerData.gender] || registerData.gender : translations.notProvided}
-                  </Text>
-                </View>
-                <View style={styles.reviewRow}>
-                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {translations.dateOfBirth}
-                  </Text>
-                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {registerData.dob || translations.notProvided}
-                  </Text>
-                </View>
-                <View style={styles.reviewRow}>
-                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {translations.address}
-                  </Text>
-                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {registerData.address || translations.notProvided}
-                  </Text>
-                </View>
+                </TouchableOpacity>
+                {formData.profilePhoto && (
+                  <Image source={{ uri: formData.profilePhoto }} style={styles.previewImage} />
+                )}
               </View>
 
-              <View style={styles.reviewCard}>
-                <Text style={[styles.reviewSectionTitle, { fontSize: isSmallDevice ? 12 : 14 }]}>
-                  {translations.accountDetails}
-                </Text>
-                <View style={styles.reviewRow}>
-                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {translations.loginId}
+              <View style={styles.modalStepButtons}>
+                <TouchableOpacity style={styles.modalBackButton} onPress={() => setStep(2)} disabled={registerLoading}>
+                  <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
+                  <Text style={styles.buttonText}>{translations.back}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalNextButton} onPress={() => setStep(4)} disabled={registerLoading}>
+                  <Text style={styles.buttonText}>{translations.next} →</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* STEP 4: Aadhar Front */}
+          {step === 4 && (
+            <View style={styles.stepContainer}>
+              <Text style={[styles.stepTitle, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                {translations.aadharFront}
+              </Text>
+              <Text style={styles.modalSubStep}>{translations.uploadAadharFront}</Text>
+
+              <View style={styles.uploadContainer}>
+                <TouchableOpacity style={styles.uploadButton} onPress={() => pickImage('aadharFront')} disabled={registerLoading}>
+                  <MaterialIcons name="credit-card" size={24} color="#8b5cf6" />
+                  <Text style={styles.uploadButtonText}>
+                    {formData.aadharFront ? translations.changeAadharFront : translations.uploadAadharFrontLabel}
                   </Text>
-                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {registrationMethod === 'email' ? registerData.email : registerData.phone}
+                </TouchableOpacity>
+                {formData.aadharFront && (
+                  <Image source={{ uri: formData.aadharFront }} style={styles.previewImage} />
+                )}
+              </View>
+
+              <View style={styles.modalStepButtons}>
+                <TouchableOpacity style={styles.modalBackButton} onPress={() => setStep(3)} disabled={registerLoading}>
+                  <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
+                  <Text style={styles.buttonText}>{translations.back}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalNextButton} onPress={() => setStep(5)} disabled={registerLoading}>
+                  <Text style={styles.buttonText}>{translations.next} →</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* STEP 5: Aadhar Back */}
+          {step === 5 && (
+            <View style={styles.stepContainer}>
+              <Text style={[styles.stepTitle, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                {translations.aadharBack}
+              </Text>
+              <Text style={styles.modalSubStep}>{translations.uploadAadharBack}</Text>
+
+              <View style={styles.uploadContainer}>
+                <TouchableOpacity style={styles.uploadButton} onPress={() => pickImage('aadharBack')} disabled={registerLoading}>
+                  <MaterialIcons name="credit-card" size={24} color="#8b5cf6" />
+                  <Text style={styles.uploadButtonText}>
+                    {formData.aadharBack ? translations.changeAadharBack : translations.uploadAadharBackLabel}
                   </Text>
-                </View>
-                <View style={styles.reviewRow}>
-                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {translations.password}
+                </TouchableOpacity>
+                {formData.aadharBack && (
+                  <Image source={{ uri: formData.aadharBack }} style={styles.previewImage} />
+                )}
+              </View>
+
+              <View style={styles.modalStepButtons}>
+                <TouchableOpacity style={styles.modalBackButton} onPress={() => setStep(4)} disabled={registerLoading}>
+                  <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
+                  <Text style={styles.buttonText}>{translations.back}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalNextButton} onPress={() => setStep(6)} disabled={registerLoading}>
+                  <Text style={styles.buttonText}>{translations.next} →</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* STEP 6: PAN Card */}
+          {step === 6 && (
+            <View style={styles.stepContainer}>
+              <Text style={[styles.stepTitle, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                {translations.panCard}
+              </Text>
+              <Text style={styles.modalSubStep}>{translations.uploadPanCard}</Text>
+
+              <View style={styles.uploadContainer}>
+                <TouchableOpacity style={styles.uploadButton} onPress={() => pickImage('panCard')} disabled={registerLoading}>
+                  <MaterialIcons name="assignment" size={24} color="#8b5cf6" />
+                  <Text style={styles.uploadButtonText}>
+                    {formData.panCard ? translations.changePanCard : translations.uploadPanCardLabel}
                   </Text>
-                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    ••••••••
+                </TouchableOpacity>
+                {formData.panCard && (
+                  <Image source={{ uri: formData.panCard }} style={styles.previewImage} />
+                )}
+              </View>
+
+              <View style={styles.modalStepButtons}>
+                <TouchableOpacity style={styles.modalBackButton} onPress={() => setStep(5)} disabled={registerLoading}>
+                  <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
+                  <Text style={styles.buttonText}>{translations.back}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalNextButton} onPress={() => setStep(7)} disabled={registerLoading}>
+                  <Text style={styles.buttonText}>{translations.next} →</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* STEP 7: Signature & Submit */}
+          {step === 7 && (
+            <View style={styles.stepContainer}>
+              <Text style={[styles.stepTitle, { fontSize: isSmallDevice ? 14 : 16 }]}>
+                {translations.signature}
+              </Text>
+              <Text style={styles.modalSubStep}>{translations.uploadSignature}</Text>
+
+              <View style={styles.uploadContainer}>
+                <TouchableOpacity style={styles.uploadButton} onPress={() => pickImage('signature')} disabled={registerLoading}>
+                  <MaterialIcons name="edit" size={24} color="#8b5cf6" />
+                  <Text style={styles.uploadButtonText}>
+                    {formData.signature ? translations.changeSignature : translations.uploadSignatureLabel}
                   </Text>
-                </View>
-                <View style={styles.reviewRow}>
-                  <Text style={[styles.reviewLabel, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {translations.registrationMethod}
-                  </Text>
-                  <Text style={[styles.reviewValue, { fontSize: isSmallDevice ? 11 : 13 }]}>
-                    {registrationMethod === 'email' ? translations.email : translations.phone}
-                  </Text>
-                </View>
+                </TouchableOpacity>
+                {formData.signature && (
+                  <Image source={{ uri: formData.signature }} style={styles.previewImage} />
+                )}
+              </View>
+
+              <View style={styles.modalStepButtons}>
+                <TouchableOpacity style={styles.modalBackButton} onPress={() => setStep(6)} disabled={registerLoading}>
+                  <MaterialIcons name="arrow-back" size={20} color="#ffffff" />
+                  <Text style={styles.buttonText}>{translations.back}</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.modalSubmitButton, registerLoading && styles.disabledButton]} 
+                  onPress={handleRegisterMember}
+                  disabled={registerLoading}
+                >
+                  {registerLoading ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <>
+                      <MaterialIcons name="check" size={20} color="#ffffff" />
+                      <Text style={styles.buttonText}>{translations.registerBtn}</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               </View>
             </View>
           )}
         </ScrollView>
-
-        {/* Navigation Buttons */}
-        <View style={styles.modalButtons}>
-          {step > 1 && (
-            <TouchableOpacity
-              style={[styles.modalButton, styles.modalButtonSecondary, { flex: 0.4 }]}
-              onPress={() => setStep(step - 1)}
-              disabled={registerLoading}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.modalButtonTextSecondary, { fontSize: isSmallDevice ? 12 : 14 }]}>
-                {translations.back}
-              </Text>
-            </TouchableOpacity>
-          )}
-          
-          <TouchableOpacity
-            style={[
-              styles.modalButton,
-              styles.modalButtonPrimary,
-              { flex: step > 1 ? 0.6 : 1 },
-              registerLoading && styles.modalButtonDisabled
-            ]}
-            onPress={() => {
-              if (step === getTotalSteps()) {
-                handleRegisterMember();
-              } else {
-                setStep(step + 1);
-              }
-            }}
-            disabled={registerLoading}
-            activeOpacity={0.7}
-          >
-            {registerLoading ? (
-              <ActivityIndicator size="small" color="#ffffff" />
-            ) : (
-              <Text style={[styles.modalButtonTextPrimary, { fontSize: isSmallDevice ? 12 : 14 }]}>
-                {step === getTotalSteps() ? translations.submit : translations.next}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
       </View>
     </KeyboardAvoidingView>
   </View>

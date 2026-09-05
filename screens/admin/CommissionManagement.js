@@ -2077,9 +2077,9 @@ export default function CommissionManagement({ navigation }) {
                 <Text style={[styles.tableCell, styles.nameCol, { fontSize: isSmallDevice ? 10 : 11 }]}>
                   {level.name}
                 </Text>
-                <Text style={[styles.tableCell, styles.percentageCol, styles.commissionText, { fontSize: isSmallDevice ? 10 : 11 }]}>
-                  {level.primaryCommission}%
-                </Text>
+<Text style={[styles.tableCell, styles.percentageCol, styles.commissionText, { fontSize: isSmallDevice ? 10 : 11 }]}>
+  {Number(level.primaryCommission).toFixed(1)}%
+</Text>
                 <Text style={[styles.tableCell, styles.donationsCol, styles.donationText, { fontSize: isSmallDevice ? 10 : 11 }]}>
                   ₹{(level.prizeAmount || 0).toLocaleString()}
                 </Text>

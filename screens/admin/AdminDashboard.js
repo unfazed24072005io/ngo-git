@@ -984,40 +984,41 @@ const styles = StyleSheet.create({
   },
 
   // ============ PENDING REGISTRATIONS MODAL (Centered) ============
-  pendingModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-    width: '100%',
-    height: '100%',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  pendingModalContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    padding: 20,
-    paddingBottom: 16,
-    width: '100%',
-    maxWidth: 500,
-    maxHeight: '85%',
-    minHeight: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  pendingModalContent: {
-    flex: 1,
-    width: '100%',
-    minHeight: 150,
-  },
+  // ============ PENDING REGISTRATIONS MODAL (Centered) ============
+pendingModalOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.6)',
+  justifyContent: 'center',
+  alignItems: 'center',
+  padding: 12, // Reduced padding for more space
+  width: '100%',
+  height: '100%',
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+},
+pendingModalContainer: {
+  backgroundColor: '#ffffff',
+  borderRadius: 24,
+  padding: 20,
+  paddingBottom: 16,
+  width: '95%', // Increased from 100% with maxWidth
+  maxWidth: 700, // Increased from 500
+  maxHeight: '100%', // Increased from 85%
+  minHeight: 400, // Increased from 200
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.25,
+  shadowRadius: 8,
+  elevation: 5,
+},
+pendingModalContent: {
+  flex: 1,
+  width: '100%',
+  minHeight: 250, // Increased from 150
+},
   pendingModalTitle: {
     fontFamily: Fonts.Bold,
     fontSize: 22,

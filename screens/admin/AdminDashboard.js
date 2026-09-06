@@ -12,6 +12,7 @@ import {
   Image,
   Platform,
   Modal,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { db, getAuthInstance } from '../../config/firebase';
@@ -117,9 +118,22 @@ const fetchPendingRegistrations = async () => {
     console.error('Error fetching pending registrations:', error);
   }
 };
+
+// Use a separate useEffect with proper cleanup
 useEffect(() => {
-  fetchPendingRegistrations();
-}, []);
+  let mounted = true;
+  
+  const loadPendingRegistrations = async () => {
+    if (!mounted) return;
+    await fetchPendingRegistrations();
+  };
+  
+  loadPendingRegistrations();
+  
+  return () => {
+    mounted = false;
+  };
+}, []); // Empty dependency array - only runs once
   const fetchAdminName = async () => {
 const auth = getAuthInstance();
     try {
@@ -164,9 +178,8 @@ const auth = getAuthInstance();
 // In AdminDashboard.js
 
 const approveRegistration = async (user) => {
-const auth = getAuthInstance();
+  const auth = getAuthInstance();
   try {
-    // ✅ Get the correct collection reference
     const userRef = doc(db, 'users', user.id);
     
     await updateDoc(userRef, {
@@ -177,25 +190,25 @@ const auth = getAuthInstance();
     
     console.log('✅ Registration approved:', user.fullName || user.name);
     
-    // Refresh the lists
-    await fetchPendingRegistrations();
-    await fetchDashboardData();
+    // Update local state immediately instead of re-fetching
+    setPendingRegistrations(prev => prev.filter(item => item.id !== user.id));
+    setStats(prev => ({
+      ...prev,
+      pendingApprovals: prev.pendingApprovals - 1
+    }));
     
-    // Close modal if no more pending
     if (pendingRegistrations.length <= 1) {
       setShowPendingModal(false);
     }
     
   } catch (error) {
     console.error('Error approving registration:', error);
-    // ❌ NO ALERT - Silent fail with console log
   }
 };
 
 const rejectRegistration = async (user) => {
-const auth = getAuthInstance();
+  const auth = getAuthInstance();
   try {
-    // ✅ Get the correct collection reference
     const userRef = doc(db, 'users', user.id);
     
     await updateDoc(userRef, {
@@ -206,18 +219,19 @@ const auth = getAuthInstance();
     
     console.log('❌ Registration rejected:', user.fullName || user.name);
     
-    // Refresh the lists
-    await fetchPendingRegistrations();
-    await fetchDashboardData();
+    // Update local state immediately instead of re-fetching
+    setPendingRegistrations(prev => prev.filter(item => item.id !== user.id));
+    setStats(prev => ({
+      ...prev,
+      pendingApprovals: prev.pendingApprovals - 1
+    }));
     
-    // Close modal if no more pending
     if (pendingRegistrations.length <= 1) {
       setShowPendingModal(false);
     }
     
   } catch (error) {
     console.error('Error rejecting registration:', error);
-    // ❌ NO ALERT - Silent fail with console log
   }
 };
   const fetchRecentData = async () => {
@@ -743,29 +757,33 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
 
-  // ============ STATS GRID ============
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  statCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 14,
-    width: '48%',
-    marginBottom: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
+  // In styles, update the statsGrid:
+statsGrid: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  justifyContent: 'space-between',
+  paddingHorizontal: 16,
+  marginBottom: 12,
+  // Add this to prevent overflow
+  width: '100%',
+},
+
+// Update StatCard width to be more responsive:
+statCard: {
+  backgroundColor: '#ffffff',
+  borderRadius: 12,
+  padding: 14,
+  width: '47%', // Changed from 48% to prevent overflow
+  marginBottom: 10,
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.05,
+  shadowRadius: 2,
+  elevation: 1,
+},
   statCardClickable: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
@@ -1111,7 +1129,7 @@ pendingItemReason: {
 },
 pendingItemActions: {
   flexDirection: 'row',
-  gap: 10,
+  justifyContent: 'space-between',
   marginTop: 8,
   width: '100%',
 },

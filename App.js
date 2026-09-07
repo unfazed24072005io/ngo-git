@@ -37,6 +37,7 @@ import WorkingMemberApplications from './screens/workingMember/WorkingMemberAppl
 // Admin Screens
 import AdminDashboard from './screens/admin/AdminDashboard';
 import AdminProfile from './screens/admin/AdminProfile';
+import PendingApprovals from './screens/admin/PendingApprovals';
 import MemberListManagement from './screens/admin/MemberListManagement';
 import WorkingMemberManagement from './screens/admin/WorkingMemberManagement';
 import ECommerceManagement from './screens/admin/ECommerceManagement';
@@ -670,6 +671,7 @@ export default function App() {
   {/* Admin Screens */}
   <Stack.Screen name="AdminTabs" component={AdminTabs} />
   <Stack.Screen name="WorkingMemberList" component={WorkingMemberManagement} />
+  <Stack.Screen name="PendingApprovals" component={PendingApprovals} />
   <Stack.Screen name="CompanyProfile" component={CompanyProfileManagement} />
   <Stack.Screen name="AdminProfile" component={AdminProfile} />
   <Stack.Screen name="AdminNotificationTabs" component={AdminNotificationTabs} />

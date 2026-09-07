@@ -430,14 +430,15 @@ const rejectRegistration = async (user) => {
     icon="event" 
     color="#10b981" 
   />
-  <StatCard 
-    title={translations.pendingApprovals} 
-    value={stats.pendingApprovals} 
-    icon="pending" 
-    color="#f59e0b" 
-    badge={stats.pendingApprovals}
-    onPress={() => setShowPendingModal(true)}
-  />
+
+<StatCard 
+  title={translations.pendingApprovals} 
+  value={stats.pendingApprovals} 
+  icon="pending" 
+  color="#f59e0b" 
+  badge={stats.pendingApprovals}
+  onPress={() => navigation.navigate('PendingApprovals')}
+/>
 </View>
 
         {/* Recent Members */}
